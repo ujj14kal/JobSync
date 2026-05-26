@@ -1,4 +1,4 @@
-# JobSync — Claude Code Context
+# JobSync — Developer Guide
 
 ## Project Overview
 JobSync is an AI-powered career platform built with Next.js 16 + FastAPI.
