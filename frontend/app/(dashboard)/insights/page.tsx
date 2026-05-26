@@ -1,0 +1,283 @@
+"use client";
+
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { TrendingUp, TrendingDown, Minus, Search, DollarSign, BarChart2, Briefcase } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
+import type { CareerInsight } from "@/lib/types";
+
+const popularRoles = [
+  "Software Engineer",
+  "Product Manager",
+  "Data Scientist",
+  "ML Engineer",
+  "DevOps Engineer",
+  "Frontend Engineer",
+  "Backend Engineer",
+  "Full Stack Engineer",
+];
+
+export default function InsightsPage() {
+  const [role, setRole] = useState("Software Engineer");
+  const [searchInput, setSearchInput] = useState("Software Engineer");
+
+  const { data: insight, isLoading } = useQuery({
+    queryKey: ["career-insight", role],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/insights?role=${encodeURIComponent(role)}`);
+      return data as CareerInsight;
+    },
+    staleTime: 30 * 60 * 1000, // 30 min cache
+  });
+
+  const trendIcon = (trend: string) => {
+    if (trend === "rising") return <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />;
+    if (trend === "declining") return <TrendingDown className="w-3.5 h-3.5 text-red-400" />;
+    return <Minus className="w-3.5 h-3.5 text-[var(--text-muted)]" />;
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1">
+          Career Insights
+        </h1>
+        <p className="text-[14px] text-[var(--text-secondary)]">
+          Real-time market data, trending skills, and salary ranges for your target role.
+        </p>
+      </motion.div>
+
+      {/* Role selector */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="space-y-3"
+      >
+        <form
+          onSubmit={(e) => { e.preventDefault(); setRole(searchInput); }}
+          className="flex gap-3"
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Enter a role to get insights…"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-5 py-3 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+          >
+            Get insights
+          </button>
+        </form>
+
+        {/* Quick roles */}
+        <div className="flex flex-wrap gap-2">
+          {popularRoles.map((r) => (
+            <button
+              key={r}
+              onClick={() => { setRole(r); setSearchInput(r); }}
+              className={`text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${
+                role === r
+                  ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
+                  : "bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-48 rounded-2xl animate-shimmer" />
+          ))}
+        </div>
+      )}
+
+      {/* Insights content */}
+      {insight && !isLoading && (
+        <div className="space-y-6">
+          {/* Salary ranges */}
+          <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <div className="flex items-center gap-2 mb-5">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                Salary Ranges · {insight.salary_range.location ?? "US"}
+              </h2>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { level: "Entry Level", range: insight.salary_range.entry },
+                { level: "Mid Level", range: insight.salary_range.mid },
+                { level: "Senior Level", range: insight.salary_range.senior },
+              ].map(({ level, range }) => (
+                <div key={level} className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+                  <div className="text-[11px] text-[var(--text-muted)] mb-1">{level}</div>
+                  <div className="text-[18px] font-bold text-emerald-400">
+                    ${(range.min / 1000).toFixed(0)}K–${(range.max / 1000).toFixed(0)}K
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)]">per year</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Trending skills */}
+          <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+            <div className="flex items-center gap-2 mb-5">
+              <TrendingUp className="w-4 h-4 text-[var(--accent-primary)]" />
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                Trending Skills
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {insight.trending_skills.map((skill) => (
+                <div
+                  key={skill.skill}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                >
+                  {trendIcon(skill.trend)}
+                  <div className="flex-1">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                      {skill.skill}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)]">
+                      Demand: {skill.demand_score}/100
+                    </div>
+                  </div>
+                  <div className={`text-[11px] font-medium ${
+                    skill.yoy_change > 0
+                      ? "text-emerald-400"
+                      : skill.yoy_change < 0
+                        ? "text-red-400"
+                        : "text-[var(--text-muted)]"
+                  }`}>
+                    {skill.yoy_change > 0 ? "+" : ""}{skill.yoy_change}% YoY
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Job market + top companies */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart2 className="w-4 h-4 text-violet-400" />
+                <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                  Job Market
+                </h2>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] text-[var(--text-secondary)]">Open positions</span>
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                    {insight.job_market.openings_count.toLocaleString()}+
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] text-[var(--text-secondary)]">Competition</span>
+                  <span className={`text-[13px] font-semibold ${
+                    insight.job_market.competition_level === "high"
+                      ? "text-red-400"
+                      : insight.job_market.competition_level === "medium"
+                        ? "text-amber-400"
+                        : "text-emerald-400"
+                  }`}>
+                    {insight.job_market.competition_level}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] text-[var(--text-secondary)]">Avg. response rate</span>
+                  <span className="text-[13px] font-semibold text-emerald-400">
+                    {insight.job_market.avg_response_rate}%
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[12px] text-[var(--text-secondary)]">Top ATS systems</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {insight.job_market.top_ats_systems.map((ats) => (
+                      <span
+                        key={ats}
+                        className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-overlay)] border border-[var(--border-subtle)] text-[var(--text-muted)]"
+                      >
+                        {ats}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+              <div className="flex items-center gap-2 mb-4">
+                <Briefcase className="w-4 h-4 text-amber-400" />
+                <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                  Top Hiring Companies
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {insight.top_companies.map((company, i) => (
+                  <div
+                    key={company}
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                  >
+                    <div className="w-5 h-5 rounded-md bg-[var(--accent-muted)] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[9px] font-bold text-[var(--accent-hover)]">{i + 1}</span>
+                    </div>
+                    <span className="text-[12px] text-[var(--text-secondary)] truncate">{company}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Career paths */}
+          {insight.career_paths.length > 0 && (
+            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">
+                Common Career Paths
+              </h2>
+              <div className="space-y-3">
+                {insight.career_paths.map((path, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
+                  >
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                      {path.from}
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-px bg-[var(--border-default)]" />
+                      <span className="text-[11px] text-[var(--text-muted)] whitespace-nowrap">
+                        {path.avg_transition_time}
+                      </span>
+                      <div className="flex-1 h-px bg-[var(--border-default)]" />
+                    </div>
+                    <div className="text-[13px] font-medium text-[var(--accent-hover)]">
+                      {path.to}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
