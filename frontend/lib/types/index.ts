@@ -260,6 +260,19 @@ export interface CareerPath {
   required_skills: string[];
 }
 
+// ─── Service Status ──────────────────────────────────────────────────────────
+
+export interface ServiceStatus {
+  active_analyses: number;
+  max_concurrent: number;
+  slots_available: number;
+  at_capacity: boolean;
+  utilization_pct: number;
+  daily_limit_per_user: number;
+  message: string;
+  slots: { analysis_id: string; running_for_s: number }[];
+}
+
 // ─── API Responses ───────────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {

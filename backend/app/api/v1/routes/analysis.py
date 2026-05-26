@@ -6,11 +6,18 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
 from app.services.ats_engine import compute_all_scores
 from app.services.ai_feedback import generate_recruiter_feedback, generate_bullet_rewrites
 from app.services.embedding_service import embed_text
+from app.services.cache_service import (
+    get_cached_analysis,
+    get_user_analyses_today,
+    increment_user_quota_cache,
+)
+from app.services import active_tracker
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -20,6 +27,31 @@ class CreateAnalysisRequest(BaseModel):
     job_id: str
 
 
+# ── Status endpoint (public — no auth required) ───────────────────────────────
+# IMPORTANT: must be registered BEFORE /{analysis_id} to avoid "status"
+# being captured as a UUID param.
+
+@router.get("/status")
+async def get_service_status():
+    """
+    Public endpoint — returns current analysis capacity.
+    Frontend polls this every 10 s to show live availability badge.
+    No auth required (read-only, no user data exposed).
+    """
+    info = active_tracker.capacity_info()
+    return {
+        **info,
+        "daily_limit_per_user": settings.MAX_ANALYSES_PER_DAY,
+        "message": (
+            "Service is at capacity. Please try again in a moment."
+            if info["at_capacity"]
+            else f"{info['slots_available']} analysis slot(s) available."
+        ),
+    }
+
+
+# ── Create analysis ───────────────────────────────────────────────────────────
+
 @router.post("", status_code=201)
 async def create_analysis(
     request: CreateAnalysisRequest,
@@ -28,20 +60,82 @@ async def create_analysis(
 ):
     """
     Create a new ATS analysis.
-    Returns immediately with pending status; analysis runs in background.
+
+    Guards (in order):
+      1. Deduplication   — same (resume_id, job_id) pair → return cached result
+      2. Daily quota     — 429 if user exceeded MAX_ANALYSES_PER_DAY
+      3. Global capacity — 503 if MAX_CONCURRENT_ANALYSES slots are taken
+      4. Ownership       — 404 if resume/job not found for this user
+
+    Returns immediately; the heavy work runs in a background task.
     """
     supabase = get_supabase()
 
-    # Verify ownership
-    resume = supabase.table("resumes").select("*").eq("id", request.resume_id).eq("user_id", user_id).single().execute()
+    # ── 1. Deduplication ──────────────────────────────────────────────────────
+    existing_id = await get_cached_analysis(request.resume_id, request.job_id)
+    if existing_id:
+        result = (
+            supabase.table("analyses")
+            .select("*")
+            .eq("id", existing_id)
+            .single()
+            .execute()
+        )
+        if result.data:
+            return {**result.data, "cached": True}
+
+    # ── 2. Per-user daily quota ────────────────────────────────────────────────
+    analyses_today = await get_user_analyses_today(user_id)
+    if analyses_today >= settings.MAX_ANALYSES_PER_DAY:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Daily analysis limit reached ({settings.MAX_ANALYSES_PER_DAY}/day). "
+                "Try again tomorrow."
+            ),
+        )
+
+    # ── 3. Global concurrency cap ─────────────────────────────────────────────
+    # Check before touching the DB to fail fast.
+    info = active_tracker.capacity_info()
+    if info["at_capacity"]:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    f"Service is at capacity — {info['active_analyses']} "
+                    f"analyses are running right now. "
+                    "Please wait a moment and try again."
+                ),
+                "active_analyses": info["active_analyses"],
+                "max_concurrent": info["max_concurrent"],
+                "at_capacity": True,
+            },
+        )
+
+    # ── 4. Ownership verification ─────────────────────────────────────────────
+    resume = (
+        supabase.table("resumes")
+        .select("*")
+        .eq("id", request.resume_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
     if not resume.data:
         raise HTTPException(status_code=404, detail="Resume not found")
 
-    job = supabase.table("job_descriptions").select("*").eq("id", request.job_id).single().execute()
+    job = (
+        supabase.table("job_descriptions")
+        .select("*")
+        .eq("id", request.job_id)
+        .single()
+        .execute()
+    )
     if not job.data:
         raise HTTPException(status_code=404, detail="Job description not found")
 
-    # Create pending analysis record
+    # ── 5. Persist pending record ─────────────────────────────────────────────
     analysis_id = str(uuid.uuid4())
     record = {
         "id": analysis_id,
@@ -61,23 +155,58 @@ async def create_analysis(
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create analysis")
 
-    # Run analysis in background
+    # ── 6. Claim a global slot ────────────────────────────────────────────────
+    # try_acquire happens AFTER the DB insert so we have the real analysis_id.
+    # If a concurrent request sneaked in between the capacity check (step 3)
+    # and here, try_acquire returns False → undo the insert and return 503.
+    acquired = active_tracker.try_acquire(user_id, analysis_id)
+    if not acquired:
+        supabase.table("analyses").delete().eq("id", analysis_id).execute()
+        info = active_tracker.capacity_info()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    f"Service just reached capacity — {info['active_analyses']} "
+                    "analyses running. Please try again in a moment."
+                ),
+                "active_analyses": info["active_analyses"],
+                "max_concurrent": info["max_concurrent"],
+                "at_capacity": True,
+            },
+        )
+
+    # Optimistically bump the per-user daily counter
+    increment_user_quota_cache(user_id)
+
+    # ── 7. Fire background task ───────────────────────────────────────────────
     background_tasks.add_task(
         run_analysis,
         analysis_id=analysis_id,
         resume_data=resume.data,
         job_data=job.data,
+        user_id=user_id,
     )
 
     return result.data[0]
 
 
-async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
-    """Background task: run full ATS analysis and update DB."""
+# ── Background analysis task ──────────────────────────────────────────────────
+
+async def run_analysis(
+    analysis_id: str,
+    resume_data: dict,
+    job_data: dict,
+    user_id: str,
+):
+    """
+    Background task: run full ATS analysis and write results to DB.
+    The active_tracker slot is ALWAYS released in the finally block,
+    whether the analysis succeeds, fails, or raises unexpectedly.
+    """
     supabase = get_supabase()
 
     try:
-        # Update status to processing
         supabase.table("analyses").update({"status": "processing"}).eq("id", analysis_id).execute()
 
         resume_text = resume_data.get("raw_text", "")
@@ -85,11 +214,11 @@ async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
         parsed_resume = resume_data.get("parsed_data", {})
         parsed_job = job_data.get("parsed_data", {})
 
-        # Get/compute embeddings
+        # Compute or reuse embeddings
         resume_embedding = resume_data.get("embedding") or embed_text(resume_text[:3000])
         job_embedding = job_data.get("embedding") or embed_text(job_text[:3000])
 
-        # Compute ATS scores
+        # ATS scoring (CPU-bound, no Groq calls)
         score_data = compute_all_scores(
             resume_text=resume_text,
             parsed_resume=parsed_resume,
@@ -102,7 +231,7 @@ async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
         scores = score_data["scores"]
         missing_keywords = score_data["missing_keywords"]
 
-        # Generate LLM feedback (run in parallel)
+        # LLM feedback — run in parallel, both go through groq_call() rate limiter
         feedback_task = asyncio.create_task(
             generate_recruiter_feedback(
                 resume_text=resume_text,
@@ -113,7 +242,6 @@ async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
                 missing_keywords=missing_keywords,
             )
         )
-
         rewrites_task = asyncio.create_task(
             generate_bullet_rewrites(
                 parsed_resume=parsed_resume,
@@ -123,17 +251,14 @@ async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
 
         feedback, rewrites = await asyncio.gather(feedback_task, rewrites_task)
 
-        # Build skill gaps from feedback
-        skill_gaps = feedback.get("skill_gaps", [])
-
-        # Update analysis record
+        # Persist results
         update_data = {
             "status": "complete",
             **scores,
             "strengths": feedback.get("strengths", []),
             "weaknesses": feedback.get("weaknesses", []),
             "missing_keywords": missing_keywords,
-            "skill_gaps": skill_gaps,
+            "skill_gaps": feedback.get("skill_gaps", []),
             "improvement_suggestions": feedback.get("improvement_suggestions", []),
             "rewritten_bullets": rewrites,
             "recruiter_summary": feedback.get("recruiter_summary", ""),
@@ -147,10 +272,16 @@ async def run_analysis(analysis_id: str, resume_data: dict, job_data: dict):
             "error_message": str(e)[:500],
         }).eq("id", analysis_id).execute()
 
+    finally:
+        # Always free the slot so the next user can proceed
+        active_tracker.release(analysis_id)
+
+
+# ── List / Get / Retry ────────────────────────────────────────────────────────
 
 @router.get("")
 async def list_analyses(user_id: str = Depends(get_current_user_id)):
-    """List all analyses for the user, with job/resume details joined."""
+    """List all analyses for the current user with job/resume details joined."""
     supabase = get_supabase()
     result = (
         supabase.table("analyses")
@@ -164,7 +295,6 @@ async def list_analyses(user_id: str = Depends(get_current_user_id)):
         .execute()
     )
 
-    # Reshape for frontend
     analyses = []
     for a in (result.data or []):
         job = a.pop("job_descriptions", None)
@@ -234,7 +364,7 @@ async def retry_analysis(
     background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Re-run a failed analysis."""
+    """Re-run a failed analysis (also subject to global capacity check)."""
     supabase = get_supabase()
 
     analysis = (
@@ -249,14 +379,38 @@ async def retry_analysis(
     if not analysis.data:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
+    # Capacity check for retries too
+    info = active_tracker.capacity_info()
+    if info["at_capacity"]:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    f"Service is at capacity ({info['active_analyses']} running). "
+                    "Please wait and try again."
+                ),
+                "active_analyses": info["active_analyses"],
+                "max_concurrent": info["max_concurrent"],
+                "at_capacity": True,
+            },
+        )
+
     a = analysis.data
     supabase.table("analyses").update({"status": "pending"}).eq("id", analysis_id).execute()
+
+    acquired = active_tracker.try_acquire(user_id, analysis_id)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail={"message": "Service just reached capacity. Try again shortly.", "at_capacity": True},
+        )
 
     background_tasks.add_task(
         run_analysis,
         analysis_id=analysis_id,
         resume_data=a["resumes"],
         job_data=a["job_descriptions"],
+        user_id=user_id,
     )
 
     return {"status": "retrying", "analysis_id": analysis_id}

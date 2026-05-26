@@ -1,18 +1,29 @@
 """
 Mentor discovery and matching service.
 Sources: Unstop, ADPList (scraped), with semantic matching.
+
+Rate-limit notes:
+  - generate_mentors_with_llm() uses groq_call() with 8b fast model
+  - In-memory role-hash cache avoids regenerating for the same role
+  - max_tokens trimmed from 2 000 → 1 100
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import time
 import structlog
 import httpx
 from bs4 import BeautifulSoup
-from groq import AsyncGroq
 
 from app.core.config import settings
 from app.services.embedding_service import cosine_similarity, embed_text
+from app.services.groq_limiter import groq_call
 from app.db.supabase_client import get_supabase
+
+# In-memory mentor cache: role_hash → (mentors_list, expires_at)
+_MENTOR_CACHE: dict[str, tuple[list, float]] = {}
+_MENTOR_CACHE_TTL = 3600 * settings.MENTOR_CACHE_TTL_HOURS  # default 48 h
 
 logger = structlog.get_logger()
 
@@ -195,55 +206,55 @@ def parse_unstop_html(html: str, role: str) -> list[dict]:
 
 async def generate_mentors_with_llm(role: str, skills: list[str]) -> list[dict]:
     """
-    Use Groq to generate realistic mentor profiles when scraping fails.
-    These are representative examples, not real people's data.
+    Generate representative mentor profiles via 8b model.
+    Results are cached in-memory for MENTOR_CACHE_TTL hours to prevent
+    repeated LLM calls for the same role across user sessions.
     """
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+    # ── In-memory role cache ──────────────────────────────────────────────────
+    cache_key = hashlib.sha256(
+        f"{role}:{','.join(sorted(skills[:5]))}".encode()
+    ).hexdigest()[:16]
 
+    entry = _MENTOR_CACHE.get(cache_key)
+    if entry and time.monotonic() < entry[1]:
+        logger.debug("Mentor cache hit", role=role)
+        return entry[0]
+
+    # ── LLM call ─────────────────────────────────────────────────────────────
     skills_str = ", ".join(skills[:5])
 
-    prompt = f"""Generate 8 realistic mentor profiles for someone looking for a "{role}" mentor with skills in: {skills_str}.
-These should represent the types of mentors available on Unstop and ADPList.
-
-Return ONLY valid JSON:
-{{
-  "mentors": [
-    {{
-      "name": "realistic Indian/international name",
-      "title": "their current job title",
-      "company": "their company (mix of FAANG, startups, etc.)",
-      "platform": "unstop",
-      "profile_url": "https://unstop.com/mentors",
-      "specializations": ["skill1", "skill2", "skill3"],
-      "industries": ["Technology"],
-      "career_stages": ["entry", "mid"],
-      "availability": "Weekends",
-      "session_format": "1:1 Video",
-      "bio": "2-3 sentence bio about their experience and mentoring style",
-      "rating": 4.5-5.0,
-      "review_count": 10-100,
-      "is_verified": true
-    }}
-  ]
-}}
-
-Make them realistic, diverse (mix of FAANG and startup backgrounds), and genuinely helpful for a "{role}" seeker."""
+    prompt = f"""8 mentor profiles for a "{role}" seeker with skill gaps: {skills_str}.
+Mix of FAANG/startup backgrounds. Return JSON only:
+{{"mentors":[{{"name":"","title":"","company":"","platform":"unstop",
+"profile_url":"https://unstop.com/mentors","specializations":[],"industries":["Technology"],
+"career_stages":["entry","mid"],"availability":"Weekends","session_format":"1:1 Video",
+"bio":"","rating":4.8,"review_count":25,"is_verified":true}}]}}"""
 
     try:
-        response = await client.chat.completions.create(
+        raw = await groq_call(
             model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
-            max_tokens=2000,
-            response_format={"type": "json_object"},
+            max_tokens=1100,
+            json_mode=True,
+            use_cache=True,
+            cache_ttl=_MENTOR_CACHE_TTL,
         )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(raw)
         mentors = result.get("mentors", [])
 
-        # Add embeddings
+        # Attach local embeddings (free, no API call)
         for mentor in mentors:
             spec_text = " ".join(mentor.get("specializations", []) + [mentor.get("title", "")])
             mentor["embedding"] = embed_text(spec_text)
+
+        # Store in in-memory cache
+        _MENTOR_CACHE[cache_key] = (mentors, time.monotonic() + _MENTOR_CACHE_TTL)
+
+        # Evict if cache grows too large
+        if len(_MENTOR_CACHE) > 200:
+            oldest_key = min(_MENTOR_CACHE, key=lambda k: _MENTOR_CACHE[k][1])
+            del _MENTOR_CACHE[oldest_key]
 
         return mentors
     except Exception as e:

@@ -18,6 +18,10 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting JobSync API", version=settings.APP_VERSION)
 
+    # Configure global active-analysis tracker from settings
+    from app.services import active_tracker
+    active_tracker.configure(settings.MAX_CONCURRENT_ANALYSES)
+
     # Pre-load embedding model to avoid cold start on first request
     try:
         from app.services.embedding_service import _load_model

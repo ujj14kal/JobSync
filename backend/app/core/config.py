@@ -39,12 +39,16 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 384
 
     # Rate limiting
-    MAX_ANALYSES_PER_DAY: int = 20
+    MAX_ANALYSES_PER_DAY: int = 10          # per user per day (free-tier safe)
+    MAX_CONCURRENT_ANALYSES: int = 5        # global slot cap across all users
+    GROQ_SEMAPHORE_LIMIT: int = 5           # max concurrent Groq requests
+    GROQ_RPM_LIMIT: int = 25                # requests/min ceiling (hard limit is 30)
     SCRAPING_TIMEOUT: int = 30
 
-    # Cache
+    # Cache TTLs (hours)
     JOB_CACHE_TTL_HOURS: int = 24
-    INSIGHTS_CACHE_TTL_HOURS: int = 6
+    INSIGHTS_CACHE_TTL_HOURS: int = 24   # insights rarely change; was 6
+    MENTOR_CACHE_TTL_HOURS: int = 48     # mentor profiles are stable
 
     class Config:
         env_file = ".env"

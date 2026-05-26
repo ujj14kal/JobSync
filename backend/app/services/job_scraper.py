@@ -192,51 +192,34 @@ def extract_job_content_from_html(html: str, url: str) -> Optional[str]:
 
 async def extract_job_details_with_llm(raw_text: str, company: str, job_title: str) -> dict:
     """
-    Use Groq LLM to extract structured job data from raw text.
+    Use Groq 8b model to extract structured job data from raw text.
+    Uses groq_call() for rate-limit management + prompt-hash caching (24 h).
     """
-    from groq import AsyncGroq
+    from app.services.groq_limiter import groq_call
 
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+    # Trim input aggressively — 8b doesn't need the whole listing
+    prompt = f"""Extract job info. Company: {company}. Title: {job_title}.
 
-    prompt = f"""Extract structured information from this job description. Return ONLY valid JSON.
+Text: {raw_text[:3000]}
 
-Company: {company}
-Job Title: {job_title}
-
-Job Text:
-{raw_text[:6000]}
-
-Return this exact JSON structure:
-{{
-  "title": "exact job title",
-  "company": "company name",
-  "location": "city, state or Remote",
-  "job_type": "Full-time/Part-time/Contract/Remote",
-  "experience_level": "Entry/Mid/Senior/Staff/Principal",
-  "salary_range": "range if mentioned or null",
-  "requirements": ["list of must-have requirements"],
-  "responsibilities": ["list of key responsibilities"],
-  "required_skills": ["list of required technical skills"],
-  "preferred_skills": ["list of nice-to-have skills"],
-  "qualifications": ["degrees, certifications needed"],
-  "tech_stack": ["technologies, frameworks, tools mentioned"],
-  "keywords": ["important keywords for ATS matching"],
-  "about_company": "brief company description if present"
-}}"""
+JSON only:
+{{"title":"","company":"","location":"","job_type":"Full-time","experience_level":"Mid",
+"salary_range":null,"requirements":[],"responsibilities":[],"required_skills":[],
+"preferred_skills":[],"qualifications":[],"tech_stack":[],"keywords":[],"about_company":""}}"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.GROQ_MODEL,
+        raw = await groq_call(
+            model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=2000,
-            response_format={"type": "json_object"},
+            max_tokens=900,
+            json_mode=True,
+            use_cache=True,
+            cache_ttl=86400,  # 24 h — same job text → same extraction
         )
-        content = response.choices[0].message.content
-        return json.loads(content)
+        return json.loads(raw)
     except Exception as e:
         logger.error("LLM extraction failed", error=str(e))
-        # Return minimal structure
         return {
             "title": job_title,
             "company": company,
@@ -318,47 +301,28 @@ async def search_and_scrape_job(
 
 async def generate_synthetic_job(company: str, job_title: str) -> dict:
     """
-    When scraping fails, use Groq to generate a realistic job description
-    based on common requirements for that role/company.
+    Fallback: generate a realistic job description via 8b model.
+    Result is cached 24 h — same company+role pair reuses the output.
     """
-    from groq import AsyncGroq
+    from app.services.groq_limiter import groq_call
 
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-
-    prompt = f"""Generate a realistic, detailed job description for a "{job_title}" position at {company}.
-Include:
-- 8-12 key responsibilities
-- 6-10 required technical skills
-- 4-6 preferred skills
-- Education/experience requirements
-- Technologies typically used at {company} for this role
-
-Return ONLY valid JSON with this structure:
-{{
-  "title": "{job_title}",
-  "company": "{company}",
-  "location": "San Francisco, CA / Remote",
-  "job_type": "Full-time",
-  "experience_level": "Mid",
-  "requirements": [],
-  "responsibilities": [],
-  "required_skills": [],
-  "preferred_skills": [],
-  "qualifications": [],
-  "tech_stack": [],
-  "keywords": [],
-  "about_company": "brief description"
-}}"""
+    prompt = f"""Realistic job description for "{job_title}" at {company}.
+Return JSON only — include required_skills (6-8), preferred_skills (3-4), responsibilities (5-7), tech_stack (5-8):
+{{"title":"{job_title}","company":"{company}","location":"Remote","job_type":"Full-time",
+"experience_level":"Mid","requirements":[],"responsibilities":[],"required_skills":[],
+"preferred_skills":[],"qualifications":[],"tech_stack":[],"keywords":[],"about_company":""}}"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.GROQ_MODEL,
+        raw = await groq_call(
+            model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=2000,
-            response_format={"type": "json_object"},
+            max_tokens=800,
+            json_mode=True,
+            use_cache=True,
+            cache_ttl=86400,  # 24 h
         )
-        parsed = json.loads(response.choices[0].message.content)
+        parsed = json.loads(raw)
         raw_text = _parsed_to_text(parsed)
         return {"raw_text": raw_text, "parsed_data": parsed, "source_url": None}
     except Exception as e:
