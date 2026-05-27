@@ -1,33 +1,45 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Cloud Build — JobSync API
 #
-# Triggered on push to main branch.
+# Triggered on push to main branch via Cloud Run UI trigger.
 # Builds the Docker image, pushes to Artifact Registry, deploys to Cloud Run.
 #
-# Setup (one-time):
-#   gcloud builds triggers create github \
-#     --repo-name=JobSync \
-#     --repo-owner=<your-github-username> \
-#     --branch-pattern=^main$ \
-#     --build-config=cloudbuild.yaml
+# Required substitution vars (set in trigger settings):
+#   _GROQ_API_KEY              — your Groq API key
+#   _SUPABASE_SERVICE_ROLE_KEY — Supabase service role JWT
 # ─────────────────────────────────────────────────────────────────────────────
 
 substitutions:
   _REGION: asia-south1
   _SERVICE: jobsync-api
   _REPO: jobsync
-  _IMAGE: asia-south1-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}
+  _GROQ_API_KEY: ''
+  _SUPABASE_SERVICE_ROLE_KEY: ''
 
 steps:
+  # ── Step 0: Create Artifact Registry repo (idempotent) ────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: ensure-registry
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud artifacts repositories create ${_REPO} \
+          --repository-format=docker \
+          --location=${_REGION} \
+          --description="JobSync Docker images" \
+          --project=${PROJECT_ID} 2>/dev/null || echo "Registry already exists"
+        gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
+
   # ── Step 1: Build Docker image ─────────────────────────────────────────────
   - name: gcr.io/cloud-builders/docker
     id: build
+    waitFor: [ensure-registry]
     args:
       - build
       - --file=backend/Dockerfile
-      - --tag=${_IMAGE}:${SHORT_SHA}
-      - --tag=${_IMAGE}:latest
-      - --cache-from=${_IMAGE}:latest
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
       - --build-arg=BUILDKIT_INLINE_CACHE=1
       - backend/
     env:
@@ -40,7 +52,7 @@ steps:
     args:
       - push
       - --all-tags
-      - ${_IMAGE}
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}
 
   # ── Step 3: Deploy to Cloud Run ────────────────────────────────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -51,7 +63,7 @@ steps:
       - run
       - deploy
       - ${_SERVICE}
-      - --image=${_IMAGE}:${SHORT_SHA}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
@@ -61,14 +73,12 @@ steps:
       - --min-instances=0
       - --max-instances=5
       - --timeout=300
-      - --set-env-vars=APP_VERSION=${SHORT_SHA}
-      - --update-secrets=GROQ_API_KEY=JOBSYNC_GROQ_API_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=JOBSYNC_SUPABASE_SERVICE_KEY:latest
-      - --service-account=jobsync-api@${PROJECT_ID}.iam.gserviceaccount.com
       - --no-cpu-throttling
+      - --set-env-vars=APP_VERSION=${SHORT_SHA},DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,OLLAMA_BASE_URL=,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,GROQ_API_KEY=${_GROQ_API_KEY},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}
 
 images:
-  - ${_IMAGE}:${SHORT_SHA}
-  - ${_IMAGE}:latest
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY
