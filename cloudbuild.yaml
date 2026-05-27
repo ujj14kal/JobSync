@@ -11,7 +11,7 @@
 
 substitutions:
   _REGION: asia-south1
-  _SERVICE: jobsync-api
+  _SERVICE: jobsync
   _REPO: jobsync
   _GROQ_API_KEY: ''
   _SUPABASE_SERVICE_ROLE_KEY: ''
