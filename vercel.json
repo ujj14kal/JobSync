@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://jobsync-api-REPLACE_WITH_CLOUD_RUN_HASH-em.a.run.app/api/:path*"
+      "destination": "https://jobsync-329097420297.asia-south1.run.app/api/:path*"
     }
   ],
   "headers": [

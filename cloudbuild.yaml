@@ -15,6 +15,7 @@ substitutions:
   _REPO: jobsync
   _GROQ_API_KEY: ''
   _SUPABASE_SERVICE_ROLE_KEY: ''
+  _CORS_ORIGINS: '["https://jobsync-329097420297.asia-south1.run.app","http://localhost:3000"]'
 
 steps:
   # ── Step 0: Create Artifact Registry repo (idempotent) ────────────────────
@@ -74,7 +75,7 @@ steps:
       - --max-instances=5
       - --timeout=300
       - --no-cpu-throttling
-      - --set-env-vars=APP_VERSION=${SHORT_SHA},DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,OLLAMA_BASE_URL=,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,GROQ_API_KEY=${_GROQ_API_KEY},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}
+      - --set-env-vars=APP_VERSION=${SHORT_SHA},DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,OLLAMA_BASE_URL=,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,GROQ_API_KEY=${_GROQ_API_KEY},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY},BACKEND_CORS_ORIGINS=${_CORS_ORIGINS}
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
