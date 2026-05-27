@@ -1,0 +1,84 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: jobsync-api
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/description: "JobSync AI Career Platform API"
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero when idle (free tier)
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+        # CPU always allocated during request (better for ML inference)
+        run.googleapis.com/cpu-throttling: "false"
+        # Cold start: give 90s for model loading
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      serviceAccountName: jobsync-api@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 8
+      timeoutSeconds: 300
+      containers:
+        - image: asia-south1-docker.pkg.dev/PROJECT_ID/jobsync/jobsync-api:latest
+          ports:
+            - containerPort: 8080
+              name: http1
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: "2"
+          env:
+            # ── App settings ───────────────────────────────────────────────
+            - name: APP_VERSION
+              value: "1.0.0"
+            - name: DEBUG
+              value: "false"
+            - name: OLLAMA_BASE_URL
+              value: ""   # empty = Ollama disabled on Cloud Run, uses Groq
+
+            # ── Supabase ───────────────────────────────────────────────────
+            - name: SUPABASE_URL
+              value: "https://dzdziagugdcbkictslrt.supabase.co"
+            - name: SUPABASE_ANON_KEY
+              value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE"
+
+            # ── Secrets (injected from Secret Manager) ─────────────────────
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: JOBSYNC_GROQ_API_KEY
+                  key: latest
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: JOBSYNC_SUPABASE_SERVICE_KEY
+                  key: latest
+
+            # ── CORS (update with your Vercel URL after deploy) ────────────
+            - name: BACKEND_CORS_ORIGINS
+              value: '["https://jobsync-app.vercel.app","http://localhost:3000"]'
+
+            # ── Concurrency tuning ─────────────────────────────────────────
+            - name: MAX_CONCURRENT_ANALYSES
+              value: "8"
+            - name: MAX_CONCURRENT_LLM_CALLS
+              value: "3"
+
+          # Startup probe — wait until embedding model is loaded
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12   # 30 + 12×10 = 150s max startup
+
+          # Liveness probe — restart if app freezes
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3

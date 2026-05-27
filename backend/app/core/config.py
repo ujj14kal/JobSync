@@ -38,9 +38,15 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
 
-    # Rate limiting
+    # Local inference (Ollama)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"  # set to "" to disable Ollama
+
+    # Rate limiting & concurrency
     MAX_ANALYSES_PER_DAY: int = 10          # per user per day (free-tier safe)
-    MAX_CONCURRENT_ANALYSES: int = 5        # global slot cap across all users
+    MAX_CONCURRENT_ANALYSES: int = 8        # global slot cap across all users
+    MAX_CONCURRENT_LLM_CALLS: int = 3       # LLM sub-slot cap
+    MAX_QUEUE_DEPTH: int = 50               # reject at this queue depth
+    USER_ANALYSIS_TIMEOUT: float = 120.0    # seconds before queued request times out
     GROQ_SEMAPHORE_LIMIT: int = 5           # max concurrent Groq requests
     GROQ_RPM_LIMIT: int = 25                # requests/min ceiling (hard limit is 30)
     SCRAPING_TIMEOUT: int = 30

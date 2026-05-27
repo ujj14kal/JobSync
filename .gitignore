@@ -42,3 +42,15 @@ coverage/
 
 # Misc
 *.tsbuildinfo
+
+# Trained model binaries (large files — stored separately)
+backend/models/*.joblib
+backend/models/training_metadata.json
+!backend/models/.gitkeep
+backend/.env.production
+backend/.env
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo

@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Google Cloud Build — JobSync API
+#
+# Triggered on push to main branch.
+# Builds the Docker image, pushes to Artifact Registry, deploys to Cloud Run.
+#
+# Setup (one-time):
+#   gcloud builds triggers create github \
+#     --repo-name=JobSync \
+#     --repo-owner=<your-github-username> \
+#     --branch-pattern=^main$ \
+#     --build-config=cloudbuild.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+substitutions:
+  _REGION: asia-south1
+  _SERVICE: jobsync-api
+  _REPO: jobsync
+  _IMAGE: asia-south1-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}
+
+steps:
+  # ── Step 1: Build Docker image ─────────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - --file=backend/Dockerfile
+      - --tag=${_IMAGE}:${SHORT_SHA}
+      - --tag=${_IMAGE}:latest
+      - --cache-from=${_IMAGE}:latest
+      - --build-arg=BUILDKIT_INLINE_CACHE=1
+      - backend/
+    env:
+      - DOCKER_BUILDKIT=1
+
+  # ── Step 2: Push to Artifact Registry ─────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    waitFor: [build]
+    args:
+      - push
+      - --all-tags
+      - ${_IMAGE}
+
+  # ── Step 3: Deploy to Cloud Run ────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy
+    waitFor: [push]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --cpu=2
+      - --concurrency=8
+      - --min-instances=0
+      - --max-instances=5
+      - --timeout=300
+      - --set-env-vars=APP_VERSION=${SHORT_SHA}
+      - --update-secrets=GROQ_API_KEY=JOBSYNC_GROQ_API_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=JOBSYNC_SUPABASE_SERVICE_KEY:latest
+      - --service-account=jobsync-api@${PROJECT_ID}.iam.gserviceaccount.com
+      - --no-cpu-throttling
+
+images:
+  - ${_IMAGE}:${SHORT_SHA}
+  - ${_IMAGE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 50
+
+timeout: 1800s

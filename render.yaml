@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: jobsync-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # fill in Render dashboard
+
+      - key: SUPABASE_URL
+        sync: false
+
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+
+      - key: BACKEND_CORS_ORIGINS
+        value: '["https://your-app.vercel.app"]'   # update after Vercel deploy
+
+      - key: DEBUG
+        value: "false"

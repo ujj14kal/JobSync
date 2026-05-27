@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/.venv
+**/venv
+**/.env
+**/.env.*
+!**/.env.example
+
+# Node / Frontend (backend image only)
+frontend/
+node_modules/
+
+# Test + dev files
+**/tests/
+**/*.test.*
+**/*.spec.*
+**/test_*.py
+
+# Docs
+*.md
+docs/
+AI_INTELLIGENCE_ARCHITECTURE.md
+
+# Trained models (baked separately or mounted)
+backend/models/*.joblib
+backend/models/training_metadata.json
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+coverage/
+*.tsbuildinfo
+render.yaml
+railway.toml
