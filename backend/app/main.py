@@ -2,6 +2,7 @@
 JobSync FastAPI Backend — Cloud Run production entry point
 """
 from contextlib import asynccontextmanager
+import asyncio
 import time
 import structlog
 from fastapi import FastAPI
@@ -18,6 +19,28 @@ _startup_time = time.time()
 _ready = False
 
 
+async def _warm_start_services() -> None:
+    """Load optional heavy services after Cloud Run can route to the app."""
+    # Pre-load embedding model without blocking container port binding.
+    try:
+        from app.services.embedding_service import _load_model
+        await asyncio.to_thread(_load_model)
+        logger.info("Embedding model loaded")
+    except Exception as e:
+        logger.warning("Embedding model load failed", error=str(e))
+
+    # Try loading trained ML predictor (non-blocking).
+    try:
+        from app.services.model_trainer import get_trained_predictor
+        predictor = await asyncio.to_thread(get_trained_predictor)
+        if predictor:
+            logger.info("Trained predictor loaded", type=predictor.model_type)
+        else:
+            logger.info("Using cold-start rule-based predictor")
+    except Exception as e:
+        logger.warning("Predictor load failed", error=str(e))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
@@ -28,38 +51,8 @@ async def lifespan(app: FastAPI):
     from app.services import active_tracker
     active_tracker.configure(settings.MAX_CONCURRENT_ANALYSES)
 
-    # 2. Pre-load embedding model — eliminates first-request cold start
-    try:
-        from app.services.embedding_service import _load_model
-        _load_model()
-        logger.info("Embedding model loaded")
-    except Exception as e:
-        logger.warning("Embedding model load failed", error=str(e))
-
-    # 3. Try loading trained ML predictor (non-blocking)
-    try:
-        from app.services.model_trainer import get_trained_predictor
-        predictor = get_trained_predictor()
-        if predictor:
-            logger.info("Trained predictor loaded", type=predictor.model_type)
-        else:
-            logger.info("Using cold-start rule-based predictor")
-    except Exception as e:
-        logger.warning("Predictor load failed", error=str(e))
-
-    # 4. Playwright — attempt install, graceful skip on Cloud Run if missing
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["playwright", "install", "chromium"],
-            check=False, capture_output=True, timeout=120,
-        )
-        if result.returncode == 0:
-            logger.info("Playwright Chromium ready")
-    except Exception:
-        logger.info("Playwright not available — scraping will be limited")
-
     _ready = True
+    asyncio.create_task(_warm_start_services())
     logger.info(
         "JobSync API ready",
         startup_secs=round(time.time() - _startup_time, 1),
