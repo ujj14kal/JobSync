@@ -1,24 +1,30 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Zap } from "lucide-react";
 
-function CallbackHandler() {
+export default function AuthCallbackPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const supabase = createClient();
+  const called = useRef(false);
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    const next = searchParams.get("next") ?? "/dashboard";
+    // Guard against React double-mount (Suspense/hydration remount) consuming
+    // the PKCE verifier cookie twice — second call would silently fail.
+    if (called.current) return;
+    called.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const next = params.get("next") ?? "/dashboard";
 
     if (!code) {
       router.replace("/login?error=missing_code");
       return;
     }
 
+    const supabase = createClient();
     supabase.auth
       .exchangeCodeForSession(code)
       .then(({ error }) => {
@@ -39,19 +45,5 @@ function CallbackHandler() {
       </div>
       <p className="text-[14px] text-[var(--text-secondary)]">Completing sign-in…</p>
     </div>
-  );
-}
-
-export default function AuthCallbackPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center">
-        <div className="w-10 h-10 rounded-xl bg-[var(--accent-primary)] animate-pulse flex items-center justify-center">
-          <Zap className="w-5 h-5 text-white" fill="white" />
-        </div>
-      </div>
-    }>
-      <CallbackHandler />
-    </Suspense>
   );
 }

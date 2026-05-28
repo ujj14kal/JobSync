@@ -30,7 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — .env.local stays private; .env.production is safe to commit (public keys only)
+# env files — never commit secrets; use Vercel / CI environment variables instead
+.env
+.env.*
 .env.local
 .env.*.local
 
