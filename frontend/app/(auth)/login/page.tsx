@@ -68,38 +68,17 @@ function LoginContent() {
     }
   }
 
-  /* ── Google OAuth — manual PKCE via localStorage ──────────────────────
-   * @supabase/ssr stores the PKCE verifier in cookies, but that cookie
-   * never survives the Supabase→Google→app redirect chain reliably.
-   * We generate verifier/challenge ourselves, keep the verifier in
-   * localStorage (guaranteed same-tab persistence), then exchange manually
-   * on the callback page via fetch + supabase.auth.setSession().
-   * ----------------------------------------------------------------------- */
+  /* ── Google OAuth — standard @supabase/ssr PKCE flow ── */
   async function handleGoogle() {
-    // 1. Generate PKCE verifier (random 32-byte base64url string)
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    const verifier = btoa(String.fromCharCode(...array))
-      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
-    // 2. Derive SHA-256 challenge
-    const encoded = new TextEncoder().encode(verifier);
-    const digest  = await crypto.subtle.digest("SHA-256", encoded);
-    const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
-      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
-    // 3. Persist verifier so callback page can read it after redirect
-    localStorage.setItem("pkce_verifier", verifier);
-
-    // 4. Redirect to Supabase OAuth with our own code_challenge
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`;
-    const supabaseUrl = "https://dzdziagugdcbkictslrt.supabase.co";
-    const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google` +
-      `&redirect_to=${encodeURIComponent(redirectTo)}` +
-      `&code_challenge=${challenge}` +
-      `&code_challenge_method=s256`;
-
-    window.location.href = authUrl;
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: { next: redirect },
+      },
+    });
+    if (error) toast.error(error.message);
   }
 
   /* ── Email / Password ── */
