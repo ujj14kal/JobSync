@@ -22,9 +22,9 @@ class Settings(BaseSettings):
         return json.loads(self.BACKEND_CORS_ORIGINS)
 
     # Supabase
-    SUPABASE_URL: str = ""
+    SUPABASE_URL: str = "https://dzdziagugdcbkictslrt.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = ""
-    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_ANON_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE"
 
     # Firebase (phone auth)
     FIREBASE_SERVICE_ACCOUNT_JSON: str = ""  # JSON string of service account key
