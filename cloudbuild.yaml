@@ -4,23 +4,29 @@
 # Triggered on push to main branch via Cloud Run UI trigger.
 # Builds the Docker image, pushes to Artifact Registry, deploys to Cloud Run.
 #
-# Sensitive values are stored in Secret Manager and mounted via --set-secrets.
-# The Cloud Build service account needs roles/secretmanager.secretAccessor.
+# Sensitive values are stored in Secret Manager and mounted at Cloud Run runtime
+# via --set-secrets. Cloud Build itself does NOT need secretAccessor.
 #
-# Trigger substitution vars:
-#   _AR_HOSTNAME     — e.g. asia-south1-docker.pkg.dev
-#   _AR_PROJECT_ID   — GCP project ID
-#   _AR_REPOSITORY   — Artifact Registry repo name
-#   _SERVICE_NAME    — Cloud Run service name
-#   _DEPLOY_REGION   — Cloud Run region
+# Required IAM roles on the Cloud Build SA
+# (PROJECT_NUMBER@cloudbuild.gserviceaccount.com):
+#   roles/artifactregistry.writer
+#   roles/run.admin
+#   roles/iam.serviceAccountUser   ← lets it act-as the Cloud Run SA
+#
+# Trigger substitution vars (can be overridden in the Cloud Build trigger UI):
+#   _AR_HOSTNAME     — Artifact Registry hostname  (default: asia-south1-docker.pkg.dev)
+#   _AR_PROJECT_ID   — GCP project ID              (default: jobsync-497608)
+#   _AR_REPOSITORY   — Artifact Registry repo name (default: jobsync)
+#   _SERVICE_NAME    — Cloud Run service name       (default: jobsync-api)
+#   _DEPLOY_REGION   — Cloud Run region             (default: asia-south1)
 #   _CORS_ORIGINS    — JSON array of allowed CORS origins
 # ─────────────────────────────────────────────────────────────────────────────
 
 substitutions:
   _AR_HOSTNAME: asia-south1-docker.pkg.dev
   _AR_PROJECT_ID: jobsync-497608
-  _AR_REPOSITORY: cloud-run-source-deploy
-  _SERVICE_NAME: jobsync
+  _AR_REPOSITORY: jobsync
+  _SERVICE_NAME: jobsync-api
   _DEPLOY_REGION: asia-south1
   _CORS_ORIGINS: '["https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
 
@@ -31,9 +37,9 @@ steps:
     args:
       - build
       - --file=backend/Dockerfile
-      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
-      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
+      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
       - --build-arg=BUILDKIT_INLINE_CACHE=1
       - backend/
     env:
@@ -46,7 +52,7 @@ steps:
     args:
       - push
       - --all-tags
-      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME
 
   # ── Step 3: Deploy to Cloud Run ────────────────────────────────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -57,7 +63,7 @@ steps:
       - run
       - deploy
       - $_SERVICE_NAME
-      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
       - --region=$_DEPLOY_REGION
       - --platform=managed
       - --allow-unauthenticated
@@ -71,22 +77,12 @@ steps:
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
       # Non-secret env vars
       - --set-env-vars=APP_VERSION=$COMMIT_SHA,DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,BACKEND_CORS_ORIGINS=$_CORS_ORIGINS
-      # Secrets from Secret Manager (mounted as env vars — never appear in build logs)
+      # Secrets injected at Cloud Run runtime — Cloud Build SA does NOT need secretAccessor
       - --set-secrets=GROQ_API_KEY=groq-api-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,FIREBASE_SERVICE_ACCOUNT_JSON=firebase-service-account:latest
 
 images:
-  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
-
-# Cloud Build needs access to Secret Manager secrets
-availableSecrets:
-  secretManager:
-    - versionName: projects/$_AR_PROJECT_ID/secrets/groq-api-key/versions/latest
-      env: _GROQ_API_KEY
-    - versionName: projects/$_AR_PROJECT_ID/secrets/supabase-service-role-key/versions/latest
-      env: _SUPABASE_SERVICE_ROLE_KEY
-    - versionName: projects/$_AR_PROJECT_ID/secrets/firebase-service-account/versions/latest
-      env: _FIREBASE_SA_JSON
+  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY
