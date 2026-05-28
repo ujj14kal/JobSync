@@ -1,34 +1,25 @@
 "use client";
 
 /**
- * OAuth callback — manual PKCE exchange via localStorage.
+ * OAuth callback — manual PKCE, server-side session exchange.
  *
- * Why manual? @supabase/ssr stores the PKCE verifier in cookies, but the
- * cookie never reliably survives the Supabase→Google→app redirect chain.
- * Instead the login page stores the verifier in localStorage (guaranteed
- * same-tab persistence across cross-origin redirects).  Here we read it,
- * POST directly to Supabase /token, then call setSession() so the session
- * lands in cookies where the middleware can see it.
+ * Flow:
+ * 1. Login page generates PKCE verifier/challenge, stores verifier in localStorage,
+ *    redirects to Supabase OAuth with code_challenge.
+ * 2. Google redirects back here with ?code=...
+ * 3. We POST { code, verifier, next } to /api/auth/exchange (server-side).
+ * 4. The server exchanges the code, calls setSession() via createServerClient,
+ *    and returns Set-Cookie headers on the JSON response.
+ * 5. Browser stores those cookies, then window.location.href = next navigates
+ *    to the dashboard — the middleware sees the session in request.cookies.
  *
- * Why window.location.href instead of router.replace?
- * router.replace() does a soft client-side navigation — the middleware sees
- * the request before newly-written cookies are flushed to the browser's
- * cookie jar, so the session check fails and the user gets bounced back to
- * /login.  A hard redirect forces a full HTTP round-trip where all cookies
- * (including the freshly-set session) are sent with the request.
+ * Why server-side exchange? Browser setSession() writes via document.cookie, but
+ * the auth-state-change flush can race with navigation. Server Set-Cookie headers
+ * are guaranteed to be stored before the next request fires.
  */
 
 import { useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Zap } from "lucide-react";
-
-const SUPABASE_URL  = "https://dzdziagugdcbkictslrt.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE";
-
-/** Hard-navigate so cookies set by setSession() are included in the request. */
-function hardGo(url: string) {
-  window.location.href = url;
-}
 
 export default function AuthCallbackPage() {
   const called = useRef(false);
@@ -43,48 +34,39 @@ export default function AuthCallbackPage() {
     const verifier = localStorage.getItem("pkce_verifier");
 
     if (!code) {
-      hardGo("/login?error=missing_code");
-      return;
-    }
-    if (!verifier) {
-      // Verifier missing — fall back to Supabase client exchange (handles
-      // edge cases like page reload on callback URL).
-      createClient()
-        .auth.exchangeCodeForSession(code)
-        .then(({ error }) => hardGo(error ? "/login?error=auth_failed" : next));
+      window.location.href = "/login?error=missing_code";
       return;
     }
 
-    // Remove verifier so it can't be replayed.
+    if (!verifier) {
+      // No verifier (e.g. page reload on callback URL) — nothing we can do
+      window.location.href = "/login?error=missing_verifier";
+      return;
+    }
+
+    // Remove verifier so it can't be replayed
     localStorage.removeItem("pkce_verifier");
 
-    // Exchange code + verifier directly with Supabase token endpoint.
-    fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=pkce`, {
+    // POST to our server-side exchange route — it sets session cookies in the response
+    fetch("/api/auth/exchange", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON,
-      },
-      body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, verifier, next }),
     })
-      .then((r) => r.json())
-      .then(async (data) => {
-        if (data.error || !data.access_token) {
-          console.error("[auth/callback] token error:", data.error_description ?? data.error);
-          hardGo("/login?error=auth_failed");
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          console.error("[auth/callback] exchange error:", data.error);
+          window.location.href = "/login?error=auth_failed";
           return;
         }
-        // Store session in cookies (so middleware / server components can read it).
-        const supabase = createClient();
-        const { error } = await supabase.auth.setSession({
-          access_token:  data.access_token,
-          refresh_token: data.refresh_token,
-        });
-        hardGo(error ? "/login?error=session_error" : next);
+        // Cookies are now set via Set-Cookie headers on the response above.
+        // Hard navigate so the browser sends them with the request.
+        window.location.href = data.next ?? next;
       })
       .catch((err) => {
         console.error("[auth/callback] fetch error:", err);
-        hardGo("/login?error=auth_failed");
+        window.location.href = "/login?error=auth_failed";
       });
   }, []);
 
