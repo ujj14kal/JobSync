@@ -66,7 +66,10 @@ async def _verify_supabase_jwt(token: str) -> dict:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{settings.SUPABASE_URL}/auth/v1/user",
-            headers={"Authorization": f"Bearer {token}"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "apikey": settings.SUPABASE_ANON_KEY,  # required by Supabase Kong gateway
+            },
             timeout=10,
         )
         if resp.status_code != 200:
