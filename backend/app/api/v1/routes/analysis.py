@@ -323,6 +323,8 @@ async def get_analysis(
 ):
     """Get a specific analysis with full details."""
     supabase = get_supabase()
+    # Use limit(1) instead of single() — single() raises an exception when
+    # 0 rows are returned (PostgREST 406), which FastAPI surfaces as a 500.
     result = (
         supabase.table("analyses")
         .select(
@@ -332,14 +334,14 @@ async def get_analysis(
         )
         .eq("id", analysis_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
 
     if not result.data:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    a = result.data
+    a = result.data[0]
     job = a.pop("job_descriptions", None)
     resume = a.pop("resumes", None)
 
@@ -372,7 +374,7 @@ async def retry_analysis(
         .select("*, resumes(*), job_descriptions(*)")
         .eq("id", analysis_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
 
@@ -395,7 +397,7 @@ async def retry_analysis(
             },
         )
 
-    a = analysis.data
+    a = analysis.data[0]
     supabase.table("analyses").update({"status": "pending"}).eq("id", analysis_id).execute()
 
     acquired = active_tracker.try_acquire(user_id, analysis_id)

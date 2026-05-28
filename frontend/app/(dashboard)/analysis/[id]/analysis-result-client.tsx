@@ -26,10 +26,12 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
 
-  const { data: analysis, isLoading } = useQuery({
+  const { data: analysis, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["analysis", id],
     queryFn: () => analysisApi.get(id),
     refetchInterval: pollingActive ? 3000 : false,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
   useEffect(() => {
@@ -42,6 +44,27 @@ export function AnalysisResultClient({ id }: { id: string }) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-[var(--accent-primary)] animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    const msg = (error as Error)?.message ?? "Unknown error";
+    return (
+      <div className="text-center py-20">
+        <p className="text-[var(--text-primary)] font-medium mb-1">Could not load analysis</p>
+        <p className="text-[13px] text-[var(--text-muted)] mb-4">{msg}</p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+          >
+            Try again
+          </button>
+          <Link href="/analysis" className="px-4 py-2 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
+            ← Back
+          </Link>
+        </div>
       </div>
     );
   }
@@ -73,6 +96,42 @@ export function AnalysisResultClient({ id }: { id: string }) {
         <p className="text-[13px] text-[var(--text-secondary)]">
           This usually takes 15–30 seconds. The page will update automatically.
         </p>
+      </div>
+    );
+  }
+
+  if (isFailed) {
+    return (
+      <div className="text-center py-20">
+        <div className="w-12 h-12 rounded-full bg-red-400/10 border border-red-400/20 flex items-center justify-center mx-auto mb-4">
+          <XCircle className="w-6 h-6 text-red-400" />
+        </div>
+        <h2 className="text-[17px] font-semibold text-[var(--text-primary)] mb-2">Analysis failed</h2>
+        <p className="text-[13px] text-[var(--text-muted)] mb-1 max-w-sm mx-auto">
+          {(analysis as any).error_message
+            ? `Error: ${(analysis as any).error_message}`
+            : "Something went wrong while processing your resume. This is usually a temporary issue."}
+        </p>
+        <p className="text-[12px] text-[var(--text-muted)] mb-6">
+          Your daily quota has not been charged for a failed analysis.
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={async () => {
+              try { await analysisApi.retry(id); refetch(); setPollingActive(true); }
+              catch (e: any) { /* show nothing, retry UI handles it */ }
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry analysis
+          </button>
+          <Link
+            href="/analysis"
+            className="px-5 py-2.5 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+          >
+            ← New search
+          </Link>
+        </div>
       </div>
     );
   }
