@@ -1,12 +1,15 @@
 """
-/api/v1/auth — Firebase phone auth → Supabase session exchange.
+/api/v1/auth — Firebase auth → Supabase session exchange.
 
-Flow:
-  1. Frontend verifies phone OTP with Firebase and gets a Firebase ID token.
-  2. POST /api/v1/auth/phone-login with { id_token, phone }
-  3. Backend verifies ID token with firebase-admin, extracts phone number.
-  4. Upserts a Supabase user via the admin API (no password needed — phone-only account).
-  5. Returns a Supabase access_token + refresh_token the frontend stores.
+Supported flows
+───────────────
+• POST /phone-login   — Firebase phone OTP → Supabase session
+• POST /google-login  — Firebase Google Sign-In → Supabase session
+
+In both cases the frontend verifies the user with Firebase, gets a Firebase
+ID token, and POSTs it here.  We verify the token with firebase-admin, upsert
+the user in Supabase via the admin API, then return a Supabase
+access_token + refresh_token the frontend can call setSession() with.
 """
 
 from __future__ import annotations
@@ -69,6 +72,10 @@ class PhoneLoginRequest(BaseModel):
     full_name: str = ""
     career_stage: str = ""
     target_role: str = ""
+
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str   # Firebase ID token from signInWithPopup / signInWithRedirect
 
 
 class SessionResponse(BaseModel):
@@ -147,6 +154,86 @@ async def phone_login(body: PhoneLoginRequest):
 
     except Exception as exc:
         logger.error("Supabase session creation failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create session: {exc}",
+        )
+
+
+# ── Google login ──────────────────────────────────────────────────────────────
+
+@router.post("/google-login", response_model=SessionResponse)
+async def google_login(body: GoogleLoginRequest):
+    """
+    Exchange a Firebase ID token (from Google Sign-In) for a Supabase session.
+
+    The frontend calls Firebase signInWithPopup(auth, new GoogleAuthProvider()),
+    gets the user's ID token, and sends it here.  We verify it, upsert the
+    Supabase user by email, and return a Supabase session.
+    """
+    # 1. Verify Firebase token
+    try:
+        from firebase_admin import auth as fb_auth
+        _get_firebase_app()
+        decoded = fb_auth.verify_id_token(body.id_token)
+    except Exception as exc:
+        logger.warning("Firebase Google token verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid Firebase ID token")
+
+    firebase_uid: str = decoded["uid"]
+    email: str | None = decoded.get("email")
+    name: str = decoded.get("name", "")
+    picture: str = decoded.get("picture", "")
+
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email not found in Google token — ensure email scope was requested",
+        )
+
+    # 2. Upsert Supabase user by email
+    sb = _supabase_admin()
+    try:
+        # Search for existing user by email
+        users_resp = sb.auth.admin.list_users()
+        existing = next((u for u in users_resp if u.email == email), None)
+
+        if existing:
+            user_id = existing.id
+            # Refresh metadata if picture or name changed
+            sb.auth.admin.update_user_by_id(
+                user_id,
+                {"user_metadata": {
+                    "full_name": existing.user_metadata.get("full_name") or name,
+                    "avatar_url": existing.user_metadata.get("avatar_url") or picture,
+                    "firebase_uid": firebase_uid,
+                    "auth_provider": "firebase_google",
+                }},
+            )
+        else:
+            new_user = sb.auth.admin.create_user({
+                "email": email,
+                "email_confirm": True,
+                "user_metadata": {
+                    "firebase_uid": firebase_uid,
+                    "full_name": name,
+                    "avatar_url": picture,
+                    "auth_provider": "firebase_google",
+                },
+            })
+            user_id = new_user.id
+
+        # 3. Create Supabase session
+        session = sb.auth.admin.create_session(user_id)
+        return SessionResponse(
+            access_token=session.session.access_token,
+            refresh_token=session.session.refresh_token,
+            user_id=user_id,
+            email=email,
+        )
+
+    except Exception as exc:
+        logger.error("Supabase Google session creation failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Could not create session: {exc}",
