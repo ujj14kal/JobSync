@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,20 +16,6 @@ import {
   ConfirmationResult,
 } from "firebase/auth";
 
-// Google Identity Services type shim
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (cfg: object) => void;
-          prompt: (cb?: (n: { isNotDisplayed(): boolean; isSkippedMoment(): boolean }) => void) => void;
-          cancel: () => void;
-        };
-      };
-    };
-  }
-}
 
 type Tab = "email" | "phone";
 
@@ -62,43 +48,6 @@ function LoginContent() {
   const recaptchaContainerRef     = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
-  // ── Load Google Identity Services script ──────────────────────────────
-  const handleGoogleCredential = useCallback(async (credential: string) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: credential,
-      });
-      if (error) throw error;
-      router.push(redirect);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase, router, redirect]);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        callback: (res: { credential: string }) => handleGoogleCredential(res.credential),
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-    };
-    document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-      window.google?.accounts.id.cancel();
-    };
-  }, [handleGoogleCredential]);
-
   // ── Cleanup reCAPTCHA on unmount / tab switch ──────────────────────────
   useEffect(() => {
     return () => {
@@ -119,22 +68,13 @@ function LoginContent() {
     }
   }
 
-  /* ── Google Sign-In via GIS (signInWithIdToken — no redirect URI needed) ── */
-  function handleGoogle() {
-    if (!window.google) {
-      toast.error("Google Sign-In is loading, please try again.");
-      return;
-    }
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // One-tap was suppressed — fall back to redirect OAuth
-        supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
-          },
-        });
-      }
+  /* ── Google OAuth via Supabase ── */
+  async function handleGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+      },
     });
   }
 

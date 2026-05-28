@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -56,44 +56,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
-  // ── Google Identity Services ───────────────────────────────────────────
-  const handleGoogleCredential = useCallback(async (credential: string) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: credential,
-      });
-      if (error) throw error;
-      toast.success("Signed in with Google!");
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase, router]);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        callback: (res: { credential: string }) => handleGoogleCredential(res.credential),
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-    };
-    document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-      window.google?.accounts.id.cancel();
-    };
-  }, [handleGoogleCredential]);
-
   // Cleanup reCAPTCHA on unmount
   useEffect(() => {
     return () => {
@@ -114,21 +76,13 @@ export default function SignupPage() {
     }
   }
 
-  /* ── Google Sign-In via GIS (signInWithIdToken — no redirect URI needed) ── */
-  function handleGoogle() {
-    if (!window.google) {
-      toast.error("Google Sign-In is loading, please try again.");
-      return;
-    }
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-          },
-        });
-      }
+  /* ── Google OAuth via Supabase ── */
+  async function handleGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
     });
   }
 
