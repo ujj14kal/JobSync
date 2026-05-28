@@ -62,6 +62,17 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
     maxSize: 5 * 1024 * 1024, // 5MB
     disabled: status === "uploading" || status === "parsing",
   });
+  const {
+    onAnimationStart,
+    onDrag,
+    onDragEnd,
+    onDragStart,
+    ...dropzoneRootProps
+  } = getRootProps();
+  void onAnimationStart;
+  void onDrag;
+  void onDragEnd;
+  void onDragStart;
 
   const reset = () => {
     setStatus("idle");
@@ -79,7 +90,7 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            {...getRootProps()}
+            {...dropzoneRootProps}
             className={cn(
               "relative flex flex-col items-center justify-center p-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200",
               isDragActive

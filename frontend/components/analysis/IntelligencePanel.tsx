@@ -40,11 +40,11 @@ export default function IntelligencePanel({ analysis }: IntelligencePanelProps) 
   const skillGap = analysis.skill_gap_score ?? 0;
 
   const segments = [
-    { label: "ATS",       shortLabel: "ATS",       value: analysis.ats_score ?? 0       },
-    { label: "Technical", shortLabel: "Technical", value: analysis.technical_fit_score ?? 0 },
-    { label: "Semantic",  shortLabel: "Semantic",  value: analysis.semantic_match_score ?? 0 },
-    { label: "Recruiter", shortLabel: "Recruiter", value: analysis.recruiter_impression_score ?? 0 },
-    { label: "Projects",  shortLabel: "Projects",  value: analysis.project_relevance_score ?? 0 },
+    { label: "ATS",       shortLabel: "ATS",       value: analysis.ats_score ?? 0, color: "#3b82f6" },
+    { label: "Technical", shortLabel: "Technical", value: analysis.technical_fit_score ?? 0, color: "#8b5cf6" },
+    { label: "Semantic",  shortLabel: "Semantic",  value: analysis.semantic_match_score ?? 0, color: "#06b6d4" },
+    { label: "Recruiter", shortLabel: "Recruiter", value: analysis.recruiter_impression_score ?? 0, color: "#10b981" },
+    { label: "Projects",  shortLabel: "Projects",  value: analysis.project_relevance_score ?? 0, color: "#f59e0b" },
   ];
 
   const probColor =

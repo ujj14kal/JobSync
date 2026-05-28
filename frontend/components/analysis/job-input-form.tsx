@@ -380,7 +380,7 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
 
         {atCapacity && (
           <p className="text-[11px] text-[var(--text-muted)] text-center">
-            All {serviceStatus.max_concurrent} slots are occupied. The button will enable automatically when one frees up.
+            All {serviceStatus?.max_concurrent ?? 0} slots are occupied. The button will enable automatically when one frees up.
           </p>
         )}
       </motion.div>
