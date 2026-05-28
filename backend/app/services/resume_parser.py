@@ -76,15 +76,93 @@ TECH_SKILLS_CORPUS = {
 }
 
 
+def _reconstruct_lines_from_words(words: list[dict]) -> str:
+    """
+    Given pdfplumber word objects, group them into lines by y-coordinate
+    and join with spaces, preserving reading order.
+    """
+    if not words:
+        return ""
+
+    # Group words into lines: round 'top' to nearest 3 pts to cluster same-line words
+    lines: dict[int, list[dict]] = {}
+    for w in words:
+        line_key = round(w["top"] / 3) * 3
+        lines.setdefault(line_key, []).append(w)
+
+    page_lines = []
+    for top in sorted(lines.keys()):
+        # Sort words left-to-right by x0
+        line_words = sorted(lines[top], key=lambda w: w["x0"])
+        page_lines.append(" ".join(w["text"] for w in line_words))
+
+    return "\n".join(page_lines)
+
+
+def _fix_merged_text(text: str) -> str:
+    """
+    Post-process extracted PDF text to fix common word-merging artifacts.
+    Only fixes patterns that are unambiguously wrong (months run into years,
+    digits run into capital letters).  CamelCase splitting is intentionally
+    avoided because it would break tech keywords like FastAPI, JavaScript, etc.
+    """
+    # "July2026" → "July 2026", "August2026" → "August 2026"
+    text = re.sub(
+        r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
+        r"|January|February|March|April|June|July|August"
+        r"|September|October|November|December)(\d{4})",
+        r"\1 \2",
+        text,
+    )
+    # "2024Present" → "2024 Present", "2024Current" → "2024 Current"
+    text = re.sub(
+        r"(\d{4})(Present|Current|Now)",
+        r"\1 \2",
+        text,
+        flags=re.IGNORECASE,
+    )
+    # "2024–2026" already fine but "20242026" → "2024 2026" (year glued to year)
+    text = re.sub(r"(\d{4})(\d{4})", r"\1 \2", text)
+    # Collapse multiple spaces on a single line (keep newlines intact)
+    lines = [re.sub(r" {2,}", " ", line) for line in text.split("\n")]
+    return "\n".join(lines)
+
+
 def extract_text_from_pdf(content: bytes) -> str:
-    """Extract full text from PDF bytes using pdfplumber."""
+    """
+    Extract full text from PDF bytes.
+
+    Strategy:
+    1. Use pdfplumber.extract_words() to get individual word bounding boxes,
+       then reconstruct lines by grouping on y-coordinate and joining with a
+       single space.  This avoids the x_tolerance merging problem entirely.
+    2. Fall back to pdfplumber.extract_text() with a relaxed x_tolerance (7)
+       if extract_words returns nothing for a page.
+    3. Fall back to PyMuPDF (fitz) if pdfplumber fails completely.
+    4. Apply _fix_merged_text() as a final cleanup pass.
+    """
     text_parts = []
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for page in pdf.pages:
-                page_text = page.extract_text(x_tolerance=3, y_tolerance=3)
-                if page_text:
-                    text_parts.append(page_text)
+                try:
+                    words = page.extract_words(
+                        x_tolerance=5,
+                        y_tolerance=5,
+                        keep_blank_chars=False,
+                    )
+                    if words:
+                        text_parts.append(_reconstruct_lines_from_words(words))
+                    else:
+                        # Page has no selectable text (image-only), try extract_text
+                        page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
+                        if page_text:
+                            text_parts.append(page_text)
+                except Exception:
+                    # Per-page fallback
+                    page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
+                    if page_text:
+                        text_parts.append(page_text)
     except Exception as e:
         logger.warning("pdfplumber failed, trying fallback", error=str(e))
         try:
@@ -94,7 +172,9 @@ def extract_text_from_pdf(content: bytes) -> str:
                 text_parts.append(page.get_text())
         except Exception as e2:
             logger.error("PDF extraction failed", error=str(e2))
-    return "\n".join(text_parts)
+
+    raw_text = "\n".join(text_parts)
+    return _fix_merged_text(raw_text)
 
 
 def extract_text_from_docx(content: bytes) -> str:
