@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Client-side OAuth callback handler.
+ * OAuth callback — manual PKCE exchange via localStorage.
  *
- * Why client-side instead of a route.ts (server-side)?
- * @supabase/ssr stores the PKCE code verifier in document.cookie (browser JS).
- * A server-side route handler reads cookies from HTTP request headers — but the
- * cookie is only reliably available in the same browser JS context where it was
- * written.  Using createBrowserClient here guarantees we read from the same
- * storage, so exchangeCodeForSession always finds the verifier.
+ * Why manual? @supabase/ssr stores the PKCE verifier in cookies, but the
+ * cookie never reliably survives the Supabase→Google→app redirect chain.
+ * Instead the login page stores the verifier in localStorage (guaranteed
+ * same-tab persistence across cross-origin redirects).  Here we read it,
+ * POST directly to Supabase /token, then call setSession() so the session
+ * lands in cookies where the middleware can see it.
  */
 
 import { useEffect, useRef } from "react";
@@ -16,38 +16,68 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Zap } from "lucide-react";
 
+const SUPABASE_URL  = "https://dzdziagugdcbkictslrt.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE";
+
 export default function AuthCallbackPage() {
-  const router = useRouter();
-  const called = useRef(false);
+  const router  = useRouter();
+  const called  = useRef(false);
 
   useEffect(() => {
-    // Guard against React double-invoke (StrictMode / Suspense remount)
-    // so the PKCE verifier cookie is only consumed once.
     if (called.current) return;
     called.current = true;
 
-    // Read params from window.location to avoid triggering a Suspense cycle
-    // (useSearchParams() would wrap in Suspense and could cause a remount).
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const next = params.get("next") ?? "/dashboard";
+    const params   = new URLSearchParams(window.location.search);
+    const code     = params.get("code");
+    const next     = params.get("next") ?? "/dashboard";
+    const verifier = localStorage.getItem("pkce_verifier");
 
     if (!code) {
       router.replace("/login?error=missing_code");
       return;
     }
+    if (!verifier) {
+      // Verifier missing — fall back to Supabase client exchange (handles
+      // edge cases like page reload on callback URL).
+      createClient()
+        .auth.exchangeCodeForSession(code)
+        .then(({ error }) =>
+          router.replace(error ? "/login?error=auth_failed" : next)
+        );
+      return;
+    }
 
-    // createClient() returns createBrowserClient — same storage as the login
-    // page that initiated the OAuth flow and stored the PKCE verifier.
-    const supabase = createClient();
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        console.error("[auth/callback]", error.message);
+    // Remove verifier so it can't be replayed.
+    localStorage.removeItem("pkce_verifier");
+
+    // Exchange code + verifier directly with Supabase token endpoint.
+    fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=pkce`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON,
+      },
+      body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+    })
+      .then((r) => r.json())
+      .then(async (data) => {
+        if (data.error || !data.access_token) {
+          console.error("[auth/callback] token error:", data.error_description ?? data.error);
+          router.replace("/login?error=auth_failed");
+          return;
+        }
+        // Store session in cookies (so middleware / server components can read it).
+        const supabase = createClient();
+        const { error } = await supabase.auth.setSession({
+          access_token:  data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        router.replace(error ? "/login?error=session_error" : next);
+      })
+      .catch((err) => {
+        console.error("[auth/callback] fetch error:", err);
         router.replace("/login?error=auth_failed");
-      } else {
-        router.replace(next);
-      }
-    });
+      });
   }, []);
 
   return (
