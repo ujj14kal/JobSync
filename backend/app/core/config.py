@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_ANON_KEY: str = ""
 
+    # Firebase (phone auth)
+    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""  # JSON string of service account key
+
     # Groq (free LLM)
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"

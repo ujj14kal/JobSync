@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,7 +8,23 @@ import { Zap, Mail, Lock, Eye, EyeOff, Phone, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
+// Firebase phone auth
+import { auth as firebaseAuth } from "@/lib/firebase/client";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
+} from "firebase/auth";
+
 type Tab = "email" | "phone";
+
+// Extend window so TS doesn't complain about the global recaptcha verifier
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier;
+    confirmationResult?: ConfirmationResult;
+  }
+}
 
 function LoginContent() {
   const router = useRouter();
@@ -18,17 +34,38 @@ function LoginContent() {
   const [tab, setTab] = useState<Tab>("email");
 
   // Email state
-  const [email, setEmail]     = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPass, setShowPass]   = useState(false);
 
   // Phone state
-  const [phone, setPhone]     = useState("");
-  const [otp, setOtp]         = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [phone, setPhone]         = useState("");
+  const [otp, setOtp]             = useState("");
+  const [otpSent, setOtpSent]     = useState(false);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const recaptchaContainerRef     = useRef<HTMLDivElement>(null);
   const supabase = createClient();
+
+  // ── Cleanup reCAPTCHA on unmount / tab switch ──────────────────────────
+  useEffect(() => {
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = undefined;
+      }
+    };
+  }, []);
+
+  function resetPhone() {
+    setOtpSent(false);
+    setOtp("");
+    setPhone("");
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = undefined;
+    }
+  }
 
   /* ── Google OAuth ── */
   async function handleGoogle() {
@@ -49,7 +86,7 @@ function LoginContent() {
     router.push(redirect);
   }
 
-  /* ── Phone: send OTP ── */
+  /* ── Phone: send OTP via Firebase ── */
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
     if (!phone.startsWith("+")) {
@@ -57,29 +94,82 @@ function LoginContent() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setOtpSent(true);
-    toast.success("OTP sent! Check your SMS.");
+    try {
+      // Initialise invisible reCAPTCHA verifier (required by Firebase)
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(
+          firebaseAuth,
+          "recaptcha-container",
+          { size: "invisible" }
+        );
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(
+        firebaseAuth,
+        phone,
+        window.recaptchaVerifier
+      );
+      window.confirmationResult = confirmationResult;
+      setOtpSent(true);
+      toast.success("OTP sent! Check your SMS.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send OTP";
+      toast.error(msg);
+      // Reset verifier so user can retry
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = undefined;
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  /* ── Phone: verify OTP ── */
+  /* ── Phone: verify OTP via Firebase → exchange for Supabase session ── */
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (!window.confirmationResult) {
+      toast.error("Session expired. Please request a new OTP.");
+      setOtpSent(false);
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: "sms",
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    router.push(redirect);
+    try {
+      // 1. Confirm OTP with Firebase
+      const credential = await window.confirmationResult.confirm(otp);
+      const idToken = await credential.user.getIdToken();
+
+      // 2. Exchange Firebase ID token for Supabase session via backend
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/v1/auth/phone-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken, phone }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Login failed" }));
+        throw new Error(err.detail || "Login failed");
+      }
+
+      const { access_token, refresh_token } = await res.json();
+
+      // 3. Set Supabase session in the browser
+      await supabase.auth.setSession({ access_token, refresh_token });
+      router.push(redirect);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "OTP verification failed";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center px-6">
+      {/* Invisible reCAPTCHA container — Firebase renders into this div */}
+      <div id="recaptcha-container" ref={recaptchaContainerRef} />
+
       <div className="w-full max-w-md">
 
         {/* Logo */}
@@ -115,7 +205,7 @@ function LoginContent() {
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] mb-5">
             {(["email", "phone"] as Tab[]).map((t) => (
-              <button key={t} onClick={() => { setTab(t); setOtpSent(false); }}
+              <button key={t} onClick={() => { setTab(t); resetPhone(); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-medium transition-all ${
                   tab === t
                     ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm"
@@ -166,7 +256,7 @@ function LoginContent() {
               </motion.form>
             )}
 
-            {/* ── Phone tab ── */}
+            {/* ── Phone: enter number ── */}
             {tab === "phone" && !otpSent && (
               <motion.form key="phone-enter" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.15 }}
@@ -192,6 +282,7 @@ function LoginContent() {
               </motion.form>
             )}
 
+            {/* ── Phone: enter OTP ── */}
             {tab === "phone" && otpSent && (
               <motion.form key="phone-otp" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
@@ -219,7 +310,7 @@ function LoginContent() {
                   {loading ? "Verifying…" : "Verify & Sign in"}
                 </button>
 
-                <button type="button" onClick={() => { setOtpSent(false); setOtp(""); }}
+                <button type="button" onClick={resetPhone}
                   className="w-full py-2 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
                   ← Change number
                 </button>
@@ -229,7 +320,7 @@ function LoginContent() {
           </AnimatePresence>
 
           <p className="text-center text-[12px] text-[var(--text-muted)] mt-5">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/signup" className="text-[var(--accent-primary)] hover:text-[var(--accent-hover)] font-medium">
               Sign up free
             </Link>

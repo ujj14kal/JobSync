@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,7 +8,22 @@ import { Zap, Mail, Lock, User, Eye, EyeOff, Phone, ShieldCheck } from "lucide-r
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
+// Firebase phone auth
+import { auth as firebaseAuth } from "@/lib/firebase/client";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
+} from "firebase/auth";
+
 type Tab = "email" | "phone";
+
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier;
+    confirmationResult?: ConfirmationResult;
+  }
+}
 
 const careerStages = [
   { value: "student", label: "Student / Intern" },
@@ -33,12 +48,33 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
 
-  // Phone state
+  // Phone / Firebase state
   const [phone,   setPhone]   = useState("");
   const [otp,     setOtp]     = useState("");
   const [otpSent, setOtpSent] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
+  // Cleanup reCAPTCHA on unmount
+  useEffect(() => {
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = undefined;
+      }
+    };
+  }, []);
+
+  function resetPhone() {
+    setOtpSent(false);
+    setOtp("");
+    setPhone("");
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = undefined;
+    }
+  }
 
   /* ── Google OAuth ── */
   async function handleGoogle() {
@@ -65,7 +101,7 @@ export default function SignupPage() {
     router.push("/dashboard");
   }
 
-  /* ── Phone: send OTP ── */
+  /* ── Phone: send OTP via Firebase ── */
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
     if (!phone.startsWith("+")) {
@@ -73,26 +109,75 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      phone,
-      options: {
-        data: { full_name: fullName, career_stage: careerStage, target_role: targetRole },
-      },
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setOtpSent(true);
-    toast.success("OTP sent! Check your SMS.");
+    try {
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(
+          firebaseAuth,
+          "recaptcha-container-signup",
+          { size: "invisible" }
+        );
+      }
+      const result = await signInWithPhoneNumber(
+        firebaseAuth,
+        phone,
+        window.recaptchaVerifier
+      );
+      window.confirmationResult = result;
+      setOtpSent(true);
+      toast.success("OTP sent! Check your SMS.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send OTP";
+      toast.error(msg);
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = undefined;
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  /* ── Phone: verify OTP ── */
+  /* ── Phone: verify OTP → Supabase session ── */
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (!window.confirmationResult) {
+      toast.error("Session expired. Please request a new OTP.");
+      setOtpSent(false);
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: "sms" });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    router.push("/dashboard");
+    try {
+      const credential = await window.confirmationResult.confirm(otp);
+      const idToken = await credential.user.getIdToken();
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/v1/auth/phone-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_token:     idToken,
+          phone,
+          full_name:    fullName,
+          career_stage: careerStage,
+          target_role:  targetRole,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Signup failed" }));
+        throw new Error(err.detail || "Signup failed");
+      }
+
+      const { access_token, refresh_token } = await res.json();
+      await supabase.auth.setSession({ access_token, refresh_token });
+      toast.success("Account created successfully!");
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "OTP verification failed";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   /* ── Shared profile section ── */
@@ -133,6 +218,9 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center px-6 py-16">
+      {/* Invisible reCAPTCHA container for Firebase */}
+      <div id="recaptcha-container-signup" ref={recaptchaContainerRef} />
+
       <div className="w-full max-w-md">
 
         {/* Logo */}
@@ -168,7 +256,7 @@ export default function SignupPage() {
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] mb-5">
             {(["email", "phone"] as Tab[]).map((t) => (
-              <button key={t} onClick={() => { setTab(t); setOtpSent(false); }}
+              <button key={t} onClick={() => { setTab(t); resetPhone(); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-medium transition-all ${
                   tab === t
                     ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm"
@@ -274,7 +362,7 @@ export default function SignupPage() {
                   {loading ? "Verifying…" : "Verify & Create account"}
                 </button>
 
-                <button type="button" onClick={() => { setOtpSent(false); setOtp(""); }}
+                <button type="button" onClick={resetPhone}
                   className="w-full py-2 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
                   ← Change number
                 </button>

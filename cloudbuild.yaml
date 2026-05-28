@@ -4,43 +4,36 @@
 # Triggered on push to main branch via Cloud Run UI trigger.
 # Builds the Docker image, pushes to Artifact Registry, deploys to Cloud Run.
 #
-# Required substitution vars (set in trigger settings):
-#   _GROQ_API_KEY              — your Groq API key
-#   _SUPABASE_SERVICE_ROLE_KEY — Supabase service role JWT
+# Sensitive values are stored in Secret Manager and mounted via --set-secrets.
+# The Cloud Build service account needs roles/secretmanager.secretAccessor.
+#
+# Trigger substitution vars:
+#   _AR_HOSTNAME     — e.g. asia-south1-docker.pkg.dev
+#   _AR_PROJECT_ID   — GCP project ID
+#   _AR_REPOSITORY   — Artifact Registry repo name
+#   _SERVICE_NAME    — Cloud Run service name
+#   _DEPLOY_REGION   — Cloud Run region
+#   _CORS_ORIGINS    — JSON array of allowed CORS origins
 # ─────────────────────────────────────────────────────────────────────────────
 
 substitutions:
-  _REGION: asia-south1
-  _SERVICE: jobsync
-  _REPO: jobsync
-  _GROQ_API_KEY: ''
-  _SUPABASE_SERVICE_ROLE_KEY: ''
-  _CORS_ORIGINS: '["https://jobsync-329097420297.asia-south1.run.app","http://localhost:3000"]'
+  _AR_HOSTNAME: asia-south1-docker.pkg.dev
+  _AR_PROJECT_ID: jobsync-497608
+  _AR_REPOSITORY: cloud-run-source-deploy
+  _SERVICE_NAME: jobsync
+  _DEPLOY_REGION: asia-south1
+  _CORS_ORIGINS: '["https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
 
 steps:
-  # ── Step 0: Create Artifact Registry repo (idempotent) ────────────────────
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: ensure-registry
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        gcloud artifacts repositories create ${_REPO} \
-          --repository-format=docker \
-          --location=${_REGION} \
-          --description="JobSync Docker images" \
-          --project=${PROJECT_ID} 2>/dev/null || echo "Registry already exists"
-        gcloud auth configure-docker ${_REGION}-docker.pkg.dev --quiet
-
   # ── Step 1: Build Docker image ─────────────────────────────────────────────
   - name: gcr.io/cloud-builders/docker
     id: build
-    waitFor: [ensure-registry]
     args:
       - build
       - --file=backend/Dockerfile
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
+      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
       - --build-arg=BUILDKIT_INLINE_CACHE=1
       - backend/
     env:
@@ -53,19 +46,19 @@ steps:
     args:
       - push
       - --all-tags
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME
 
   # ── Step 3: Deploy to Cloud Run ────────────────────────────────────────────
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     id: deploy
     waitFor: [push]
     entrypoint: gcloud
     args:
       - run
       - deploy
-      - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
-      - --region=${_REGION}
+      - $_SERVICE_NAME
+      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --region=$_DEPLOY_REGION
       - --platform=managed
       - --allow-unauthenticated
       - --memory=2Gi
@@ -75,11 +68,25 @@ steps:
       - --max-instances=5
       - --timeout=300
       - --no-cpu-throttling
-      - --set-env-vars=APP_VERSION=${SHORT_SHA},DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,OLLAMA_BASE_URL=,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,GROQ_API_KEY=${_GROQ_API_KEY},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY},BACKEND_CORS_ORIGINS=${_CORS_ORIGINS}
+      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
+      # Non-secret env vars
+      - --set-env-vars=APP_VERSION=$COMMIT_SHA,DEBUG=false,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3,BACKEND_CORS_ORIGINS=$_CORS_ORIGINS
+      # Secrets from Secret Manager (mounted as env vars — never appear in build logs)
+      - --set-secrets=GROQ_API_KEY=groq-api-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,FIREBASE_SERVICE_ACCOUNT_JSON=firebase-service-account:latest
 
 images:
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:latest
+
+# Cloud Build needs access to Secret Manager secrets
+availableSecrets:
+  secretManager:
+    - versionName: projects/$_AR_PROJECT_ID/secrets/groq-api-key/versions/latest
+      env: _GROQ_API_KEY
+    - versionName: projects/$_AR_PROJECT_ID/secrets/supabase-service-role-key/versions/latest
+      env: _SUPABASE_SERVICE_ROLE_KEY
+    - versionName: projects/$_AR_PROJECT_ID/secrets/firebase-service-account/versions/latest
+      env: _FIREBASE_SA_JSON
 
 options:
   logging: CLOUD_LOGGING_ONLY
