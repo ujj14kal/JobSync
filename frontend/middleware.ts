@@ -4,9 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams, origin } = request.nextUrl;
 
-  // ── Intercept Supabase OAuth callback code that lands on any URL ───────
-  // Supabase redirects to the Site URL when the redirectTo isn't whitelisted.
-  // Catch ?code= on any non-callback path and forward to /auth/callback.
+  // Forward any stray OAuth code that lands outside /auth/callback
+  // (happens when Supabase Site URL differs from redirectTo)
   const code = searchParams.get("code");
   if (code && pathname !== "/auth/callback") {
     const next = searchParams.get("next") ?? "/dashboard";
@@ -14,6 +13,11 @@ export async function middleware(request: NextRequest) {
     callbackUrl.searchParams.set("code", code);
     callbackUrl.searchParams.set("next", next);
     return NextResponse.redirect(callbackUrl);
+  }
+
+  // Let the auth callback page handle its own exchange without interference
+  if (pathname.startsWith("/auth/callback")) {
+    return NextResponse.next({ request });
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -41,19 +45,21 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/signup");
-  const isDashboard = request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/analysis") ||
-    request.nextUrl.pathname.startsWith("/resume") ||
-    request.nextUrl.pathname.startsWith("/mentors") ||
-    request.nextUrl.pathname.startsWith("/improve") ||
-    request.nextUrl.pathname.startsWith("/insights");
+  const isAuthPage =
+    pathname.startsWith("/login") || pathname.startsWith("/signup");
+
+  const isDashboard =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/analysis") ||
+    pathname.startsWith("/resume") ||
+    pathname.startsWith("/mentors") ||
+    pathname.startsWith("/improve") ||
+    pathname.startsWith("/insights");
 
   if (!user && isDashboard) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("redirect", request.nextUrl.pathname);
+    url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
 
