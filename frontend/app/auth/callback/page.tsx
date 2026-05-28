@@ -9,19 +9,29 @@
  * same-tab persistence across cross-origin redirects).  Here we read it,
  * POST directly to Supabase /token, then call setSession() so the session
  * lands in cookies where the middleware can see it.
+ *
+ * Why window.location.href instead of router.replace?
+ * router.replace() does a soft client-side navigation — the middleware sees
+ * the request before newly-written cookies are flushed to the browser's
+ * cookie jar, so the session check fails and the user gets bounced back to
+ * /login.  A hard redirect forces a full HTTP round-trip where all cookies
+ * (including the freshly-set session) are sent with the request.
  */
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Zap } from "lucide-react";
 
 const SUPABASE_URL  = "https://dzdziagugdcbkictslrt.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE";
 
+/** Hard-navigate so cookies set by setSession() are included in the request. */
+function hardGo(url: string) {
+  window.location.href = url;
+}
+
 export default function AuthCallbackPage() {
-  const router  = useRouter();
-  const called  = useRef(false);
+  const called = useRef(false);
 
   useEffect(() => {
     if (called.current) return;
@@ -33,7 +43,7 @@ export default function AuthCallbackPage() {
     const verifier = localStorage.getItem("pkce_verifier");
 
     if (!code) {
-      router.replace("/login?error=missing_code");
+      hardGo("/login?error=missing_code");
       return;
     }
     if (!verifier) {
@@ -41,9 +51,7 @@ export default function AuthCallbackPage() {
       // edge cases like page reload on callback URL).
       createClient()
         .auth.exchangeCodeForSession(code)
-        .then(({ error }) =>
-          router.replace(error ? "/login?error=auth_failed" : next)
-        );
+        .then(({ error }) => hardGo(error ? "/login?error=auth_failed" : next));
       return;
     }
 
@@ -63,7 +71,7 @@ export default function AuthCallbackPage() {
       .then(async (data) => {
         if (data.error || !data.access_token) {
           console.error("[auth/callback] token error:", data.error_description ?? data.error);
-          router.replace("/login?error=auth_failed");
+          hardGo("/login?error=auth_failed");
           return;
         }
         // Store session in cookies (so middleware / server components can read it).
@@ -72,11 +80,11 @@ export default function AuthCallbackPage() {
           access_token:  data.access_token,
           refresh_token: data.refresh_token,
         });
-        router.replace(error ? "/login?error=session_error" : next);
+        hardGo(error ? "/login?error=session_error" : next);
       })
       .catch((err) => {
         console.error("[auth/callback] fetch error:", err);
-        router.replace("/login?error=auth_failed");
+        hardGo("/login?error=auth_failed");
       });
   }, []);
 
