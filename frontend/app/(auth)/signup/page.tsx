@@ -8,14 +8,12 @@ import { Zap, Mail, Lock, User, Eye, EyeOff, Phone, ShieldCheck } from "lucide-r
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
-// Firebase auth
+// Firebase phone auth
 import { auth as firebaseAuth } from "@/lib/firebase/client";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from "firebase/auth";
 
 type Tab = "email" | "phone";
@@ -78,42 +76,14 @@ export default function SignupPage() {
     }
   }
 
-  /* ── Google Sign-In via Firebase ── */
+  /* ── Google OAuth via Supabase ── */
   async function handleGoogle() {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope("email");
-      provider.addScope("profile");
-
-      const result = await signInWithPopup(firebaseAuth, provider);
-      const idToken = await result.user.getIdToken();
-
-      // Exchange Firebase ID token for a Supabase session
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/v1/auth/google-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Signup failed" }));
-        throw new Error(err.detail || "Signup failed");
-      }
-
-      const { access_token, refresh_token } = await res.json();
-      await supabase.auth.setSession({ access_token, refresh_token });
-      toast.success("Signed in with Google!");
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Google sign-in failed";
-      if (!msg.includes("popup-closed-by-user") && !msg.includes("cancelled-popup-request")) {
-        toast.error(msg);
-      }
-    } finally {
-      setLoading(false);
-    }
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
+    });
   }
 
   /* ── Email signup ── */
