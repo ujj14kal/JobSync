@@ -2,6 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  const { pathname, searchParams, origin } = request.nextUrl;
+
+  // ── Intercept Supabase OAuth callback code that lands on any URL ───────
+  // Supabase redirects to the Site URL when the redirectTo isn't whitelisted.
+  // Catch ?code= on any non-callback path and forward to /auth/callback.
+  const code = searchParams.get("code");
+  if (code && pathname !== "/auth/callback") {
+    const next = searchParams.get("next") ?? "/dashboard";
+    const callbackUrl = new URL("/auth/callback", origin);
+    callbackUrl.searchParams.set("code", code);
+    callbackUrl.searchParams.set("next", next);
+    return NextResponse.redirect(callbackUrl);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
