@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Building2, Hash, FileText,
-  Loader2, AlertCircle, Clock, RefreshCw,
+  Loader2, AlertCircle, Clock, RefreshCw, Link,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
@@ -26,6 +26,7 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
   const [company, setCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jobId, setJobId] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
   const [step, setStep] = useState<Step>("form");
   const [foundJob, setFoundJob] = useState<JobDescription | null>(null);
   const [searchProgress, setSearchProgress] = useState(0);
@@ -74,8 +75,14 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!company || (!jobTitle && !jobId)) {
-      toast.error("Please enter a company name and either a job title or job ID.");
+
+    const hasUrl = jobUrl.trim().startsWith("http");
+    if (!hasUrl && !company) {
+      toast.error("Please enter a company name.");
+      return;
+    }
+    if (!hasUrl && !jobTitle && !jobId) {
+      toast.error("Please enter a job title, job ID, or paste a job URL.");
       return;
     }
     if (!activeResume) {
@@ -95,6 +102,7 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         company_name: company,
         job_title: jobTitle || undefined,
         job_id: jobId || undefined,
+        job_url: hasUrl ? jobUrl.trim() : undefined,
       });
       clearInterval(interval);
       setSearchProgress(100);
@@ -169,7 +177,9 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
           Searching for job listing…
         </h3>
         <p className="text-[13px] text-[var(--text-secondary)] mb-6 text-center max-w-xs">
-          Scanning {company}'s careers page and job boards for "{jobTitle || jobId}"
+          {jobUrl.trim().startsWith("http")
+            ? `Fetching job listing from the URL you provided…`
+            : `Scanning ${company}'s careers page and job boards for "${jobTitle || jobId}"`}
         </p>
         <div className="w-64 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
           <motion.div
@@ -523,9 +533,38 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         </div>
       </div>
 
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-[var(--border-subtle)]" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="px-3 text-[11px] text-[var(--text-muted)] bg-[var(--bg-surface)]">
+            or paste job URL
+          </span>
+        </div>
+      </div>
+
+      {/* Job URL */}
+      <div>
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+          Job listing URL{" "}
+          <span className="text-[var(--text-muted)] font-normal">(LinkedIn, Indeed, company site…)</span>
+        </label>
+        <div className="relative">
+          <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+          <input
+            type="url"
+            value={jobUrl}
+            onChange={(e) => setJobUrl(e.target.value)}
+            placeholder="https://linkedin.com/jobs/view/..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
+          />
+        </div>
+      </div>
+
       <button
         type="submit"
-        disabled={!activeResume || !company}
+        disabled={!activeResume || (!company && !jobUrl.trim().startsWith("http"))}
         className="w-full py-3 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[14px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         <Search className="w-4 h-4" />

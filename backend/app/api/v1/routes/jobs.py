@@ -17,9 +17,10 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 class JobSearchRequest(BaseModel):
-    company_name: str
+    company_name: str = ""
     job_title: Optional[str] = None
     job_id: Optional[str] = None
+    job_url: Optional[str] = None  # direct link to the job listing page
 
 
 @router.post("/search")
@@ -28,16 +29,19 @@ async def search_job(
     user_id: str = Depends(get_current_user_id),
 ):
     """
-    Search for a job description by company + title/ID.
+    Search for a job description by company + title/ID, or by direct URL.
     Returns cached result if available (< 24h old).
     """
-    if not request.company_name:
+    # When a direct URL is supplied we don't need company/title
+    has_direct = bool(request.job_url)
+
+    if not has_direct and not request.company_name:
         raise HTTPException(status_code=400, detail="company_name is required")
 
-    if not request.job_title and not request.job_id:
+    if not has_direct and not request.job_title and not request.job_id:
         raise HTTPException(
             status_code=400,
-            detail="Either job_title or job_id is required",
+            detail="Provide a job title, job ID, or a direct job URL",
         )
 
     supabase = get_supabase()
@@ -47,7 +51,19 @@ async def search_job(
         datetime.now(timezone.utc) - timedelta(hours=settings.JOB_CACHE_TTL_HOURS)
     ).isoformat()
 
-    if request.job_title:
+    if request.job_url:
+        # Cache by source URL for direct-URL searches
+        cached = (
+            supabase.table("job_descriptions")
+            .select("*")
+            .eq("source_url", request.job_url)
+            .gt("scraped_at", cache_cutoff)
+            .limit(1)
+            .execute()
+        )
+        if cached.data:
+            return cached.data[0]
+    elif request.job_title:
         cached = (
             supabase.table("job_descriptions")
             .select("*")
@@ -65,6 +81,7 @@ async def search_job(
         company_name=request.company_name,
         job_title=request.job_title,
         job_id=request.job_id,
+        direct_url=request.job_url,
     )
 
     if not result:

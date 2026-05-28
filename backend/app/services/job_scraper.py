@@ -239,20 +239,37 @@ async def search_and_scrape_job(
     company_name: str,
     job_title: Optional[str] = None,
     job_id: Optional[str] = None,
+    direct_url: Optional[str] = None,
 ) -> Optional[dict]:
     """
     Main entry point: find and scrape a job description.
     Returns structured job data or None.
+
+    If ``direct_url`` is provided it is tried first (highest priority),
+    which lets users paste a LinkedIn / Indeed / company careers URL
+    and skip the search-by-title step entirely.
     """
     logger.info(
         "Starting job search",
         company=company_name,
         title=job_title,
         job_id=job_id,
+        direct_url=direct_url,
     )
 
     html = None
     source_url = None
+
+    # Strategy 0: Direct URL provided — scrape it straight away
+    if direct_url:
+        html = await scrape_url_with_httpx(direct_url)
+        if not html or len(html) < 1000:
+            html = await scrape_url_with_playwright(direct_url, timeout=settings.SCRAPING_TIMEOUT)
+        if html and len(html) > 1000:
+            source_url = direct_url
+            logger.info("Scraped direct URL successfully", url=direct_url)
+        else:
+            logger.warning("Direct URL scrape yielded insufficient content", url=direct_url)
 
     # Strategy 1: Try company careers URL with job_id
     if job_id:
