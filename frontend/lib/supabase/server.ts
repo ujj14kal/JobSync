@@ -11,24 +11,28 @@ const SUPABASE_ANON =
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Server Component — cookie setting will be handled by middleware
-          }
-        },
+  // Use get/set/remove — @supabase/ssr v0.3.0's storage adapter reads via
+  // cookies.get(); a getAll-only adapter causes getItem() to always return
+  // undefined, breaking session reads everywhere.
+  return createServerClient(SUPABASE_URL, SUPABASE_ANON, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
       },
-    }
-  );
+      set(name: string, value: string, options: object) {
+        try {
+          cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+        } catch {
+          // Server Component — writes handled by middleware
+        }
+      },
+      remove(name: string, options: object) {
+        try {
+          cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+        } catch {
+          // Server Component — writes handled by middleware
+        }
+      },
+    },
+  });
 }

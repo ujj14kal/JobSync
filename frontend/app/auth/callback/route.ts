@@ -21,15 +21,19 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const response = NextResponse.redirect(`${origin}${next}`);
 
+  // Use get/set/remove — @supabase/ssr v0.3.0's internal storage adapter
+  // reads via cookies.get(); without it, the PKCE verifier is never found
+  // and exchangeCodeForSession always fails.
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
     cookies: {
-      getAll() {
-        return cookieStore.getAll();
+      get(name: string) {
+        return cookieStore.get(name)?.value;
       },
-      setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
-        );
+      set(name: string, value: string, options: object) {
+        response.cookies.set({ name, value, ...(options as Record<string, unknown>) });
+      },
+      remove(name: string, options: object) {
+        response.cookies.set({ name, value: "", ...(options as Record<string, unknown>) });
       },
     },
   });

@@ -1,9 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Hardcoded fallbacks mirror lib/supabase/client.ts — the anon key is safe to
-// expose (RLS enforces access), and the fallbacks ensure the middleware works
-// even when NEXT_PUBLIC_ vars are not configured in Vercel Project Settings.
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
   "https://dzdziagugdcbkictslrt.supabase.co";
@@ -15,7 +12,6 @@ export async function middleware(request: NextRequest) {
   const { pathname, searchParams, origin } = request.nextUrl;
 
   // Forward any stray OAuth code that lands outside /auth/callback
-  // (happens when Supabase Site URL differs from redirectTo)
   const code = searchParams.get("code");
   if (code && pathname !== "/auth/callback") {
     const next = searchParams.get("next") ?? "/dashboard";
@@ -25,33 +21,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(callbackUrl);
   }
 
-  // Let the auth callback page handle its own exchange without interference
+  // Let the auth callback route handle its own exchange
   if (pathname.startsWith("/auth/callback")) {
     return NextResponse.next({ request });
   }
 
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
+  // Use get/set/remove (not getAll/setAll) — @supabase/ssr v0.3.0's internal
+  // storage adapter calls cookies.get() to read; getAll-only adapters return
+  // undefined from getItem, making getUser() always return null.
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
+    cookies: {
+      get(name: string) {
+        return request.cookies.get(name)?.value;
       },
-    }
-  );
+      set(name: string, value: string, options: object) {
+        request.cookies.set({ name, value, ...(options as Record<string, unknown>) });
+        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse.cookies.set({ name, value, ...(options as Record<string, unknown>) });
+      },
+      remove(name: string, options: object) {
+        request.cookies.set({ name, value: "", ...(options as Record<string, unknown>) });
+        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse.cookies.set({ name, value: "", ...(options as Record<string, unknown>) });
+      },
+    },
+  });
 
   const { data: { user } } = await supabase.auth.getUser();
 
