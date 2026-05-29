@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Star, MapPin, Briefcase, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Star, Briefcase, CheckCircle2, DollarSign, Gift } from "lucide-react";
 import type { Mentor } from "@/lib/types";
 import Image from "next/image";
 
@@ -10,11 +10,13 @@ interface MentorCardProps {
   index?: number;
 }
 
-const platformConfig = {
-  unstop: { label: "Unstop", color: "text-purple-400 bg-purple-400/10 border-purple-400/20" },
-  adplist: { label: "ADPList", color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
-  linkedin: { label: "LinkedIn", color: "text-sky-400 bg-sky-400/10 border-sky-400/20" },
-  other: { label: "Other", color: "text-[var(--text-muted)] bg-[var(--bg-overlay)] border-[var(--border-subtle)]" },
+const platformConfig: Record<string, { label: string; color: string }> = {
+  unstop:      { label: "Unstop",       color: "text-purple-400 bg-purple-400/10 border-purple-400/20" },
+  adplist:     { label: "ADPList",      color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
+  linkedin:    { label: "LinkedIn",     color: "text-sky-400 bg-sky-400/10 border-sky-400/20" },
+  mentorcruise:{ label: "MentorCruise", color: "text-orange-400 bg-orange-400/10 border-orange-400/20" },
+  toptal:      { label: "Toptal",       color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" },
+  other:       { label: "Other",        color: "text-[var(--text-muted)] bg-[var(--bg-overlay)] border-[var(--border-subtle)]" },
 };
 
 export function MentorCard({ mentor, index = 0 }: MentorCardProps) {
@@ -117,6 +119,20 @@ export function MentorCard({ mentor, index = 0 }: MentorCardProps) {
           ))}
         </div>
       )}
+
+      {/* Pricing badge */}
+      <div className="mb-3">
+        {mentor.is_free ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-[11px] font-semibold text-emerald-400">
+            <Gift className="w-3 h-3" /> Free
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-[11px] font-semibold text-amber-400">
+            <DollarSign className="w-3 h-3" />
+            {mentor.price_display || "Paid"}
+          </span>
+        )}
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between">

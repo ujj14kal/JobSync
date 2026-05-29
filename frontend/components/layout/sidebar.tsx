@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   LogOut,
   Settings,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -45,6 +46,11 @@ const navItems = [
     href: "/mentors",
     icon: Users,
     label: "Mentors",
+  },
+  {
+    href: "/jobs",
+    icon: Briefcase,
+    label: "Job Tracker",
   },
   {
     href: "/insights",

@@ -203,7 +203,7 @@ export interface Mentor {
   name: string;
   title: string;
   company: string;
-  platform: "unstop" | "adplist" | "linkedin" | "other";
+  platform: "unstop" | "adplist" | "linkedin" | "mentorcruise" | "toptal" | "other";
   profile_url: string;
   avatar_url?: string;
   specializations: string[];
@@ -215,6 +215,13 @@ export interface Mentor {
   rating?: number;
   review_count?: number;
   is_verified: boolean;
+  // Pricing
+  is_free: boolean;
+  price_per_session?: number;
+  currency?: string;
+  pricing_model?: "free" | "per_session" | "subscription";
+  price_display?: string;
+  // Matching
   match_score?: number;
   match_reasons?: string[];
 }

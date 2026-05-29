@@ -9,7 +9,7 @@ import { analysisApi } from "@/lib/api/analysis";
 import { Search, Users, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const platforms = ["All", "Unstop", "ADPList", "LinkedIn"];
+const platforms = ["All", "ADPList", "MentorCruise", "Unstop", "LinkedIn"];
 const careerStages = ["All stages", "Student", "Entry Level", "Mid Level", "Senior"];
 
 export default function MentorsPage() {
