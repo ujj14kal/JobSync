@@ -23,25 +23,33 @@ for p in sorted(Path("/kaggle/input").rglob("*")):
     if p.is_file(): print(f"  {p}")
 
 import torch
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Test CUDA actually works — P100 (sm_60) may be incompatible with newer PyTorch
+device = torch.device("cpu")
+if torch.cuda.is_available():
+    try:
+        # Real compatibility test — embedding forward pass
+        _t = torch.nn.Embedding(10, 8).cuda()
+        _t(torch.zeros(2, dtype=torch.long).cuda())
+        del _t
+        device = torch.device("cuda")
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+    except Exception as e:
+        print(f"GPU incompatible with this PyTorch build — using CPU (reason: {e})")
 print(f"Device: {device}")
-if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-# Auto-scale hyperparameters based on device
-if torch.cuda.is_available():
-    # GPU (T4/P100): full model, ~15 min
+# Auto-scale hyperparameters based on ACTUAL device (after compatibility test)
+if device.type == "cuda":
+    # GPU: full model, ~15 min
     MAX_LEN=256; EMB_DIM=256; N_HEADS=8; N_LAYERS=3; FFN_DIM=512; DROPOUT=0.15
     ENCODER_EPOCHS=60;  ENCODER_BATCH=256; ENCODER_LR=3e-4; ENCODER_TEMP=0.05
     SCORER_EPOCHS=150;  SCORER_BATCH=128;  SCORER_LR=2e-4
     N_TRAIN_SAMPLES=10_000
 else:
-    # CPU: tiny model + short sequences = ~10-15 min
-    # MAX_LEN 64 vs 256 = 16x faster attention (O(n²))
+    # CPU: MAX_LEN=64 gives 16x faster attention (O(n²)), ~20 min total
     MAX_LEN=64;  EMB_DIM=128; N_HEADS=4; N_LAYERS=2; FFN_DIM=256; DROPOUT=0.1
     ENCODER_EPOCHS=15;  ENCODER_BATCH=64;  ENCODER_LR=3e-4; ENCODER_TEMP=0.07
     SCORER_EPOCHS=30;   SCORER_BATCH=128;  SCORER_LR=2e-4
-    N_TRAIN_SAMPLES=3_000  # 3k samples, fast enough on CPU
+    N_TRAIN_SAMPLES=3_000
 print(f"MAX_LEN={MAX_LEN} EMB_DIM={EMB_DIM} layers={N_LAYERS} heads={N_HEADS}")
 print(f"Epochs: encoder={ENCODER_EPOCHS}, scorer={SCORER_EPOCHS} | samples={N_TRAIN_SAMPLES}")
 
@@ -268,6 +276,36 @@ def hc_features(r,j,rt,jt):
     ta=sum(1 for w in fw if w in jt.lower())/max(len(fw),1)
     return [cos,ov,kd,rl,jl,he,edu,ldr,met,ta]
 
+# ── Custom Adam + Cosine LR (bypasses broken torch.optim on Kaggle) ───────────
+class Adam:
+    """Pure-Python Adam optimizer — no torch.optim dependency."""
+    def __init__(self,params,lr=1e-3,b1=0.9,b2=0.999,eps=1e-8):
+        self.params=[p for p in params if p.requires_grad]
+        self.lr=lr; self.b1=b1; self.b2=b2; self.eps=eps
+        self.m=[torch.zeros_like(p.data) for p in self.params]
+        self.v=[torch.zeros_like(p.data) for p in self.params]
+        self.t=0
+    def zero_grad(self):
+        for p in self.params:
+            if p.grad is not None: p.grad.detach_(); p.grad.zero_()
+    def step(self):
+        self.t+=1
+        for i,p in enumerate(self.params):
+            if p.grad is None: continue
+            g=p.grad.data
+            self.m[i]=self.b1*self.m[i]+(1-self.b1)*g
+            self.v[i]=self.b2*self.v[i]+(1-self.b2)*g*g
+            mh=self.m[i]/(1-self.b1**self.t)
+            vh=self.v[i]/(1-self.b2**self.t)
+            p.data-=self.lr*mh/(vh.sqrt()+self.eps)
+
+class CosineScheduler:
+    def __init__(self,opt,T,eta_min=1e-6):
+        self.opt=opt; self.T=T; self.eta_min=eta_min; self.lr0=opt.lr; self.t=0
+    def step(self):
+        self.t+=1
+        self.opt.lr=self.eta_min+(self.lr0-self.eta_min)*0.5*(1+math.cos(math.pi*self.t/self.T))
+
 # ── Losses ────────────────────────────────────────────────────────────────────
 def infonce(r,j,t=ENCODER_TEMP):
     s=(r@j.T)/t; lbl=torch.arange(s.size(0),device=s.device)
@@ -304,8 +342,8 @@ def train_encoder(records,tok):
     tl=DataLoader(tds,ENCODER_BATCH,shuffle=True,drop_last=True)
     vl=DataLoader(vds,ENCODER_BATCH,shuffle=False)
     model=Encoder(tok.vocab_size).to(device); print(f"  Params: {model.n_params:,}")
-    opt=torch.optim.AdamW(model.parameters(),lr=ENCODER_LR,weight_decay=1e-4)
-    sch=torch.optim.lr_scheduler.CosineAnnealingLR(opt,ENCODER_EPOCHS,eta_min=1e-6)
+    opt=Adam(model.parameters(),lr=ENCODER_LR)
+    sch=CosineScheduler(opt,ENCODER_EPOCHS)
     best,bst,pat=float("inf"),None,0; t0=time.monotonic()
     for ep in range(1,ENCODER_EPOCHS+1):
         model.train(); tl_=0
@@ -358,8 +396,8 @@ def train_scorer(records,encoder,tok):
     tds,vds=random_split(ds,[nt,nv])
     tl=DataLoader(tds,SCORER_BATCH,shuffle=True); vl=DataLoader(vds,SCORER_BATCH,shuffle=False)
     model=Scorer(Xt.shape[1]).to(device)
-    opt=torch.optim.AdamW(model.parameters(),lr=SCORER_LR,weight_decay=1e-4)
-    sch=torch.optim.lr_scheduler.CosineAnnealingLR(opt,SCORER_EPOCHS,eta_min=1e-6)
+    opt=Adam(model.parameters(),lr=SCORER_LR)
+    sch=CosineScheduler(opt,SCORER_EPOCHS)
     best,bst,pat=float("inf"),None,0; t0=time.monotonic()
     for ep in range(1,SCORER_EPOCHS+1):
         model.train(); tl_=0
