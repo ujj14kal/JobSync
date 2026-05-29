@@ -276,11 +276,15 @@ export function AnalysisResultClient({ id }: { id: string }) {
           className="flex items-center gap-2">
           <span className={cn(
             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
-            (analysis as any).scored_by === "ai"
+            (analysis as any).scored_by === "jobsync-custom-ai"
+              ? "bg-purple-400/10 border-purple-400/20 text-purple-400"
+              : (analysis as any).scored_by === "ai" || (analysis as any).scored_by === "groq-llm"
               ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
               : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)]"
           )}>
-            {(analysis as any).scored_by === "ai"
+            {(analysis as any).scored_by === "jobsync-custom-ai"
+              ? <><Brain className="w-3 h-3" /> Scored by JobSync AI</>
+              : (analysis as any).scored_by === "ai" || (analysis as any).scored_by === "groq-llm"
               ? <><Brain className="w-3 h-3" /> Scored by AI (LLM-as-Judge)</>
               : <><Sparkles className="w-3 h-3" /> Scored by rule engine</>
             }
