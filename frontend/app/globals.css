@@ -5,6 +5,8 @@
    Apple-level minimalism · Linear-inspired · 3D depth
 ═══════════════════════════════════════════════════════════════════ */
 
+a, button, [role="button"] { cursor: pointer; }
+
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 :root {
   /* ── Backgrounds ── */
