@@ -13,13 +13,14 @@ INPUT_DIR  = Path("/kaggle/input/jobsync-training-data")
 OUTPUT_DIR = Path("/kaggle/working")
 DATA_PATH  = INPUT_DIR / "training_pairs.jsonl"
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-GITHUB_REPO  = "ujj14kal/JobSync"
-RELEASE_TAG  = "ai-model-latest"
-
 print("=" * 60)
 print("JobSync Custom AI Trainer — Kaggle")
 print("=" * 60)
+
+# Debug: show what's available in /kaggle/input
+print("Input dir contents:")
+for p in sorted(Path("/kaggle/input").rglob("*")):
+    if p.is_file(): print(f"  {p}")
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -164,12 +165,70 @@ class Scorer(nn.Module):
             if p.dim()>1: nn.init.xavier_uniform_(p)
     def forward(self,x): s=self.trunk(x); return torch.cat([h(s)*100. for h in self.heads],dim=1)
 
+# ── Fallback data generator (used if Kaggle dataset not found) ────────────────
+def _generate_fallback(n=10_000):
+    """Generate synthetic training data in-kernel — no file I/O needed."""
+    ROLES=["backend_engineer","frontend_engineer","data_scientist","ml_engineer","devops_engineer"]
+    SENIORITY=["junior","mid","senior"]
+    SKILLS_BY_ROLE={
+        "backend_engineer":["python","java","golang","fastapi","django","postgresql","redis","kafka","docker","kubernetes","aws"],
+        "frontend_engineer":["react","typescript","nextjs","tailwind","css","javascript","webpack","jest","graphql","figma"],
+        "data_scientist":["python","pandas","numpy","scikit","tensorflow","pytorch","sql","spark","airflow","mlflow","statistics"],
+        "ml_engineer":["pytorch","tensorflow","cuda","bert","transformers","onnx","triton","mlflow","python","docker","kubernetes"],
+        "devops_engineer":["kubernetes","terraform","ansible","jenkins","github","prometheus","grafana","aws","gcp","linux","bash"],
+    }
+    COMPANIES=["Google","Meta","Amazon","Netflix","Stripe","Notion","Figma","Vercel","Supabase","OpenAI"]
+    VERBS=["Built","Designed","Led","Optimized","Deployed","Scaled","Automated","Improved","Reduced","Increased"]
+    METRICS=["by 40%","by 2x","by 10x","3x faster","zero downtime","50% cost reduction","99.9% uptime"]
+    def resume(role,sen,skills):
+        title=role.replace("_"," ").title(); yrs={"junior":"1-2","mid":"3-5","senior":"6+"}.get(sen,"3")
+        s1=random.sample(skills,min(4,len(skills))); s2=random.sample(skills,min(3,len(skills)))
+        lines=[f"Software Engineer — {title}\n\nSUMMARY\n{sen.title()} {title} with {yrs} years exp. in {', '.join(s1[:2])}."]
+        for _ in range(3): v=random.choice(VERBS); m=random.choice(METRICS); c=random.choice(COMPANIES); lines.append(f"• {v} {random.choice(s1)} system at {c} — improved performance {m}")
+        lines.append(f"\nSKILLS\n{', '.join(skills[:8])}")
+        return "\n".join(lines)
+    def jd(role,sen,req_skills,extra):
+        title=role.replace("_"," ").title()
+        lines=[f"{sen.title()} {title}\n\nREQUIREMENTS\n• {yrs} years of experience".replace("{yrs}","2+")]
+        for s in req_skills[:5]: lines.append(f"• Proficiency in {s}")
+        if extra: lines.append(f"\nNICE TO HAVE\n• {', '.join(extra[:3])}")
+        return "\n".join(lines)
+    records=[]
+    for _ in range(n):
+        role=random.choice(ROLES); sen=random.choice(SENIORITY)
+        skills=SKILLS_BY_ROLE[role]
+        level=random.choices(["high","medium","low"],weights=[35,40,25])[0]
+        if level=="high":
+            res_sk=random.sample(skills,min(7,len(skills))); req_sk=random.sample(res_sk,min(5,len(res_sk))); extra=random.sample(skills,2)
+            sc={"ats_score":random.uniform(75,95),"technical_fit_score":random.uniform(75,95),"semantic_match_score":random.uniform(70,90),"recruiter_impression_score":random.uniform(70,90),"project_relevance_score":random.uniform(70,90)}
+        elif level=="medium":
+            res_sk=random.sample(skills,5); req_sk=random.sample(skills,5); extra=[]
+            overlap=len(set(res_sk)&set(req_sk))/5
+            sc={"ats_score":random.uniform(40,74),"technical_fit_score":random.uniform(35,70),"semantic_match_score":random.uniform(35,65),"recruiter_impression_score":random.uniform(45,75),"project_relevance_score":random.uniform(30,65)}
+        else:
+            all_other_roles=[r for r in ROLES if r!=role]; other=random.choice(all_other_roles)
+            res_sk=random.sample(SKILLS_BY_ROLE[other],5); req_sk=random.sample(skills,5); extra=[]
+            sc={"ats_score":random.uniform(10,39),"technical_fit_score":random.uniform(5,35),"semantic_match_score":random.uniform(10,40),"recruiter_impression_score":random.uniform(20,50),"project_relevance_score":random.uniform(5,30)}
+        records.append({"resume":resume(role,sen,res_sk),"jd":jd(role,sen,req_sk,extra),"match_level":level,"scores":sc,"role":role,"seniority":sen})
+    return records
+
 # ── Data loading ──────────────────────────────────────────────────────────────
 DIMS=["ats_score","technical_fit_score","semantic_match_score","recruiter_impression_score","project_relevance_score"]
 
 def load_records():
     records=[]
-    with open(DATA_PATH) as f:
+    # Try primary path, then look for the file anywhere in /kaggle/input
+    candidates=[DATA_PATH]
+    for p in Path("/kaggle/input").rglob("*.jsonl"):
+        candidates.append(p)
+    actual=None
+    for c in candidates:
+        if c.exists(): actual=c; break
+    if actual is None:
+        print(f"⚠ training_pairs.jsonl not found, generating {10_000} pairs in-kernel...")
+        records=_generate_fallback(10_000)
+        print(f"✓ Generated {len(records)} fallback pairs"); return records
+    with open(actual) as f:
         for line in f:
             line=line.strip()
             if line:
@@ -177,7 +236,7 @@ def load_records():
                     r=json.loads(line)
                     if "resume" in r and "jd" in r: records.append(r)
                 except: pass
-    print(f"Loaded {len(records)} pairs"); return records
+    print(f"Loaded {len(records)} pairs from {actual}"); return records
 
 def hc_features(r,j,rt,jt):
     cos=float((r*j).sum())
@@ -310,43 +369,9 @@ def train_scorer(records,encoder,tok):
     print(f"✓ Scorer done  val_mse={best:.2f}  val_mae={va_:.2f}  {elapsed:.0f}s")
     return {"val_mse":round(best,2),"val_mae":round(va_,2),"epochs":ep}
 
-def upload_to_github(enc_r,scr_r,tok):
-    import urllib.request, io
-    if not GITHUB_TOKEN:
-        print("⚠ No GITHUB_TOKEN — skipping upload"); return None
-    zp=OUTPUT_DIR/"jobsync_ai_model.zip"
-    print(f"\n▶ Packaging → {zp}")
-    with zipfile.ZipFile(zp,"w",zipfile.ZIP_DEFLATED) as z:
-        for fn in ["encoder.pt","scorer.pt","tokenizer.json"]:
-            fp=OUTPUT_DIR/fn
-            if fp.exists(): z.write(fp,fn); print(f"  + {fn} ({fp.stat().st_size//1024}KB)")
-    meta={"trained_at":datetime.utcnow().isoformat(),"encoder":enc_r,"scorer":scr_r,
-          "device":str(device),"architecture":f"DualEncoder({N_LAYERS}L×{N_HEADS}H×{EMB_DIM}d)+Scorer5heads"}
-    (OUTPUT_DIR/"model_meta.json").write_text(json.dumps(meta,indent=2))
-    with zipfile.ZipFile(zp,"a") as z: z.write(OUTPUT_DIR/"model_meta.json","model_meta.json")
-    print(f"  Size: {zp.stat().st_size/1024/1024:.1f} MB")
-    hdrs={"Authorization":f"token {GITHUB_TOKEN}","Accept":"application/vnd.github.v3+json","User-Agent":"JobSync"}
-    # Delete old release
-    try:
-        req=urllib.request.Request(f"https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{RELEASE_TAG}",headers=hdrs)
-        rel=json.loads(urllib.request.urlopen(req).read())
-        urllib.request.urlopen(urllib.request.Request(f"https://api.github.com/repos/{GITHUB_REPO}/releases/{rel['id']}",headers=hdrs,method="DELETE"))
-    except: pass
-    # Create release
-    body=json.dumps({"tag_name":RELEASE_TAG,"name":f"JobSync AI — {datetime.utcnow().strftime('%Y-%m-%d')}",
-                     "body":json.dumps(meta,indent=2),"prerelease":False}).encode()
-    rel=json.loads(urllib.request.urlopen(urllib.request.Request(
-        f"https://api.github.com/repos/{GITHUB_REPO}/releases",data=body,headers={**hdrs,"Content-Type":"application/json"},method="POST"
-    )).read()); rid=rel["id"]; print(f"  Release: {rel['html_url']}")
-    # Upload zip
-    with open(zp,"rb") as f:
-        asset=json.loads(urllib.request.urlopen(urllib.request.Request(
-            f"https://uploads.github.com/repos/{GITHUB_REPO}/releases/{rid}/assets?name=jobsync_ai_model.zip",
-            data=f.read(),headers={**hdrs,"Content-Type":"application/zip"},method="POST"
-        )).read())
-    print(f"✅ Uploaded: {asset['browser_download_url']}"); return asset["browser_download_url"]
-
 # ── Main ──────────────────────────────────────────────────────────────────────
+# Note: GitHub upload is handled by auto_train.py after downloading the output.
+# The Kaggle kernel only trains and saves files to OUTPUT_DIR.
 t_total=time.monotonic()
 records=load_records()
 print(f"High={sum(1 for r in records if r.get('match_level')=='high')}  "
@@ -358,9 +383,15 @@ encoder,enc_r=train_encoder(records,tok)
 torch.save({k:v.cpu() for k,v in encoder.state_dict().items()},OUTPUT_DIR/"encoder.pt")
 tok.save(OUTPUT_DIR/"tokenizer.json")
 scr_r=train_scorer(records,encoder,tok)
-# scorer is saved inside train_scorer already via OUTPUT_DIR
+# scorer is saved inside train_scorer already (OUTPUT_DIR/scorer.pt)
+meta={"trained_at":datetime.utcnow().isoformat(),"encoder":enc_r,"scorer":scr_r,
+      "device":str(device),"architecture":f"DualEncoder({N_LAYERS}L×{N_HEADS}H×{EMB_DIM}d)+Scorer5heads"}
+(OUTPUT_DIR/"model_meta.json").write_text(json.dumps(meta,indent=2))
 total=time.monotonic()-t_total
 print(f"\n{'='*60}")
-print(f"Total: {total/60:.1f} min  encoder_val={enc_r['val_loss']}  scorer_mse={scr_r['val_mse']}")
-url=upload_to_github(enc_r,scr_r,tok)
+print(f"✅ Training complete in {total/60:.1f} min")
+print(f"   encoder_val={enc_r['val_loss']}  scorer_mse={scr_r['val_mse']}")
+print(f"   Output files in {OUTPUT_DIR}:")
+for f in OUTPUT_DIR.iterdir():
+    print(f"     {f.name}  ({f.stat().st_size//1024} KB)")
 print(f"{'='*60}")

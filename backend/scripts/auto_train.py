@@ -134,10 +134,10 @@ def push_kernel():
     kernel_dir = ROOT / "data" / "_kaggle_kernel"
     kernel_dir.mkdir(exist_ok=True)
 
-    # Copy training script
+    # Copy training script as-is — GitHub upload is done locally after download
     shutil.copy(NOTEBOOKS_DIR / "kaggle_train.py", kernel_dir / "kaggle_train.py")
 
-    # Write kernel metadata (inject username and GitHub token)
+    # Write kernel metadata
     meta = {
         "id":               f"{KAGGLE_USER}/{KERNEL_SLUG}",
         "title":            "JobSync AI Trainer",
@@ -150,15 +150,14 @@ def push_kernel():
         "dataset_sources":  [f"{KAGGLE_USER}/{DATASET_SLUG}"],
         "competition_sources": [],
         "kernel_sources":   [],
-        "environment_variables": {
-            "GITHUB_TOKEN": GITHUB_TOKEN,
-        },
     }
     (kernel_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2))
 
     from kaggle import api; api.authenticate()
-    api.kernels_push(str(kernel_dir))
+    response = api.kernels_push(str(kernel_dir))
     print(f"✓ Kernel pushed: kaggle.com/{KAGGLE_USER}/{KERNEL_SLUG}")
+    if hasattr(response, 'error') and response.error:
+        raise RuntimeError(f"Kernel push error: {response.error}")
 
     shutil.rmtree(kernel_dir)
 
@@ -189,10 +188,13 @@ def wait_for_training(timeout_min=60):
                 print(f"\n  Status: {status}", end="", flush=True)
                 last_status = status
 
-            if status in ("complete",):
+            # Match both old and new Kaggle status formats
+            # New format: "kernelworkerstatus.complete" or "RUN_STATUS_COMPLETE"
+            s_lower = status.lower()
+            if "complete" in s_lower:
                 print("\n✓ Training complete!")
                 return True
-            elif status in ("error", "cancelled"):
+            elif any(x in s_lower for x in ("error", "cancel", "fail")):
                 print(f"\n❌ Kernel {status}")
                 print(f"  Logs: https://www.kaggle.com/{KAGGLE_USER}/{KERNEL_SLUG}")
                 return False
@@ -251,6 +253,86 @@ def download_model():
     print("✓ All model files ready")
     return True
 
+# ─── Step 6: Upload model to GitHub Release ────────────────────────────────────
+
+def upload_to_github():
+    """Package models and upload to GitHub Release (runs locally — token never leaves this machine)."""
+    import urllib.request, zipfile as zf
+    from datetime import datetime
+
+    if not GITHUB_TOKEN:
+        print("⚠ No GITHUB_TOKEN — skipping GitHub upload")
+        return None
+
+    print(f"\n▶ Step 6/6 — Uploading model to GitHub Release...")
+    GITHUB_REPO = "ujj14kal/JobSync"
+    RELEASE_TAG = "ai-model-latest"
+
+    # Package model files
+    zip_path = MODELS_DIR / "jobsync_ai_model.zip"
+    print(f"  Packaging model files...")
+    with zf.ZipFile(zip_path, "w", zf.ZIP_DEFLATED) as z:
+        for fn in ["encoder.pt", "scorer.pt", "tokenizer.json", "model_meta.json"]:
+            fp = MODELS_DIR / fn
+            if fp.exists():
+                z.write(fp, fn)
+                print(f"    + {fn} ({fp.stat().st_size // 1024} KB)")
+
+    size_mb = zip_path.stat().st_size / 1024 / 1024
+    print(f"  Package size: {size_mb:.1f} MB")
+
+    hdrs = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "JobSync-AutoTrainer",
+    }
+
+    # Delete old release if exists
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{RELEASE_TAG}",
+            headers=hdrs
+        )
+        rel = json.loads(urllib.request.urlopen(req).read())
+        urllib.request.urlopen(urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/releases/{rel['id']}",
+            headers=hdrs, method="DELETE"
+        ))
+        print("  ✓ Deleted old release")
+    except Exception:
+        pass  # No existing release, that's fine
+
+    # Create new release
+    meta_path = MODELS_DIR / "model_meta.json"
+    meta_body = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+    release_body = json.dumps({
+        "tag_name": RELEASE_TAG,
+        "name": f"JobSync AI — {datetime.utcnow().strftime('%Y-%m-%d')}",
+        "body": json.dumps(meta_body, indent=2),
+        "prerelease": False,
+    }).encode()
+    rel = json.loads(urllib.request.urlopen(urllib.request.Request(
+        f"https://api.github.com/repos/{GITHUB_REPO}/releases",
+        data=release_body,
+        headers={**hdrs, "Content-Type": "application/json"},
+        method="POST",
+    )).read())
+    rid = rel["id"]
+    print(f"  ✓ Created release: {rel['html_url']}")
+
+    # Upload zip asset
+    print(f"  Uploading {size_mb:.1f} MB zip...")
+    with open(zip_path, "rb") as f:
+        asset = json.loads(urllib.request.urlopen(urllib.request.Request(
+            f"https://uploads.github.com/repos/{GITHUB_REPO}/releases/{rid}/assets?name=jobsync_ai_model.zip",
+            data=f.read(),
+            headers={**hdrs, "Content-Type": "application/zip"},
+            method="POST",
+        )).read())
+    print(f"✅ Model live at: {asset['browser_download_url']}")
+    zip_path.unlink()  # clean up local zip
+    return asset["browser_download_url"]
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -280,9 +362,12 @@ def main():
     if success:
         downloaded = download_model()
         if downloaded:
+            gh_url = upload_to_github()
             total = time.monotonic() - t0
             print(f"\n{'='*60}")
-            print(f"✅ Training complete in {total/60:.1f} min")
+            print(f"✅ Full pipeline complete in {total/60:.1f} min")
+            if gh_url:
+                print(f"   Model published: {gh_url}")
             print(f"{'='*60}")
             print("\nNext steps:")
             print("  1. Restart your backend (or redeploy to Cloud Run)")
