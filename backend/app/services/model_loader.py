@@ -178,6 +178,8 @@ def load_models_into_memory() -> bool:
                 return ids[:ml]
             def get_attention_mask(self, ids):
                 return [0 if i == self.PAD_ID else 1 for i in ids]
+            def mask(self, ids):  # alias used by ai_scorer.py
+                return self.get_attention_mask(ids)
 
         _tokenizer = _Tokenizer(token2id)
         logger.info("Tokenizer loaded", vocab_size=_tokenizer.vocab_size)
