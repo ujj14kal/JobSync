@@ -16,7 +16,13 @@ import {
   ArrowRight,
   RefreshCw,
   ChevronRight,
+  Briefcase,
+  Brain,
+  Sparkles,
 } from "lucide-react";
+import { ScoreFeedback } from "@/components/analysis/score-feedback";
+import { jobApplicationsApi } from "@/lib/api/job-applications";
+import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +31,25 @@ type Tab = "overview" | "keywords" | "feedback" | "rewrite" | "mentors";
 export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
+  const [tracked, setTracked] = useState(false);
+
+  async function handleTrackJob() {
+    if (!analysis || tracked) return;
+    try {
+      await jobApplicationsApi.create({
+        job_title: analysis.job?.parsed_data?.title || "Unknown Role",
+        company: analysis.job?.company_name || "Unknown Company",
+        job_url: analysis.job?.job_url,
+        analysis_id: id,
+        ats_score: analysis.scores?.overall_score,
+        status: "saved",
+      });
+      setTracked(true);
+      toast.success("Added to Job Tracker!");
+    } catch {
+      toast.error("Failed to add to tracker");
+    }
+  }
 
   const { data: analysis, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["analysis", id],
@@ -168,13 +193,23 @@ export function AnalysisResultClient({ id }: { id: string }) {
             {analysis.job?.parsed_data?.location && ` · ${analysis.job.parsed_data.location}`}
           </p>
         </div>
-        <Link
-          href="/analysis"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          New analysis
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleTrackJob}
+            disabled={tracked}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-60"
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            {tracked ? "Tracked ✓" : "Track job"}
+          </button>
+          <Link
+            href="/analysis"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            New analysis
+          </Link>
+        </div>
       </motion.div>
 
       {/* Score header */}
@@ -235,6 +270,34 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
+      {/* AI scoring badge */}
+      {(analysis as any).scored_by && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
+          className="flex items-center gap-2">
+          <span className={cn(
+            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
+            (analysis as any).scored_by === "ai"
+              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
+              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)]"
+          )}>
+            {(analysis as any).scored_by === "ai"
+              ? <><Brain className="w-3 h-3" /> Scored by AI (LLM-as-Judge)</>
+              : <><Sparkles className="w-3 h-3" /> Scored by rule engine</>
+            }
+          </span>
+          {(analysis as any).hire_recommendation && (
+            <span className={cn(
+              "px-2.5 py-1 rounded-full text-[11px] font-medium border",
+              (analysis as any).hire_recommendation?.includes("Yes") ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
+                : (analysis as any).hire_recommendation?.includes("No") ? "bg-red-400/10 border-red-400/20 text-red-400"
+                : "bg-amber-400/10 border-amber-400/20 text-amber-400"
+            )}>
+              {(analysis as any).hire_recommendation}
+            </span>
+          )}
+        </motion.div>
+      )}
+
       {/* Recruiter summary */}
       {analysis.recruiter_summary && (
         <motion.div
@@ -254,6 +317,37 @@ export function AnalysisResultClient({ id }: { id: string }) {
           </p>
         </motion.div>
       )}
+
+      {/* AI dimension reasoning */}
+      {(analysis as any).ai_reasoning && Object.values((analysis as any).ai_reasoning).some(Boolean) && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+          className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">AI Reasoning</span>
+          </div>
+          <div className="space-y-2">
+            {(Object.entries((analysis as any).ai_reasoning) as [string, string][])
+              .filter(([, v]) => v)
+              .map(([key, value]) => (
+                <div key={key} className="flex gap-3">
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--text-muted)] font-medium w-20 flex-shrink-0 pt-0.5 capitalize">
+                    {key}
+                  </span>
+                  <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{value}</p>
+                </div>
+              ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Feedback widget */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+        <ScoreFeedback
+          analysisId={id}
+          jobTitle={analysis.job?.parsed_data?.title}
+        />
+      </motion.div>
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] w-full overflow-x-auto">

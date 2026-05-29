@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
 from app.services.ats_engine import compute_all_scores
+from app.services.ai_scorer import score_with_ai_timeout
 from app.services.ai_feedback import generate_recruiter_feedback, generate_bullet_rewrites
 from app.services.embedding_service import embed_text
 from app.services.cache_service import (
@@ -214,15 +215,14 @@ async def run_analysis(
         parsed_resume = resume_data.get("parsed_data", {})
         parsed_job = job_data.get("parsed_data", {})
 
-        # Compute or reuse embeddings
-        # pgvector returns embeddings as a string like '[-0.09,...,0.12]' — parse it back
+        # ── Parse cached embeddings (pgvector returns strings) ────────────────
         def _parse_embedding(val) -> list[float] | None:
             if not val:
                 return None
             if isinstance(val, str):
-                import json
+                import json as _json
                 try:
-                    return json.loads(val)
+                    return _json.loads(val)
                 except Exception:
                     return None
             return val
@@ -230,20 +230,34 @@ async def run_analysis(
         resume_embedding = _parse_embedding(resume_data.get("embedding")) or embed_text(resume_text[:3000])
         job_embedding = _parse_embedding(job_data.get("embedding")) or embed_text(job_text[:3000])
 
-        # ATS scoring (CPU-bound, no Groq calls)
-        score_data = compute_all_scores(
+        # ── AI-first scoring ───────────────────────────────────────────────────
+        # Primary: LLM-as-judge (scores all 5 dimensions with reasoning)
+        # Fallback: rule-based engine (if LLM unavailable / timeout)
+        ai_result = await score_with_ai_timeout(
             resume_text=resume_text,
-            parsed_resume=parsed_resume,
             job_text=job_text,
+            parsed_resume=parsed_resume,
             parsed_job=parsed_job,
-            resume_embedding=resume_embedding,
-            job_embedding=job_embedding,
+            timeout=50.0,
         )
 
-        scores = score_data["scores"]
-        missing_keywords = score_data["missing_keywords"]
+        # Extract structured scores
+        scores = {
+            "overall_score":               ai_result.get("overall_score", 0),
+            "ats_score":                   ai_result.get("ats_score", 0),
+            "technical_fit_score":         ai_result.get("technical_fit_score", 0),
+            "semantic_match_score":        ai_result.get("semantic_match_score", 0),
+            "recruiter_impression_score":  ai_result.get("recruiter_impression_score", 0),
+            "project_relevance_score":     ai_result.get("project_relevance_score", 0),
+        }
+        missing_keywords = ai_result.get("missing_keywords", [])
+        ai_reasoning = ai_result.get("reasoning", {})
+        ai_strengths = ai_result.get("key_strengths", [])
+        ai_weaknesses = ai_result.get("key_weaknesses", [])
+        scored_by = ai_result.get("scored_by", "ai")
 
-        # LLM feedback — run in parallel, both go through groq_call() rate limiter
+        # ── LLM feedback (strengths/weaknesses/suggestions/rewrites) ──────────
+        # Run in parallel — feedback uses scores from AI scorer as context
         feedback_task = asyncio.create_task(
             generate_recruiter_feedback(
                 resume_text=resume_text,
@@ -263,17 +277,31 @@ async def run_analysis(
 
         feedback, rewrites = await asyncio.gather(feedback_task, rewrites_task)
 
+        # Merge AI key_strengths/weaknesses with LLM-generated feedback
+        strengths = feedback.get("strengths") or [
+            {"title": s, "description": s, "impact": "medium"}
+            for s in ai_strengths[:3]
+        ]
+        weaknesses = feedback.get("weaknesses") or [
+            {"title": w, "description": w, "severity": "major", "section": "general"}
+            for w in ai_weaknesses[:3]
+        ]
+
         # Persist results
         update_data = {
             "status": "complete",
             **scores,
-            "strengths": feedback.get("strengths", []),
-            "weaknesses": feedback.get("weaknesses", []),
+            "strengths": strengths,
+            "weaknesses": weaknesses,
             "missing_keywords": missing_keywords,
             "skill_gaps": feedback.get("skill_gaps", []),
             "improvement_suggestions": feedback.get("improvement_suggestions", []),
             "rewritten_bullets": rewrites,
             "recruiter_summary": feedback.get("recruiter_summary", ""),
+            "ai_reasoning": ai_reasoning,
+            "scored_by": scored_by,
+            "hire_recommendation": ai_result.get("hire_recommendation", ""),
+            "seniority_match": ai_result.get("seniority_match", ""),
         }
 
         supabase.table("analyses").update(update_data).eq("id", analysis_id).execute()
