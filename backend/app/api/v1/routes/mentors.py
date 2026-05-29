@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
-from app.services.mentor_finder import find_mentors_for_analysis, rank_mentors, scrape_unstop_mentors
+from app.services.mentor_finder import find_mentors_for_analysis, rank_mentors, fetch_unstop_mentors as scrape_unstop_mentors
 
 router = APIRouter(prefix="/mentors", tags=["mentors"])
 
