@@ -15,6 +15,7 @@ import {
   LogOut,
   Settings,
   Briefcase,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -56,6 +57,11 @@ const navItems = [
     href: "/insights",
     icon: TrendingUp,
     label: "Career Insights",
+  },
+  {
+    href: "/ai-lab",
+    icon: Brain,
+    label: "AI Lab",
   },
 ];
 

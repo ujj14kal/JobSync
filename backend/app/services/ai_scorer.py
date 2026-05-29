@@ -1,21 +1,28 @@
 """
-AI Scorer — LLM-as-Judge for all 5 ATS dimensions.
+AI Scorer — Three-tier scoring pipeline for all 5 ATS dimensions.
 
-Architecture:
-  Primary  → Groq llama-3.3-70b  (most accurate, used for real analyses)
-  Fallback → Groq llama-3.1-8b   (if primary hits rate limit)
-  Last resort → rule-based engine (if all LLM calls fail)
+Priority order:
+  1. JobSync Neural Scorer (custom PyTorch model, fully local, no API)
+     → Active once trained on synthetic data (600+ pairs, ~100 epochs)
+     → Gets smarter with every user feedback signal
 
-Why this beats rules:
-  - Understands context: "Led ML platform serving 10M users" >> "wrote python scripts"
-  - Judges writing quality like a real recruiter, not a keyword counter
-  - Knows domain-specific expectations per role (SWE vs PM vs DS vs Design)
-  - Calibrated rubric prevents grade inflation / deflation
-  - Reasons explicitly — every score comes with an explanation
+  2. Groq LLM-as-Judge (llama-3.3-70b bootstrap)
+     → Used ONLY while the neural model is untrained / warming up
+     → Also used to generate initial training data for the neural model
+     → Will be fully replaced once neural model reaches target accuracy
+
+  3. Rule-based engine (always-available last resort)
+     → Pure keyword/regex/embedding rules, no ML
+     → Only used if both neural model and Groq are unavailable
+
+How the neural model improves over time:
+  - Initial training: 600+ synthetic labeled pairs (generated via Groq once)
+  - Continuous improvement: real user outcome feedback → fine-tuning
+  - Calibration layer: isotonic regression on outcome data
 
 Calibration:
-  Raw LLM scores are passed through the ScoreCalibrator (if trained) to
-  correct for systematic bias (LLMs tend to cluster scores at 60-70).
+  Raw scores pass through ScoreCalibrator (if trained) to correct
+  systematic bias regardless of which tier produced them.
 """
 from __future__ import annotations
 
@@ -120,24 +127,93 @@ async def score_with_ai(
     parsed_job: dict,
 ) -> dict[str, Any]:
     """
-    Score resume vs JD using LLM-as-judge.
+    Score resume vs JD — tries neural model first, Groq second, rules last.
 
     Returns full score dict compatible with compute_all_scores output,
     plus extra AI fields (reasoning, hire_recommendation, etc.).
     """
-    resume_snippet = resume_text[:3000].strip()
-    job_snippet = job_text[:2000].strip()
-
-    if not resume_snippet or not job_snippet:
+    if not resume_text.strip() or not job_text.strip():
         logger.warning("Empty resume or job text — falling back to rules")
         return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+
+    # ── Tier 1: Custom Neural Model ────────────────────────────────────────────
+    result = await _try_neural_scoring(resume_text, job_text, parsed_resume, parsed_job)
+    if result:
+        logger.info("Neural model scoring succeeded", version=result.get("model_version"))
+        return _post_process(result, resume_text, parsed_resume, parsed_job)
+
+    # ── Tier 2: Groq LLM-as-Judge (bootstrap fallback) ─────────────────────────
+    logger.info("Neural model unavailable — using Groq LLM scorer")
+    result = await _try_groq_scoring(resume_text, job_text, parsed_resume, parsed_job)
+    if result:
+        return _post_process(result, resume_text, parsed_resume, parsed_job)
+
+    # ── Tier 3: Rule-based engine ───────────────────────────────────────────────
+    logger.warning("All AI scorers failed — using rule-based fallback")
+    return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+
+
+async def _try_neural_scoring(
+    resume_text: str,
+    job_text: str,
+    parsed_resume: dict,
+    parsed_job: dict,
+) -> dict | None:
+    """Attempt scoring with the custom neural model. Returns None if untrained."""
+    try:
+        from app.services.jobsync_neural_scorer import get_neural_scorer
+        from app.services.embedding_service import embed_text
+
+        scorer = get_neural_scorer()
+        if scorer is None:
+            return None  # not trained yet
+
+        resume_emb = await asyncio.to_thread(embed_text, resume_text[:3000])
+        jd_emb = await asyncio.to_thread(embed_text, job_text[:2000])
+
+        prediction = await asyncio.to_thread(
+            scorer.predict, resume_text, job_text, resume_emb, jd_emb
+        )
+
+        # Build full result dict with neural scores
+        result = {
+            "ats_score": prediction["ats_score"],
+            "technical_fit_score": prediction["technical_fit_score"],
+            "semantic_match_score": prediction["semantic_match_score"],
+            "recruiter_impression_score": prediction["recruiter_impression_score"],
+            "project_relevance_score": prediction["project_relevance_score"],
+            "overall_score": prediction["overall_score"],
+            "scored_by": prediction["scored_by"],
+            "model_version": scorer.version,
+            # Neural model generates skill-based reasoning (not LLM text)
+            "reasoning": _neural_reasoning(prediction, resume_text, job_text, parsed_resume, parsed_job),
+            "hire_recommendation": _score_to_recommendation(prediction["overall_score"]),
+            "seniority_match": _infer_seniority_match(resume_text, job_text),
+            "key_strengths": [],
+            "key_weaknesses": [],
+        }
+        return result
+
+    except Exception as e:
+        logger.error("Neural scoring failed", error=str(e))
+        return None
+
+
+async def _try_groq_scoring(
+    resume_text: str,
+    job_text: str,
+    parsed_resume: dict,
+    parsed_job: dict,
+) -> dict | None:
+    """Attempt LLM-as-judge scoring via Groq. Returns None on failure."""
+    resume_snippet = resume_text[:3000].strip()
+    job_snippet = job_text[:2000].strip()
 
     prompt = _SCORING_PROMPT.format(
         resume_text=resume_snippet,
         job_text=job_snippet,
     )
 
-    # Try primary model first, then fast model
     raw: str | None = None
     for model, label in [
         (settings.GROQ_MODEL, "primary"),
@@ -147,46 +223,59 @@ async def score_with_ai(
             raw = await groq_call(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,          # low temp → consistent, calibrated scores
+                temperature=0.1,
                 max_tokens=900,
                 json_mode=True,
-                use_cache=False,          # never cache scoring — each resume is unique
+                use_cache=False,
             )
-            logger.info("AI scoring completed", model=label)
+            logger.info("Groq LLM scoring completed", model=label)
             break
         except Exception as e:
-            logger.warning(f"AI scoring {label} failed", error=str(e))
+            logger.warning(f"Groq scoring {label} failed", error=str(e))
             await asyncio.sleep(1)
 
     if not raw:
-        logger.error("All LLM scorers failed — using rule fallback")
-        return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+        return None
 
-    # Parse response
     try:
         result = _parse_llm_response(raw)
+        result["scored_by"] = "groq-llm"
+        return result
     except Exception as e:
-        logger.error("Failed to parse LLM scoring response", error=str(e), raw=raw[:200])
-        return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+        logger.error("Failed to parse Groq response", error=str(e))
+        return None
 
-    # Apply calibration if trained model available
+
+def _post_process(
+    result: dict,
+    resume_text: str,
+    parsed_resume: dict,
+    parsed_job: dict,
+) -> dict:
+    """Shared post-processing: calibration + keyword merging."""
+    # Apply calibration
     calibrator = get_calibrator()
     if calibrator:
         result = calibrator.calibrate_scores(result)
-        logger.debug("Scores calibrated by trained model")
+        logger.debug("Scores calibrated")
 
-    # Compute overall from AI scores
+    # Compute weighted overall
     result["overall_score"] = _compute_overall(result)
 
-    # Merge keyword analysis from rules (faster than asking LLM)
-    from app.services.skill_normalizer import skills_overlap, display_skill, normalize_skills
+    # Keyword analysis
+    from app.services.skill_normalizer import skills_overlap, display_skill
     resume_skills = parsed_resume.get("skills", [])
     job_required = parsed_job.get("required_skills", [])
     job_tech = parsed_job.get("tech_stack", [])
     matched, missing = skills_overlap(resume_skills, job_required + job_tech)
 
-    # Merge LLM missing keywords with rule-based ones
-    llm_missing = result.get("missing_keywords", [])
+    llm_missing = []
+    existing = result.get("missing_keywords", [])
+    if existing and isinstance(existing[0], dict):
+        llm_missing = [m.get("keyword", "") for m in existing]
+    elif existing and isinstance(existing[0], str):
+        llm_missing = existing
+
     rule_missing = [display_skill(s) for s in missing]
     all_missing = _merge_keywords(llm_missing, rule_missing)
 
@@ -205,8 +294,83 @@ async def score_with_ai(
         "missing": rule_missing[:15],
     }
 
-    result["scored_by"] = "ai"
     return result
+
+
+def _neural_reasoning(
+    prediction: dict,
+    resume_text: str,
+    job_text: str,
+    parsed_resume: dict,
+    parsed_job: dict,
+) -> dict:
+    """
+    Generate human-readable reasoning from neural model scores.
+    No LLM needed — derived from scores + skill analysis.
+    """
+    from app.services.skill_normalizer import skills_overlap, display_skill
+
+    resume_skills = parsed_resume.get("skills", [])
+    job_required = parsed_job.get("required_skills", [])
+    job_tech = parsed_job.get("tech_stack", [])
+    matched, missing = skills_overlap(resume_skills, job_required + job_tech)
+
+    ats = prediction["ats_score"]
+    tech = prediction["technical_fit_score"]
+    sem = prediction["semantic_match_score"]
+    rec = prediction["recruiter_impression_score"]
+    proj = prediction["project_relevance_score"]
+
+    matched_str = ", ".join(list(matched)[:4]) or "none detected"
+    missing_str = ", ".join([display_skill(s) for s in list(missing)[:3]]) or "none"
+
+    return {
+        "ats": f"ATS compatibility score {ats:.0f}/100. "
+               + ("Resume structure and keyword density look strong." if ats >= 70
+                  else "Consider adding more industry keywords and improving formatting."),
+        "technical": f"Technical fit {tech:.0f}/100. Matched skills: {matched_str}. "
+                     + (f"Missing: {missing_str}." if missing_str != "none" else "Good skill alignment."),
+        "semantic": f"Semantic match {sem:.0f}/100. "
+                    + ("Experience narrative aligns well with the role requirements." if sem >= 65
+                       else "The candidate's experience may not directly map to this role's core responsibilities."),
+        "recruiter": f"Recruiter impression {rec:.0f}/100. "
+                     + ("Strong action verbs and quantified impact evident." if rec >= 70
+                        else "Consider adding more metrics and stronger action verbs to bullets."),
+        "projects": f"Project relevance {proj:.0f}/100. "
+                    + ("Projects demonstrate hands-on experience with required technologies." if proj >= 65
+                       else "Add projects that directly showcase skills required for this role."),
+    }
+
+
+def _score_to_recommendation(overall: float) -> str:
+    if overall >= 80:
+        return "Strong Yes"
+    elif overall >= 70:
+        return "Yes"
+    elif overall >= 55:
+        return "Maybe"
+    elif overall >= 40:
+        return "No"
+    else:
+        return "Strong No"
+
+
+def _infer_seniority_match(resume_text: str, job_text: str) -> str:
+    """Quick heuristic seniority match from text signals."""
+    import re
+    senior_signals = len(re.findall(r'\b(senior|lead|principal|staff|architect|director|vp|10\+|8\+|9\+)\b', resume_text.lower()))
+    junior_signals = len(re.findall(r'\b(junior|entry|intern|0-2|recent grad|bootcamp|fresher)\b', resume_text.lower()))
+    jd_senior = len(re.findall(r'\b(senior|lead|principal|staff|5\+|7\+|8\+)\b', job_text.lower()))
+    jd_junior = len(re.findall(r'\b(junior|entry|0-2|1-3)\b', job_text.lower()))
+
+    if senior_signals > 2 and jd_junior > 0:
+        return "Overqualified"
+    elif junior_signals > 1 and jd_senior > 1:
+        return "Underqualified"
+    elif senior_signals > 0 and jd_senior > 0:
+        return "Perfect"
+    else:
+        return "Slight stretch"
 
 
 def _parse_llm_response(raw: str) -> dict:

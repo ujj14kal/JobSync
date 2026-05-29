@@ -1,16 +1,17 @@
 """
-Synthetic Training Data Generator for JobSync Embedder Fine-Tuning.
+Synthetic Training Data Generator for JobSync Neural Scorer Training.
 
 Generates diverse resume-JD pairs at 3 similarity levels (high/medium/low)
-across 6 role families and 4 seniority levels using Groq.
+across 8 role families and 4 seniority levels using Groq.
+
+Each pair includes per-dimension ATS scores for multi-task neural training:
+  - ats_score                 (keyword/format match)
+  - technical_fit_score       (skills/stack alignment)
+  - semantic_match_score      (conceptual relevance)
+  - recruiter_impression_score (presentation quality)
+  - project_relevance_score   (portfolio alignment)
 
 Output: JSONL file at backend/data/training_pairs.jsonl
-  Each line: {"resume": "...", "jd": "...", "label": 0.0-1.0}
-
-Label convention:
-  0.85-1.0  → high match (same role, matching skills, right level)
-  0.45-0.65 → medium match (related role or skill gap or level mismatch)
-  0.05-0.25 → low match  (different domain entirely)
 
 Usage:
   python -m app.services.synthetic_data_gen --pairs 600 --output data/training_pairs.jsonl
@@ -63,36 +64,59 @@ MATCH_LEVELS = [
 class TrainingPair(NamedTuple):
     resume: str
     jd: str
-    label: float
+    label: float                    # overall similarity 0-1 (kept for embedder training)
     role: str
     seniority: str
     match_level: str
+    # Per-dimension scores for neural scorer training (0-100)
+    ats_score: float = 50.0
+    technical_fit_score: float = 50.0
+    semantic_match_score: float = 50.0
+    recruiter_impression_score: float = 50.0
+    project_relevance_score: float = 50.0
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
 def _build_pair_prompt(role: str, seniority_label: str, seniority_desc: str,
                        match_level: str, match_desc: str) -> str:
-    return f"""Generate a realistic resume excerpt and job description for training an ATS AI model.
+    # Score ranges per match level
+    score_guide = {
+        "high":   "ats_score: 78-95, technical_fit_score: 75-93, semantic_match_score: 80-95, recruiter_impression_score: 72-90, project_relevance_score: 70-92",
+        "medium": "ats_score: 45-65, technical_fit_score: 40-62, semantic_match_score: 48-68, recruiter_impression_score: 45-65, project_relevance_score: 38-60",
+        "low":    "ats_score: 8-30, technical_fit_score: 5-25, semantic_match_score: 10-28, recruiter_impression_score: 20-40, project_relevance_score: 5-22",
+    }[match_level]
+
+    return f"""Generate a realistic resume excerpt and job description for training an ATS scoring AI model.
 
 Role family: {role}
 Candidate seniority: {seniority_label} ({seniority_desc})
 Match level: {match_level} — {match_desc}
 
-Rules:
-- Resume: 200-350 words. Include: name, contact, 2-3 job entries with bullets, skills section.
-  Use realistic company names, specific technologies, quantified achievements.
-- JD: 200-300 words. Include: role title, company, responsibilities, requirements, tech stack.
-  Use realistic requirements for the seniority level.
-- If match_level=low, make the JD a genuinely different domain (e.g., marketing analytics vs systems programming).
-- If match_level=medium, share ~40% of skills but have 1-2 critical gaps.
-- If match_level=high, 80%+ skill overlap, same level, matching domain.
-- Be diverse: vary companies (startups, FAANG, mid-size), technologies, industries.
+Rules for resume (200-350 words):
+- Include: name, contact, 2-3 job entries with metric-rich bullets, skills section
+- Use realistic company names, specific technologies, quantified achievements (%, $, users)
 
-Return JSON only:
+Rules for JD (200-300 words):
+- Include: role title, company, responsibilities, requirements, required tech stack
+- Match level determines how well the resume fits:
+  - high: 80%+ skill overlap, same seniority, matching domain
+  - medium: ~40% skill overlap, 1-2 critical gaps or 1 level mismatch
+  - low: genuinely different domain (e.g. marketing vs systems, finance vs mobile)
+
+Score each dimension independently based on how well the resume matches the JD.
+Score ranges for {match_level} match: {score_guide}
+Vary scores within range (do NOT use the same value for all dimensions).
+
+Return JSON only — no extra text:
 {{
   "resume": "<full resume text>",
-  "jd": "<full job description text>"
+  "jd": "<full JD text>",
+  "ats_score": <float 0-100>,
+  "technical_fit_score": <float 0-100>,
+  "semantic_match_score": <float 0-100>,
+  "recruiter_impression_score": <float 0-100>,
+  "project_relevance_score": <float 0-100>
 }}"""
 
 
@@ -131,9 +155,15 @@ async def generate_pair(
                 logger.warning("Generated pair too short", role=role)
                 return None
 
-            # Add small Gaussian noise to label for realism
+            # Add small Gaussian noise to overall label for realism
             noisy_label = float(max(0.0, min(1.0, label + random.gauss(0, 0.03))))
 
+            # Extract per-dimension scores (Groq provides these)
+            def _score(key: str, default: float) -> float:
+                v = data.get(key, default)
+                return float(max(0.0, min(100.0, v + random.gauss(0, 1.5))))
+
+            base = label * 100.0
             return TrainingPair(
                 resume=resume,
                 jd=jd,
@@ -141,6 +171,11 @@ async def generate_pair(
                 role=role,
                 seniority=seniority_label,
                 match_level=match_level,
+                ats_score=_score("ats_score", base),
+                technical_fit_score=_score("technical_fit_score", base),
+                semantic_match_score=_score("semantic_match_score", base),
+                recruiter_impression_score=_score("recruiter_impression_score", base),
+                project_relevance_score=_score("project_relevance_score", base),
             )
         except Exception as e:
             logger.warning("Failed to generate pair", error=str(e), role=role)
@@ -203,6 +238,12 @@ def save_dataset(pairs: list[TrainingPair], output_path: Path = OUTPUT_PATH) -> 
                 "role": pair.role,
                 "seniority": pair.seniority,
                 "match_level": pair.match_level,
+                # Per-dimension scores for neural scorer training
+                "ats_score": pair.ats_score,
+                "technical_fit_score": pair.technical_fit_score,
+                "semantic_match_score": pair.semantic_match_score,
+                "recruiter_impression_score": pair.recruiter_impression_score,
+                "project_relevance_score": pair.project_relevance_score,
             }) + "\n")
     logger.info("Saved dataset", path=str(output_path), pairs=len(pairs))
     return output_path

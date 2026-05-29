@@ -1,6 +1,18 @@
 """
 Model Management API — trigger training, view status, generate data.
-These endpoints power the AI model improvement loop.
+These endpoints power the JobSync AI model improvement loop.
+
+Model priority order (highest to lowest):
+  1. JobSync Neural Scorer  — custom PyTorch model, local inference, no API
+  2. Groq LLM-as-Judge      — bootstrap while neural model is training
+  3. Rule-based engine       — always-available fallback
+
+Training pipeline:
+  Step 1: POST /model/generate-training-data?pairs=600  (10 min, uses Groq once)
+  Step 2: POST /model/train/neural-scorer               (45-90 min, pure PyTorch)
+  Step 3: Use the app — collect real feedback
+  Step 4: POST /model/train/neural-scorer?fine_tune=true (30 min, improves on feedback)
+  Step 5: POST /model/train/calibrator                  (2 min, after 80+ feedback samples)
 """
 from __future__ import annotations
 
@@ -16,11 +28,14 @@ router = APIRouter(prefix="/model", tags=["model-management"])
 
 @router.get("/status")
 async def model_status(_: str = Depends(get_current_user_id)):
-    """Full status of all AI models: recruiter-fit predictor, embedder, calibrator."""
+    """Full status of all AI models: neural scorer, embedder, calibrator, recruiter-fit."""
     from app.services.score_calibrator import get_calibrator
+    from app.services.jobsync_neural_scorer import scorer_status
+
     calibrator = get_calibrator()
 
     return {
+        "neural_scorer": scorer_status(),
         "recruiter_fit_predictor": training_status(),
         "embedding_model": get_embed_info(),
         "fine_tuned_embedder": get_model_info(),
@@ -29,6 +44,42 @@ async def model_status(_: str = Depends(get_current_user_id)):
             "samples_used": calibrator.samples_used if calibrator else 0,
             "dimensions_calibrated": calibrator.dimensions_calibrated if calibrator else [],
         },
+        "scoring_priority": [
+            "1. jobsync-neural-scorer (custom PyTorch, local)",
+            "2. groq-llm-as-judge (bootstrap fallback)",
+            "3. rule-based-engine (always available)",
+        ],
+    }
+
+
+@router.post("/train/neural-scorer")
+async def train_neural_scorer(
+    background_tasks: BackgroundTasks,
+    epochs: int = 100,
+    fine_tune: bool = False,
+    _: str = Depends(get_current_user_id),
+):
+    """
+    Train (or fine-tune) the JobSync Neural Scorer on synthetic + feedback data.
+
+    This is the primary training endpoint. Run this after generating training data.
+    Set fine_tune=true to update the existing model with new feedback data.
+
+    Expected training time: ~45-90 min on CPU, ~8-15 min on GPU.
+    """
+    if epochs > 300:
+        raise HTTPException(400, detail="Max 300 epochs")
+
+    async def _train():
+        from app.services.neural_trainer import train_async
+        result = await train_async(epochs=epochs, fine_tune=fine_tune)
+        import structlog
+        structlog.get_logger().info("Neural scorer training complete", result=result)
+
+    background_tasks.add_task(_train)
+    return {
+        "message": f"Neural scorer training started ({epochs} epochs, fine_tune={fine_tune})",
+        "note": "Check /model/status to see when training completes",
     }
 
 
