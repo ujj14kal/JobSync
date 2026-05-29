@@ -50,7 +50,8 @@ async def upload_resume(
             content,
             {"content-type": file.content_type or "application/octet-stream"},
         )
-        file_url = supabase.storage.from_("resumes").get_public_url(storage_path)
+        signed = supabase.storage.from_("resumes").create_signed_url(storage_path, 3600)
+        file_url = signed.get("signedURL") or signed.get("signedUrl")
     except Exception as e:
         # If storage fails, continue without URL
         file_url = None

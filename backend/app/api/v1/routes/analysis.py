@@ -215,8 +215,20 @@ async def run_analysis(
         parsed_job = job_data.get("parsed_data", {})
 
         # Compute or reuse embeddings
-        resume_embedding = resume_data.get("embedding") or embed_text(resume_text[:3000])
-        job_embedding = job_data.get("embedding") or embed_text(job_text[:3000])
+        # pgvector returns embeddings as a string like '[-0.09,...,0.12]' — parse it back
+        def _parse_embedding(val) -> list[float] | None:
+            if not val:
+                return None
+            if isinstance(val, str):
+                import json
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return val
+
+        resume_embedding = _parse_embedding(resume_data.get("embedding")) or embed_text(resume_text[:3000])
+        job_embedding = _parse_embedding(job_data.get("embedding")) or embed_text(job_text[:3000])
 
         # ATS scoring (CPU-bound, no Groq calls)
         score_data = compute_all_scores(
