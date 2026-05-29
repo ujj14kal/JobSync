@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { BarChart2, Clock, ArrowRight } from "lucide-react";
+import { BarChart2, Clock, ArrowRight, Brain } from "lucide-react";
 import { JobInputForm } from "@/components/analysis/job-input-form";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
@@ -32,11 +32,17 @@ export function AnalysisClient() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1">
-          ATS Analysis
-        </h1>
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            ATS Analysis
+          </h1>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
+            <Brain className="w-2.5 h-2.5" />
+            Powered by JobSync AI
+          </span>
+        </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Enter a company and job title to get your full ATS compatibility report.
+          Paste a job URL and let JobSync AI extract every detail and score your resume automatically.
         </p>
       </motion.div>
 
@@ -68,12 +74,12 @@ export function AnalysisClient() {
             </h3>
             <ul className="space-y-2">
               {[
-                "5 ATS dimension scores",
+                "5 JobSync AI dimension scores",
                 "Missing keyword list",
                 "Skill gap analysis",
-                "Recruiter-style feedback",
-                "AI bullet point rewrites",
-                "Mentor recommendations",
+                "JobSync AI recruiter-style feedback",
+                "JobSync AI bullet point rewrites",
+                "AI-matched mentor recommendations",
               ].map((item) => (
                 <li
                   key={item}
@@ -93,10 +99,10 @@ export function AnalysisClient() {
             </h3>
             <div className="space-y-3">
               {[
-                { step: "1", text: "We scrape the job listing using Playwright" },
-                { step: "2", text: "AI extracts requirements, skills, and keywords" },
-                { step: "3", text: "Semantic embeddings compare your resume to the JD" },
-                { step: "4", text: "Llama 3.3 generates detailed recruiter feedback" },
+                { step: "1", text: "Paste the job URL — JobSync AI extracts everything automatically" },
+                { step: "2", text: "JobSync AI parses requirements, skills, and keywords from the page" },
+                { step: "3", text: "Semantic embeddings compare your resume to the job description" },
+                { step: "4", text: "JobSync AI generates detailed recruiter feedback and rewrites" },
               ].map(({ step, text }) => (
                 <div key={step} className="flex items-start gap-2.5">
                   <div className="w-5 h-5 rounded-full bg-[var(--accent-muted)] flex items-center justify-center flex-shrink-0 mt-0.5">

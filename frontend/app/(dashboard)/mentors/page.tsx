@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MentorCard } from "@/components/mentors/mentor-card";
 import { mentorsApi } from "@/lib/api/mentors";
 import { analysisApi } from "@/lib/api/analysis";
-import { Search, Users, Filter, Loader2 } from "lucide-react";
+import { Search, Users, Filter, Loader2, Brain } from "lucide-react";
 import { toast } from "sonner";
 
 const platforms = ["All", "ADPList", "MentorCruise", "Unstop", "LinkedIn"];
@@ -120,9 +120,15 @@ export default function MentorsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1">
-          Mentor Discovery
-        </h1>
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            Mentor Discovery
+          </h1>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
+            <Brain className="w-2.5 h-2.5" />
+            Matched by JobSync AI
+          </span>
+        </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
           AI-matched mentors based on your target role, skill gaps, and career stage.
           Free mentors shown first · Sourced from ADPList, Unstop, LinkedIn, and MentorCruise

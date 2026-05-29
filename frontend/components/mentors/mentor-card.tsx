@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Star, Briefcase, CheckCircle2, DollarSign, Gift } from "lucide-react";
+import { ExternalLink, Star, Briefcase, CheckCircle2, DollarSign, Gift, Brain } from "lucide-react";
 import type { Mentor } from "@/lib/types";
 import Image from "next/image";
 
@@ -108,8 +108,11 @@ export function MentorCard({ mentor, index = 0 }: MentorCardProps) {
       {/* Match reasons */}
       {mentor.match_reasons && mentor.match_reasons.length > 0 && (
         <div className="mb-4 p-3 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-primary)]/10">
-          <div className="text-[10px] font-medium text-[var(--accent-primary)] mb-1.5 uppercase tracking-wider">
-            Why matched
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
+            <span className="text-[10px] font-medium text-[var(--accent-primary)] uppercase tracking-wider">
+              Matched by JobSync AI
+            </span>
           </div>
           {mentor.match_reasons.slice(0, 2).map((reason) => (
             <div key={reason} className="flex items-start gap-1.5 text-[11px] text-[var(--text-secondary)]">

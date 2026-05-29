@@ -222,33 +222,39 @@ export function AnalysisResultClient({ id }: { id: string }) {
         <ScoreRingLarge score={analysis.scores.overall_score} />
 
         {/* Quick score pills */}
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "ATS Compat.", score: analysis.scores.ats_score },
-            { label: "Tech Fit", score: analysis.scores.technical_fit_score },
-            { label: "Semantic", score: analysis.scores.semantic_match_score },
-            { label: "Recruiter", score: analysis.scores.recruiter_impression_score },
-          ].map(({ label, score }) => (
-            <div
-              key={label}
-              className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-center"
-            >
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
+            <span className="text-[10px] text-[var(--accent-hover)] font-medium">JobSync AI Score</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "ATS Compat.", score: analysis.scores.ats_score },
+              { label: "Tech Fit", score: analysis.scores.technical_fit_score },
+              { label: "Semantic", score: analysis.scores.semantic_match_score },
+              { label: "Recruiter", score: analysis.scores.recruiter_impression_score },
+            ].map(({ label, score }) => (
               <div
-                className="text-xl font-bold mb-0.5"
-                style={{
-                  color:
-                    score >= 75
-                      ? "var(--score-high)"
-                      : score >= 50
-                        ? "var(--score-mid)"
-                        : "var(--score-low)",
-                }}
+                key={label}
+                className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-center"
               >
-                {score}
+                <div
+                  className="text-xl font-bold mb-0.5"
+                  style={{
+                    color:
+                      score >= 75
+                        ? "var(--score-high)"
+                        : score >= 50
+                          ? "var(--score-mid)"
+                          : "var(--score-low)",
+                  }}
+                >
+                  {score}
+                </div>
+                <div className="text-[10px] text-[var(--text-muted)]">{label}</div>
               </div>
-              <div className="text-[10px] text-[var(--text-muted)]">{label}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Quick actions */}
@@ -270,37 +276,40 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* AI scoring badge */}
-      {(analysis as any).scored_by && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
-          className="flex items-center gap-2">
-          <span className={cn(
-            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
-            (analysis as any).scored_by === "jobsync-custom-ai"
-              ? "bg-purple-400/10 border-purple-400/20 text-purple-400"
-              : (analysis as any).scored_by === "ai" || (analysis as any).scored_by === "groq-llm"
-              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
-              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)]"
-          )}>
-            {(analysis as any).scored_by === "jobsync-custom-ai"
-              ? <><Brain className="w-3 h-3" /> Scored by JobSync AI</>
-              : (analysis as any).scored_by === "ai" || (analysis as any).scored_by === "groq-llm"
-              ? <><Brain className="w-3 h-3" /> Scored by AI (LLM-as-Judge)</>
-              : <><Sparkles className="w-3 h-3" /> Scored by rule engine</>
-            }
+      {/* JobSync AI badge row */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
+        className="flex flex-wrap items-center gap-2">
+        {/* Always show JobSync AI as the scorer */}
+        <span className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
+          analysis.scored_by === "jobsync-custom-ai"
+            ? "bg-purple-400/10 border-purple-400/20 text-purple-400"
+            : "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
+        )}>
+          <Brain className="w-3 h-3" />
+          Scored by JobSync AI
+        </span>
+
+        {/* Fallback badge — only shown when Groq LLM was the actual scorer */}
+        {analysis.scored_by === "groq-llm" && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-amber-400/10 border-amber-400/25 text-amber-400">
+            <Sparkles className="w-3 h-3" />
+            Fallback Mechanism Applied
           </span>
-          {(analysis as any).hire_recommendation && (
-            <span className={cn(
-              "px-2.5 py-1 rounded-full text-[11px] font-medium border",
-              (analysis as any).hire_recommendation?.includes("Yes") ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
-                : (analysis as any).hire_recommendation?.includes("No") ? "bg-red-400/10 border-red-400/20 text-red-400"
-                : "bg-amber-400/10 border-amber-400/20 text-amber-400"
-            )}>
-              {(analysis as any).hire_recommendation}
-            </span>
-          )}
-        </motion.div>
-      )}
+        )}
+
+        {/* Hire recommendation */}
+        {analysis.hire_recommendation && (
+          <span className={cn(
+            "px-2.5 py-1 rounded-full text-[11px] font-medium border",
+            analysis.hire_recommendation.includes("Yes") ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
+              : analysis.hire_recommendation.includes("No") ? "bg-red-400/10 border-red-400/20 text-red-400"
+              : "bg-amber-400/10 border-amber-400/20 text-amber-400"
+          )}>
+            {analysis.hire_recommendation}
+          </span>
+        )}
+      </motion.div>
 
       {/* Recruiter summary */}
       {analysis.recruiter_summary && (
@@ -311,9 +320,9 @@ export function AnalysisResultClient({ id }: { id: string }) {
           className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--accent-subtle)]"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Lightbulb className="w-4 h-4 text-[var(--accent-primary)]" />
+            <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-              Recruiter Summary
+              JobSync AI Recruiter Analysis
             </span>
           </div>
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
@@ -322,16 +331,17 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </motion.div>
       )}
 
-      {/* AI dimension reasoning */}
-      {(analysis as any).ai_reasoning && Object.values((analysis as any).ai_reasoning).some(Boolean) && (
+      {/* JobSync AI dimension reasoning */}
+      {analysis.ai_reasoning && Object.values(analysis.ai_reasoning).some(Boolean) && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
           className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
           <div className="flex items-center gap-2 mb-3">
             <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-            <span className="text-[13px] font-semibold text-[var(--text-primary)]">AI Reasoning</span>
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Reasoning</span>
+            <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
           </div>
           <div className="space-y-2">
-            {(Object.entries((analysis as any).ai_reasoning) as [string, string][])
+            {(Object.entries(analysis.ai_reasoning) as [string, string][])
               .filter(([, v]) => v)
               .map(([key, value]) => (
                 <div key={key} className="flex gap-3">
@@ -457,23 +467,40 @@ export function AnalysisResultClient({ id }: { id: string }) {
 
               {/* Score breakdown */}
               <div className="lg:col-span-2">
-                <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-4">
-                  Score Breakdown
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">
+                    Score Breakdown
+                  </h3>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">
+                    <Brain className="w-2.5 h-2.5" /> JobSync AI
+                  </span>
+                </div>
                 <ScoreBreakdownPanel scores={analysis.scores} />
               </div>
             </div>
           )}
 
           {tab === "keywords" && (
-            <KeywordGapPanel
-              keywords={analysis.missing_keywords}
-              skillGaps={analysis.skill_gaps}
-            />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Keyword Analysis</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+              </div>
+              <KeywordGapPanel
+                keywords={analysis.missing_keywords}
+                skillGaps={analysis.skill_gaps}
+              />
+            </div>
           )}
 
           {tab === "feedback" && (
             <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Improvement Suggestions</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+              </div>
               {analysis.improvement_suggestions.map((s, i) => (
                 <div
                   key={i}
@@ -513,8 +540,13 @@ export function AnalysisResultClient({ id }: { id: string }) {
 
           {tab === "rewrite" && (
             <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Resume Rewriter</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+              </div>
               <p className="text-[13px] text-[var(--text-secondary)] mb-2">
-                AI-rewritten bullet points with stronger verbs, metrics, and role-specific language.
+                JobSync AI-rewritten bullet points with stronger verbs, quantified metrics, and role-specific language.
               </p>
               {analysis.rewritten_bullets.map((b, i) => (
                 <div

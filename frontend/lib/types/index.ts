@@ -192,6 +192,12 @@ export interface Analysis {
   rewritten_bullets: BulletRewrite[];
   recruiter_summary: string;
 
+  // AI metadata
+  scored_by?: "jobsync-custom-ai" | "groq-llm" | "ai" | "rules_fallback";
+  hire_recommendation?: string;
+  seniority_match?: string;
+  ai_reasoning?: Record<string, string>;
+
   status: "pending" | "processing" | "complete" | "failed";
   created_at: string;
 }
