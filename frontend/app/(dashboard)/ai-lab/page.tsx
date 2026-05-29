@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Brain, Cpu, Database, Zap, Play, RefreshCw,
-  CheckCircle2, AlertCircle, Clock, ChevronRight,
-  BarChart3, Layers, Activity, Info,
+  Brain, Cpu, Play, RefreshCw,
+  CheckCircle2,
+  BarChart3, Layers, Info,
 } from "lucide-react";
 import { modelMgmtApi, ModelStatus } from "@/lib/api/model-mgmt";
 import { toast } from "sonner";
@@ -169,32 +169,6 @@ export default function AILabPage() {
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </button>
-      </div>
-
-      {/* Priority diagram */}
-      <div className="p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
-        <p className="text-[12px] text-[var(--text-muted)] mb-3 font-medium uppercase tracking-wide">Scoring pipeline priority</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          {[
-            { label: "1. Neural Scorer", icon: Brain, active: neuralTrained, desc: "Custom PyTorch model, fully local" },
-            { label: "2. Groq LLM", icon: Zap, active: !neuralTrained, desc: "Bootstrap fallback while training" },
-            { label: "3. Rule Engine", icon: Activity, active: false, desc: "Always-available last resort" },
-          ].map((item, i) => (
-            <div key={i} className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px]",
-              item.active
-                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/8 text-[var(--accent-primary)]"
-                : "border-[var(--border-subtle)] text-[var(--text-muted)]"
-            )}>
-              <item.icon className="w-3.5 h-3.5" />
-              <div>
-                <div className="font-semibold">{item.label}</div>
-                <div className="text-[10px] opacity-70">{item.desc}</div>
-              </div>
-              {item.active && <span className="w-2 h-2 rounded-full bg-[var(--accent-primary)] ml-1" />}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Neural Scorer Status */}

@@ -265,19 +265,39 @@ def extract_github(text: str) -> Optional[str]:
 
 
 def extract_name_from_header(header_text: str) -> Optional[str]:
-    """Extract name from top of resume (first non-email, non-phone line)."""
+    """Extract name from top of resume (first non-contact-info line that looks like a name)."""
+    # Word char pattern: ASCII + extended Latin + common name punctuation (hyphen, apostrophe, dot)
+    _NAME_WORD = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿऀ-ॿ\-\'\.]+$")
+    # Allowed short words: particles, suffixes, initials
+    _ALLOWED_SHORT = {"de", "van", "von", "bin", "binti", "jr", "sr", "ii", "iii", "iv", "phd", "md"}
+
+    candidates: list[str] = []
+
     for line in header_text.split("\n"):
         line = line.strip()
-        if not line:
+        if not line or len(line) > 60:
             continue
         # Skip lines that look like contact info
-        if re.search(r"@|http|www\.|linkedin|github|\d{3}[-.\s]\d{3}", line.lower()):
+        if re.search(r"@|http|www\.|linkedin|github|portfolio|\d{3}[-.\s]\d{3}", line.lower()):
             continue
-        # Must look like a name: 2-4 words, mostly alpha
+        # Skip lines that are clearly addresses or locations (contain digits after stripping)
+        if re.search(r"\d", line):
+            continue
         words = line.split()
-        if 2 <= len(words) <= 4 and all(re.match(r"^[A-Za-z\-'\.]+$", w) for w in words):
-            return line
-    return None
+        if not (1 <= len(words) <= 5):
+            continue
+        cleaned_words = [w.rstrip(".,;:") for w in words]
+        if all(
+            _NAME_WORD.match(w) or w.lower() in _ALLOWED_SHORT
+            for w in cleaned_words
+        ):
+            candidates.append(line)
+            # Prefer 2-4 word names; return immediately if found
+            if 2 <= len(words) <= 4:
+                return line
+
+    # Fallback: return first candidate (single-word name) if any
+    return candidates[0] if candidates else None
 
 
 def extract_skills_from_text(text: str) -> list[str]:

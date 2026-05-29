@@ -3,8 +3,9 @@ import type { Mentor } from "@/lib/types";
 
 export const mentorsApi = {
   // Get mentor recommendations for an analysis
-  forAnalysis: async (analysisId: string): Promise<Mentor[]> => {
-    const { data } = await apiClient.get(`/mentors/recommendations/${analysisId}`);
+  forAnalysis: async (analysisId: string, country?: string): Promise<Mentor[]> => {
+    const params = country ? `?country=${encodeURIComponent(country)}` : "";
+    const { data } = await apiClient.get(`/mentors/recommendations/${analysisId}${params}`);
     return data;
   },
 

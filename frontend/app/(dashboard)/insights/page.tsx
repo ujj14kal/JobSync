@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, Search, DollarSign, BarChart2, Briefcase } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Search, DollarSign, BarChart2, Briefcase, AlertCircle, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import type { CareerInsight } from "@/lib/types";
@@ -22,13 +22,14 @@ export default function InsightsPage() {
   const [role, setRole] = useState("Software Engineer");
   const [searchInput, setSearchInput] = useState("Software Engineer");
 
-  const { data: insight, isLoading } = useQuery({
+  const { data: insight, isLoading, isError, refetch } = useQuery({
     queryKey: ["career-insight", role],
     queryFn: async () => {
       const { data } = await apiClient.get(`/insights?role=${encodeURIComponent(role)}`);
       return data as CareerInsight;
     },
-    staleTime: 30 * 60 * 1000, // 30 min cache
+    staleTime: 30 * 60 * 1000,
+    retry: 2,
   });
 
   const trendIcon = (trend: string) => {
@@ -108,10 +109,29 @@ export default function InsightsPage() {
         </div>
       )}
 
+      {/* Error state */}
+      {isError && !isLoading && (
+        <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-red-400/30 bg-red-400/5">
+          <AlertCircle className="w-8 h-8 text-red-400 mb-3" />
+          <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">Could not load insights</p>
+          <p className="text-[12px] text-[var(--text-muted)] mb-4 text-center max-w-xs">
+            This usually means the AI service is temporarily unavailable. Try again in a moment.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Insights content */}
-      {insight && !isLoading && (
+      {insight && !isLoading && !isError && (
         <div className="space-y-6">
           {/* Salary ranges */}
+          {insight.salary_range && (
           <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-2 mb-5">
               <DollarSign className="w-4 h-4 text-emerald-400" />
@@ -124,7 +144,7 @@ export default function InsightsPage() {
                 { level: "Entry Level", range: insight.salary_range.entry },
                 { level: "Mid Level", range: insight.salary_range.mid },
                 { level: "Senior Level", range: insight.salary_range.senior },
-              ].map(({ level, range }) => (
+              ].filter(({ range }) => range?.min != null && range?.max != null).map(({ level, range }) => (
                 <div key={level} className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
                   <div className="text-[11px] text-[var(--text-muted)] mb-1">{level}</div>
                   <div className="text-[18px] font-bold text-emerald-400">
@@ -135,8 +155,10 @@ export default function InsightsPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Trending skills */}
+          {(insight.trending_skills?.length ?? 0) > 0 && (
           <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
             <div className="flex items-center gap-2 mb-5">
               <TrendingUp className="w-4 h-4 text-[var(--accent-primary)]" />
@@ -172,6 +194,7 @@ export default function InsightsPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Job market + top companies */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

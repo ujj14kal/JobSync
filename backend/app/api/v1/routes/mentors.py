@@ -29,6 +29,7 @@ class UnstopDiscoverRequest(BaseModel):
 @router.get("/recommendations/{analysis_id}")
 async def get_mentor_recommendations(
     analysis_id: str,
+    country: Optional[str] = None,
     user_id: str = Depends(get_current_user_id),
 ):
     """
@@ -68,13 +69,14 @@ async def get_mentor_recommendations(
     )
     career_stage = profile.data.get("career_stage", "entry") if profile.data else "entry"
 
-    # Find mentors
+    # Find mentors (country drives region-specific results)
     mentors = await find_mentors_for_analysis(
         target_role=target_role,
         target_company=target_company,
         skill_gaps=skill_gaps,
         career_stage=career_stage,
         analysis_embedding=a.get("embedding") or [],
+        country=country or "",
     )
 
     return mentors
@@ -114,7 +116,9 @@ async def search_mentors(
         career_stage=request.career_stage or "entry",
     )
 
-    return ranked[:20]
+    # Sort free mentors first, then by match score
+    ranked.sort(key=lambda m: (0 if m.get("is_free") else 1, -m.get("match_score", 0)))
+    return ranked[:25]
 
 
 @router.post("/discover/unstop")

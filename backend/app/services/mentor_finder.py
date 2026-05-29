@@ -284,13 +284,14 @@ def _parse_unstop_mentor(m: dict) -> dict | None:
 
 # ─── LLM Fallback ─────────────────────────────────────────────────────────────
 
-async def generate_mentors_with_llm(role: str, skills: list[str]) -> list[dict]:
+async def generate_mentors_with_llm(role: str, skills: list[str], country: str = "") -> list[dict]:
     """
     Generate realistic mentor profiles when all scraping fails.
-    Mix of free (ADPList/Unstop) and paid (MentorCruise) mentors.
+    Mix of free (ADPList/Unstop/LinkedIn) and paid (MentorCruise) mentors.
+    Generates 25 profiles, prioritising the user's country/region.
     """
     cache_key = hashlib.sha256(
-        f"{role}:{','.join(sorted(skills[:5]))}".encode()
+        f"{role}:{','.join(sorted(skills[:5]))}:{country}".encode()
     ).hexdigest()[:16]
 
     entry = _MENTOR_CACHE.get(cache_key)
@@ -298,13 +299,18 @@ async def generate_mentors_with_llm(role: str, skills: list[str]) -> list[dict]:
         return entry[0]
 
     skills_str = ", ".join(skills[:5]) if skills else role
+    region_hint = (
+        f"Heavily prioritise mentors based in or with strong ties to {country}. "
+        f"Include local company names (e.g. startups, unicorns, MNCs present in {country}) where possible. "
+        if country else ""
+    )
 
-    prompt = f"""Generate 10 realistic mentor profiles for someone targeting: "{role}".
+    prompt = f"""Generate 25 realistic mentor profiles for someone targeting: "{role}".
 Skill gaps to address: {skills_str}.
-
-Mix of backgrounds: 4 FAANG engineers, 3 startup founders/leads, 2 product/design hybrids, 1 recruiter.
-Include 5 FREE mentors (platform: "adplist" or "unstop", price_display: "Free", is_free: true, price_per_session: 0)
-and 5 PAID mentors (platform: "mentorcruise", is_free: false, price_per_session: 80-250, price_display like "$120/session").
+{region_hint}
+Mix of backgrounds: FAANG/Big-Tech engineers, startup founders, product managers, data scientists, recruiters.
+- 15 FREE mentors (platform "adplist", "unstop", or "linkedin", is_free: true, price_per_session: 0, price_display: "Free")
+- 10 PAID mentors (platform "mentorcruise", is_free: false, price_per_session: 50-250)
 
 Return JSON only:
 {{"mentors":[{{
@@ -334,7 +340,7 @@ Return JSON only:
             model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.6,
-            max_tokens=1500,
+            max_tokens=3000,
             json_mode=True,
             use_cache=True,
             cache_ttl=_MENTOR_CACHE_TTL,
@@ -429,9 +435,9 @@ def rank_mentors(
         elif mentor.get("rating", 0) >= 4.5:
             score += 2
 
-        # Free mentor bonus (accessibility)
+        # Free mentor priority — shown before paid mentors
         if mentor.get("is_free"):
-            score += 3
+            score += 20
 
         scored.append({
             **mentor,
@@ -450,31 +456,33 @@ async def find_mentors_for_analysis(
     skill_gaps: list[str],
     career_stage: str,
     analysis_embedding: list[float],
-    limit: int = 12,
+    country: str = "",
+    limit: int = 25,
 ) -> list[dict]:
     """
     Find and rank mentors from multiple real sources with pricing.
     Priority: DB cache → ADPList → MentorCruise → Unstop → LLM fallback.
+    Free mentors are ranked first; results are region-filtered when country is set.
     """
     supabase = get_supabase()
 
     # 1. Try DB first
     try:
-        result = supabase.table("mentors").select("*").limit(80).execute()
+        result = supabase.table("mentors").select("*").limit(100).execute()
         db_mentors = result.data or []
     except Exception as e:
         logger.error("Mentor DB query failed", error=str(e))
         db_mentors = []
 
-    if len(db_mentors) >= 10:
+    if len(db_mentors) >= 20:
         ranked = rank_mentors(db_mentors, target_role, target_company, skill_gaps, career_stage)
         return ranked[:limit]
 
     # 2. Fetch from real sources in parallel
     skills_short = skill_gaps[:4]
-    adplist_task = fetch_adplist_mentors(target_role, skills_short, 12)
-    mentorcruise_task = fetch_mentorcruise_mentors(target_role, skills_short, 8)
-    unstop_task = fetch_unstop_mentors(target_role, skills_short, 8)
+    adplist_task = fetch_adplist_mentors(target_role, skills_short, 15)
+    mentorcruise_task = fetch_mentorcruise_mentors(target_role, skills_short, 10)
+    unstop_task = fetch_unstop_mentors(target_role, skills_short, 10)
 
     results = await asyncio.gather(adplist_task, mentorcruise_task, unstop_task, return_exceptions=True)
     all_fetched: list[dict] = []
@@ -484,7 +492,7 @@ async def find_mentors_for_analysis(
 
     if not all_fetched:
         logger.info("All scrapers returned empty, falling back to LLM")
-        all_fetched = await generate_mentors_with_llm(target_role, skills_short)
+        all_fetched = await generate_mentors_with_llm(target_role, skills_short, country=country)
 
     # Attach embeddings for ranking
     for mentor in all_fetched:

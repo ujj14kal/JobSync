@@ -114,7 +114,7 @@ export interface JobDescription {
 }
 
 export interface JobSearchInput {
-  company_name: string;
+  company_name?: string;
   job_title?: string;
   job_id?: string;
   job_url?: string;

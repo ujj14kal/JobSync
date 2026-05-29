@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { MentorCard } from "@/components/mentors/mentor-card";
@@ -11,6 +11,28 @@ import { toast } from "sonner";
 
 const platforms = ["All", "ADPList", "MentorCruise", "Unstop", "LinkedIn"];
 const careerStages = ["All stages", "Student", "Entry Level", "Mid Level", "Senior"];
+
+function detectUserCountry(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+    const lang = navigator.language ?? "";
+    // Map timezone regions to country names for LLM context
+    if (tz.startsWith("Asia/Kolkata") || tz.startsWith("Asia/Calcutta") || lang.startsWith("hi")) return "India";
+    if (tz.startsWith("Asia/Dubai")) return "UAE";
+    if (tz.startsWith("Asia/Singapore")) return "Singapore";
+    if (tz.startsWith("Asia/Karachi")) return "Pakistan";
+    if (tz.startsWith("Asia/Dhaka")) return "Bangladesh";
+    if (tz.startsWith("Asia/Jakarta")) return "Indonesia";
+    if (tz.startsWith("Europe/London")) return "United Kingdom";
+    if (tz.startsWith("Europe/")) return "Europe";
+    if (tz.startsWith("America/New_York") || tz.startsWith("America/Chicago") || tz.startsWith("America/Los_Angeles") || tz.startsWith("America/Denver")) return "United States";
+    if (tz.startsWith("America/Toronto") || tz.startsWith("America/Vancouver")) return "Canada";
+    if (tz.startsWith("Australia/")) return "Australia";
+    return "";
+  } catch {
+    return "";
+  }
+}
 
 export default function MentorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,6 +47,8 @@ export default function MentorsPage() {
   const [customResults, setCustomResults] = useState<any[] | null>(null);
   const [searching, setSearching] = useState(false);
 
+  const userCountry = useMemo(() => detectUserCountry(), []);
+
   // Get latest analysis for smart recommendations
   const { data: analyses } = useQuery({
     queryKey: ["analyses"],
@@ -35,8 +59,8 @@ export default function MentorsPage() {
 
   // Get recommendations based on latest analysis
   const { data: recommendedMentors, isLoading: loadingRecommended } = useQuery({
-    queryKey: ["mentor-recommendations", latestAnalysis?.id],
-    queryFn: () => mentorsApi.forAnalysis(latestAnalysis!.id),
+    queryKey: ["mentor-recommendations", latestAnalysis?.id, userCountry],
+    queryFn: () => mentorsApi.forAnalysis(latestAnalysis!.id, userCountry),
     enabled: !!latestAnalysis?.id && latestAnalysis.status === "complete",
   });
 
@@ -65,22 +89,29 @@ export default function MentorsPage() {
 
   const displayMentors = customResults ?? recommendedMentors ?? [];
 
-  const filtered = displayMentors.filter((m) => {
-    const matchesSearch =
-      !searchQuery ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.specializations.some((s: string) =>
-        s.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+  const filtered = displayMentors
+    .filter((m) => {
+      const matchesSearch =
+        !searchQuery ||
+        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.specializations ?? []).some((s: string) =>
+          s.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
-    const matchesPlatform =
-      selectedPlatform === "All" ||
-      m.platform.toLowerCase() === selectedPlatform.toLowerCase();
+      const matchesPlatform =
+        selectedPlatform === "All" ||
+        m.platform.toLowerCase() === selectedPlatform.toLowerCase();
 
-    return matchesSearch && matchesPlatform;
-  });
+      return matchesSearch && matchesPlatform;
+    })
+    // Free mentors appear before paid ones
+    .sort((a, b) => {
+      if (a.is_free && !b.is_free) return -1;
+      if (!a.is_free && b.is_free) return 1;
+      return (b.match_score ?? 0) - (a.match_score ?? 0);
+    });
 
   return (
     <div className="space-y-8">
@@ -94,7 +125,8 @@ export default function MentorsPage() {
         </h1>
         <p className="text-[14px] text-[var(--text-secondary)]">
           AI-matched mentors based on your target role, skill gaps, and career stage.
-          Sourced from Unstop and ADPList.
+          Free mentors shown first · Sourced from ADPList, Unstop, LinkedIn, and MentorCruise
+          {userCountry ? ` · Prioritising mentors in ${userCountry}` : ""}.
         </p>
       </motion.div>
 

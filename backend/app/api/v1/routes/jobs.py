@@ -97,10 +97,10 @@ async def search_job(
     embed_text_input = f"{parsed.get('title', '')} {' '.join(parsed.get('required_skills', []))[:500]}"
     embedding = embed_text(embed_text_input)
 
-    # Save to DB
+    # Save to DB (use parsed company when URL-only)
     record = {
         "id": str(uuid.uuid4()),
-        "company_name": request.company_name,
+        "company_name": request.company_name or parsed.get("company", ""),
         "job_title": parsed.get("title", request.job_title or ""),
         "job_id_external": request.job_id,
         "source_url": result.get("source_url"),

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Building2, Hash, FileText,
+  Search, FileText,
   Loader2, AlertCircle, Clock, RefreshCw, Link,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,23 +19,17 @@ interface JobInputFormProps {
 
 type Step = "form" | "searching" | "confirm" | "analyzing" | "at_capacity";
 
-// How long (seconds) to wait before offering a "Try again" button
 const CAPACITY_RETRY_AFTER = 30;
 
 export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
-  const [company, setCompany] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [jobId, setJobId] = useState("");
   const [jobUrl, setJobUrl] = useState("");
   const [step, setStep] = useState<Step>("form");
   const [foundJob, setFoundJob] = useState<JobDescription | null>(null);
   const [searchProgress, setSearchProgress] = useState(0);
 
-  // Countdown state for "at_capacity" screen
   const [retryCountdown, setRetryCountdown] = useState(CAPACITY_RETRY_AFTER);
   const [capacityInfo, setCapacityInfo] = useState<{ active: number; max: number } | null>(null);
 
-  // Live service status (polled every 10 s)
   const { data: serviceStatus } = useQuery({
     queryKey: ["service-status"],
     queryFn: analysisApi.getStatus,
@@ -51,7 +45,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
 
   const activeResume = resumes?.find((r) => r.is_active) ?? resumes?.[0];
 
-  // Countdown timer for the "at_capacity" step
   useEffect(() => {
     if (step !== "at_capacity") return;
     setRetryCountdown(CAPACITY_RETRY_AFTER);
@@ -64,25 +57,17 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
     return () => clearInterval(timer);
   }, [step]);
 
-  // Auto-return to confirm when service clears capacity AND countdown ended
   useEffect(() => {
     if (step === "at_capacity" && retryCountdown === 0 && serviceStatus && !serviceStatus.at_capacity) {
       setStep("confirm");
     }
   }, [step, retryCountdown, serviceStatus]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
 
-    const hasUrl = jobUrl.trim().startsWith("http");
-    if (!hasUrl && !company) {
-      toast.error("Please enter a company name.");
-      return;
-    }
-    if (!hasUrl && !jobTitle && !jobId) {
-      toast.error("Please enter a job title, job ID, or paste a job URL.");
+    if (!jobUrl.trim().startsWith("http")) {
+      toast.error("Please paste a valid job listing URL (starting with http/https).");
       return;
     }
     if (!activeResume) {
@@ -99,10 +84,8 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
 
     try {
       const job = await analysisApi.searchJob({
-        company_name: company,
-        job_title: jobTitle || undefined,
-        job_id: jobId || undefined,
-        job_url: hasUrl ? jobUrl.trim() : undefined,
+        company_name: "",
+        job_url: jobUrl.trim(),
       });
       clearInterval(interval);
       setSearchProgress(100);
@@ -110,7 +93,7 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
       setStep("confirm");
     } catch (err) {
       clearInterval(interval);
-      toast.error((err as Error).message || "Could not find job listing. Try a different search.");
+      toast.error((err as Error).message || "Could not extract job details from that URL. Try a different link.");
       setStep("form");
     }
   }
@@ -118,7 +101,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
   async function handleAnalyze() {
     if (!foundJob || !activeResume) return;
 
-    // Soft block: if the live status already says "at capacity", don't even try
     if (serviceStatus?.at_capacity) {
       setCapacityInfo({
         active: serviceStatus.active_analyses,
@@ -136,7 +118,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
       });
       onAnalysisStarted(analysis);
     } catch (err: any) {
-      // HTTP 503 = at capacity
       if (err.response?.status === 503) {
         const detail = err.response.data?.detail ?? {};
         setCapacityInfo({
@@ -146,7 +127,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         setStep("at_capacity");
         return;
       }
-      // HTTP 429 = daily quota
       if (err.response?.status === 429) {
         toast.error(err.response.data?.detail ?? "Daily analysis limit reached. Try again tomorrow.");
         setStep("confirm");
@@ -174,12 +154,10 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
           </div>
         </div>
         <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">
-          Searching for job listing…
+          Extracting job details…
         </h3>
         <p className="text-[13px] text-[var(--text-secondary)] mb-6 text-center max-w-xs">
-          {jobUrl.trim().startsWith("http")
-            ? `Fetching job listing from the URL you provided…`
-            : `Scanning ${company}'s careers page and job boards for "${jobTitle || jobId}"`}
+          Fetching the job listing from the URL you provided and extracting all details automatically.
         </p>
         <div className="w-64 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
           <motion.div
@@ -205,7 +183,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center justify-center py-16 text-center"
       >
-        {/* Icon */}
         <div className="relative w-16 h-16 mb-5">
           <div className="absolute inset-0 rounded-full border-2 border-red-400/20 bg-red-400/5" />
           <div className="absolute inset-3 flex items-center justify-center">
@@ -225,14 +202,12 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
           Slots free up as soon as an active analysis finishes — usually within 30–60 seconds.
         </p>
 
-        {/* Live status */}
         {currentStatus && (
           <div className="mb-6 w-full max-w-xs">
             <ServiceStatusBadge variant="detailed" className="w-full" />
           </div>
         )}
 
-        {/* Countdown / retry */}
         <AnimatePresence mode="wait">
           {!canRetry ? (
             <motion.div
@@ -248,7 +223,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
                   {retryCountdown}s
                 </span>
               </div>
-              {/* Shrinking bar */}
               <div className="w-48 h-1 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
                 <motion.div
                   className="h-full rounded-full bg-red-400"
@@ -366,7 +340,6 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
           </div>
         </div>
 
-        {/* Capacity warning (only when near/at limit) */}
         {serviceStatus && serviceStatus.utilization_pct >= 60 && (
           <ServiceStatusBadge variant="detailed" />
         )}
@@ -466,89 +439,12 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         </div>
       )}
 
-      {/* Live capacity badge — always visible on the form step */}
       <ServiceStatusBadge variant="full" className="w-fit" />
 
-      {/* Company */}
+      {/* Job URL — the only required input */}
       <div>
         <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Company name <span className="text-[var(--error)]">*</span>
-        </label>
-        <div className="relative">
-          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            placeholder="e.g. Google, Stripe, Meta"
-            required
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* Job title */}
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Job title
-        </label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            value={jobTitle}
-            onChange={(e) => setJobTitle(e.target.value)}
-            placeholder="e.g. Software Engineer L4, Product Manager"
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
-          />
-        </div>
-      </div>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[var(--border-subtle)]" />
-        </div>
-        <div className="relative flex justify-center">
-          <span className="px-3 text-[11px] text-[var(--text-muted)] bg-[var(--bg-surface)]">
-            or use job ID
-          </span>
-        </div>
-      </div>
-
-      {/* Job ID */}
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Job ID{" "}
-          <span className="text-[var(--text-muted)] font-normal">(from URL or listing)</span>
-        </label>
-        <div className="relative">
-          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            value={jobId}
-            onChange={(e) => setJobId(e.target.value)}
-            placeholder="e.g. 123456789"
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
-          />
-        </div>
-      </div>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[var(--border-subtle)]" />
-        </div>
-        <div className="relative flex justify-center">
-          <span className="px-3 text-[11px] text-[var(--text-muted)] bg-[var(--bg-surface)]">
-            or paste job URL
-          </span>
-        </div>
-      </div>
-
-      {/* Job URL */}
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Job listing URL{" "}
-          <span className="text-[var(--text-muted)] font-normal">(LinkedIn, Indeed, company site…)</span>
+          Job listing URL <span className="text-[var(--error)]">*</span>
         </label>
         <div className="relative">
           <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
@@ -556,19 +452,24 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
             type="url"
             value={jobUrl}
             onChange={(e) => setJobUrl(e.target.value)}
-            placeholder="https://linkedin.com/jobs/view/..."
+            placeholder="https://linkedin.com/jobs/view/… or any job page URL"
             className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
+            autoFocus
           />
         </div>
+        <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
+          Paste any job listing URL — LinkedIn, Indeed, company career pages, Greenhouse, Lever, etc.
+          All details are extracted automatically.
+        </p>
       </div>
 
       <button
         type="submit"
-        disabled={!activeResume || (!company && !jobUrl.trim().startsWith("http"))}
+        disabled={!activeResume || !jobUrl.trim().startsWith("http")}
         className="w-full py-3 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[14px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         <Search className="w-4 h-4" />
-        Find &amp; analyze job
+        Extract &amp; analyze job
       </button>
     </form>
   );
