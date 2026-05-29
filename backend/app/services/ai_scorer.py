@@ -159,43 +159,89 @@ async def _try_neural_scoring(
     parsed_resume: dict,
     parsed_job: dict,
 ) -> dict | None:
-    """Attempt scoring with the custom neural model. Returns None if untrained."""
+    """
+    Attempt scoring with the custom JobSync AI (encoder + scorer).
+    Uses model_loader's in-memory instances — no disk I/O per request.
+    Returns None if models not loaded yet.
+    """
     try:
-        from app.services.jobsync_neural_scorer import get_neural_scorer
-        from app.services.embedding_service import embed_text
+        from app.services.model_loader import get_loaded_models, is_loaded
+        import torch
+        import torch.nn.functional as F
+        import re as _re
 
-        scorer = get_neural_scorer()
-        if scorer is None:
-            return None  # not trained yet
+        if not is_loaded():
+            return None
 
-        resume_emb = await asyncio.to_thread(embed_text, resume_text[:3000])
-        jd_emb = await asyncio.to_thread(embed_text, job_text[:2000])
+        encoder, tokenizer, scorer = get_loaded_models()
+        if encoder is None or tokenizer is None or scorer is None:
+            return None
 
-        prediction = await asyncio.to_thread(
-            scorer.predict, resume_text, job_text, resume_emb, jd_emb
-        )
+        def _infer():
+            with torch.no_grad():
+                # Tokenise
+                r_ids = torch.tensor([tokenizer.encode(resume_text[:3000])], dtype=torch.long)
+                j_ids = torch.tensor([tokenizer.encode(job_text[:2000])],    dtype=torch.long)
+                r_msk = torch.tensor([tokenizer.mask(r_ids[0].tolist())],    dtype=torch.long)
+                j_msk = torch.tensor([tokenizer.mask(j_ids[0].tolist())],    dtype=torch.long)
 
-        # Build full result dict with neural scores
+                # Encode
+                r_emb = encoder(r_ids, r_msk)   # (1, 256)
+                j_emb = encoder(j_ids, j_msk)   # (1, 256)
+
+                # Build interaction features
+                diff = (r_emb - j_emb).abs()
+                prod = r_emb * j_emb
+
+                # Handcrafted features
+                cosine = float((r_emb * j_emb).sum().item())
+                SKILLS = {"python","java","javascript","typescript","react","sql","aws",
+                          "docker","kubernetes","tensorflow","pytorch","fastapi","django"}
+                res_w = set(resume_text.lower().split())
+                jd_w  = set(job_text.lower().split())
+                res_s = res_w & SKILLS; jd_s = jd_w & SKILLS
+                ov  = len(res_s & jd_s)/max(len(jd_s),1) if jd_s else 0.5
+                kd  = len({w for w in jd_w if len(w)>4}&res_w)/max(len({w for w in jd_w if len(w)>4}),1)
+                rl  = min(len(resume_text)/3000,1.0)
+                jl  = min(len(job_text)/2000,1.0)
+                he  = float(any(k in resume_text.lower() for k in ["year","years","yr"]))
+                edu = float(any(k in resume_text.lower() for k in ["bachelor","master","phd","degree"]))
+                ldr = float(any(k in resume_text.lower() for k in ["led","managed","director","head"]))
+                met = float(bool(_re.search(r'\b\d+[%x]\b|\$\d+', resume_text)))
+                fw  = resume_text.strip().split('\n')[0].lower().split() if resume_text.strip() else []
+                fw  = [w for w in fw if len(w)>3]
+                ta  = sum(1 for w in fw if w in job_text.lower())/max(len(fw),1)
+                hc  = torch.tensor([[cosine,ov,kd,rl,jl,he,edu,ldr,met,ta]], dtype=torch.float32)
+
+                # Full interaction vector
+                x = torch.cat([r_emb, j_emb, diff, prod, hc], dim=1)
+
+                # Score
+                scores = scorer(x).squeeze(0).tolist()
+            return scores
+
+        raw_scores = await asyncio.to_thread(_infer)
+
+        DIMS = ["ats_score","technical_fit_score","semantic_match_score",
+                "recruiter_impression_score","project_relevance_score"]
+        prediction = {d: round(float(s), 1) for d, s in zip(DIMS, raw_scores)}
+        weights = [0.20, 0.25, 0.25, 0.20, 0.10]
+        prediction["overall_score"] = round(sum(prediction[d]*w for d,w in zip(DIMS,weights)), 1)
+        prediction["scored_by"] = "jobsync-custom-ai"
+
         result = {
-            "ats_score": prediction["ats_score"],
-            "technical_fit_score": prediction["technical_fit_score"],
-            "semantic_match_score": prediction["semantic_match_score"],
-            "recruiter_impression_score": prediction["recruiter_impression_score"],
-            "project_relevance_score": prediction["project_relevance_score"],
-            "overall_score": prediction["overall_score"],
-            "scored_by": prediction["scored_by"],
-            "model_version": scorer.version,
-            # Neural model generates skill-based reasoning (not LLM text)
+            **prediction,
             "reasoning": _neural_reasoning(prediction, resume_text, job_text, parsed_resume, parsed_job),
             "hire_recommendation": _score_to_recommendation(prediction["overall_score"]),
             "seniority_match": _infer_seniority_match(resume_text, job_text),
             "key_strengths": [],
             "key_weaknesses": [],
         }
+        logger.info("Custom AI scoring complete", overall=prediction["overall_score"])
         return result
 
     except Exception as e:
-        logger.error("Neural scoring failed", error=str(e))
+        logger.error("Custom AI scoring failed", error=str(e))
         return None
 
 

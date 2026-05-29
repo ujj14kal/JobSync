@@ -40,6 +40,17 @@ async def _warm_start_services() -> None:
     except Exception as e:
         logger.warning("Predictor load failed", error=str(e))
 
+    # Load custom AI models (encoder + scorer) — download from GitHub if needed.
+    try:
+        from app.services.model_loader import startup_load
+        loaded = await asyncio.to_thread(startup_load)
+        if loaded:
+            logger.info("✅ Custom JobSync AI loaded (encoder + scorer)")
+        else:
+            logger.info("Custom AI not yet trained — using Groq/rules fallback")
+    except Exception as e:
+        logger.warning("Custom AI load failed (non-fatal)", error=str(e))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
