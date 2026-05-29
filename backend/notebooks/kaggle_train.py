@@ -28,10 +28,22 @@ print(f"Device: {device}")
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-# GPU-optimised hyperparameters
-ENCODER_EPOCHS = 60;  ENCODER_BATCH = 256; ENCODER_LR = 3e-4; ENCODER_TEMP = 0.05
-SCORER_EPOCHS  = 150; SCORER_BATCH  = 128; SCORER_LR  = 2e-4
-EMB_DIM=256; N_HEADS=8; N_LAYERS=3; FFN_DIM=512; MAX_LEN=256; DROPOUT=0.15
+# Auto-scale hyperparameters based on device
+if torch.cuda.is_available():
+    # GPU (T4/P100): full model, ~15 min
+    MAX_LEN=256; EMB_DIM=256; N_HEADS=8; N_LAYERS=3; FFN_DIM=512; DROPOUT=0.15
+    ENCODER_EPOCHS=60;  ENCODER_BATCH=256; ENCODER_LR=3e-4; ENCODER_TEMP=0.05
+    SCORER_EPOCHS=150;  SCORER_BATCH=128;  SCORER_LR=2e-4
+    N_TRAIN_SAMPLES=10_000
+else:
+    # CPU: tiny model + short sequences = ~10-15 min
+    # MAX_LEN 64 vs 256 = 16x faster attention (O(n²))
+    MAX_LEN=64;  EMB_DIM=128; N_HEADS=4; N_LAYERS=2; FFN_DIM=256; DROPOUT=0.1
+    ENCODER_EPOCHS=15;  ENCODER_BATCH=64;  ENCODER_LR=3e-4; ENCODER_TEMP=0.07
+    SCORER_EPOCHS=30;   SCORER_BATCH=128;  SCORER_LR=2e-4
+    N_TRAIN_SAMPLES=3_000  # 3k samples, fast enough on CPU
+print(f"MAX_LEN={MAX_LEN} EMB_DIM={EMB_DIM} layers={N_LAYERS} heads={N_HEADS}")
+print(f"Epochs: encoder={ENCODER_EPOCHS}, scorer={SCORER_EPOCHS} | samples={N_TRAIN_SAMPLES}")
 
 # ── Domain vocabulary (copy from domain_vocab.py) ─────────────────────────────
 ALL_DOMAIN_WORDS = [
@@ -225,8 +237,8 @@ def load_records():
     for c in candidates:
         if c.exists(): actual=c; break
     if actual is None:
-        print(f"⚠ training_pairs.jsonl not found, generating {10_000} pairs in-kernel...")
-        records=_generate_fallback(10_000)
+        print(f"⚠ training_pairs.jsonl not found, generating {N_TRAIN_SAMPLES} pairs in-kernel...")
+        records=_generate_fallback(N_TRAIN_SAMPLES)
         print(f"✓ Generated {len(records)} fallback pairs"); return records
     with open(actual) as f:
         for line in f:
@@ -236,6 +248,9 @@ def load_records():
                     r=json.loads(line)
                     if "resume" in r and "jd" in r: records.append(r)
                 except: pass
+    # Cap samples for CPU to keep training fast
+    if len(records) > N_TRAIN_SAMPLES:
+        import random; random.shuffle(records); records=records[:N_TRAIN_SAMPLES]
     print(f"Loaded {len(records)} pairs from {actual}"); return records
 
 def hc_features(r,j,rt,jt):
@@ -367,7 +382,7 @@ def train_scorer(records,encoder,tok):
             if pat>=18: print(f"  Early stop ep={ep}"); break
     model.load_state_dict(bst); elapsed=time.monotonic()-t0
     print(f"✓ Scorer done  val_mse={best:.2f}  val_mae={va_:.2f}  {elapsed:.0f}s")
-    return {"val_mse":round(best,2),"val_mae":round(va_,2),"epochs":ep}
+    return model, {"val_mse":round(best,2),"val_mae":round(va_,2),"epochs":ep}
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 # Note: GitHub upload is handled by auto_train.py after downloading the output.
@@ -382,8 +397,8 @@ tok=Tokenizer.build(all_texts); print(f"Tokenizer vocab: {tok.vocab_size}")
 encoder,enc_r=train_encoder(records,tok)
 torch.save({k:v.cpu() for k,v in encoder.state_dict().items()},OUTPUT_DIR/"encoder.pt")
 tok.save(OUTPUT_DIR/"tokenizer.json")
-scr_r=train_scorer(records,encoder,tok)
-# scorer is saved inside train_scorer already (OUTPUT_DIR/scorer.pt)
+scorer,scr_r=train_scorer(records,encoder,tok)
+torch.save({k:v.cpu() for k,v in scorer.state_dict().items()},OUTPUT_DIR/"scorer.pt")
 meta={"trained_at":datetime.utcnow().isoformat(),"encoder":enc_r,"scorer":scr_r,
       "device":str(device),"architecture":f"DualEncoder({N_LAYERS}L×{N_HEADS}H×{EMB_DIM}d)+Scorer5heads"}
 (OUTPUT_DIR/"model_meta.json").write_text(json.dumps(meta,indent=2))
