@@ -40,8 +40,7 @@ def from_github():
 def from_kaggle():
     print(f"Downloading from Kaggle output ({KAGGLE_USER}/{KERNEL_SLUG})...")
     try:
-        from kaggle.api.kaggle_api_extended import KaggleApiExtended
-        api = KaggleApiExtended(); api.authenticate()
+        from kaggle import api; api.authenticate()
         dl_dir = ROOT/"data"/"_kaggle_output"; dl_dir.mkdir(exist_ok=True)
         api.kernels_output(f"{KAGGLE_USER}/{KERNEL_SLUG}", path=str(dl_dir), quiet=False)
         import zipfile

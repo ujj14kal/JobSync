@@ -99,8 +99,7 @@ def generate_data(n=10_000):
 
 def upload_dataset():
     print(f"\n▶ Step 2/5 — Uploading training data to Kaggle dataset...")
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-    api = KaggleApiExtended(); api.authenticate()
+    from kaggle import api; api.authenticate()
 
     staging = ROOT / "data" / "_kaggle_staging"
     staging.mkdir(exist_ok=True)
@@ -157,8 +156,7 @@ def push_kernel():
     }
     (kernel_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2))
 
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-    api = KaggleApiExtended(); api.authenticate()
+    from kaggle import api; api.authenticate()
     api.kernels_push(str(kernel_dir))
     print(f"✓ Kernel pushed: kaggle.com/{KAGGLE_USER}/{KERNEL_SLUG}")
 
@@ -170,8 +168,7 @@ def wait_for_training(timeout_min=60):
     print(f"\n▶ Step 4/5 — Waiting for Kaggle GPU training to complete...")
     print(f"  Monitor live: https://www.kaggle.com/{KAGGLE_USER}/{KERNEL_SLUG}")
 
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-    api = KaggleApiExtended(); api.authenticate()
+    from kaggle import api; api.authenticate()
 
     deadline = time.monotonic() + timeout_min * 60
     last_status = None
@@ -179,14 +176,14 @@ def wait_for_training(timeout_min=60):
 
     while time.monotonic() < deadline:
         try:
-            status_obj = api.kernel_status(KAGGLE_USER, KERNEL_SLUG)
-            # status_obj is a dict-like object
+            status_obj = api.kernels_status(f"{KAGGLE_USER}/{KERNEL_SLUG}")
+            # status_obj is a proto-like object
             if hasattr(status_obj, 'status'):
-                status = status_obj.status
+                status = str(status_obj.status).lower().replace("run_status_", "")
             elif isinstance(status_obj, dict):
                 status = status_obj.get("status", "unknown")
             else:
-                status = str(status_obj)
+                status = str(status_obj).lower()
 
             if status != last_status:
                 print(f"\n  Status: {status}", end="", flush=True)
@@ -218,8 +215,7 @@ def wait_for_training(timeout_min=60):
 def download_model():
     print(f"\n▶ Step 5/5 — Downloading trained model from Kaggle output...")
 
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-    api = KaggleApiExtended(); api.authenticate()
+    from kaggle import api; api.authenticate()
 
     dl_dir = ROOT / "data" / "_kaggle_output"
     dl_dir.mkdir(exist_ok=True)
