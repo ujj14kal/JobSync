@@ -48,18 +48,7 @@ def _load_model() -> SentenceTransformer:
         except Exception as e:
             logger.warning("Fine-tuned model load failed, trying base", error=str(e))
 
-    # 2. Try strong base model
-    try:
-        logger.info("Loading strong base model", model=STRONG_BASE_MODEL)
-        model = SentenceTransformer(STRONG_BASE_MODEL)
-        _model_instance = model
-        _model_name_used = STRONG_BASE_MODEL
-        logger.info("Strong base model loaded")
-        return model
-    except Exception as e:
-        logger.warning("Strong base model failed, using config default", error=str(e))
-
-    # 3. Config default (all-MiniLM-L6-v2)
+    # 2. Config default (all-MiniLM-L6-v2, 384-dim — matches DB vector column)
     logger.info("Loading config default model", model=settings.EMBEDDING_MODEL)
     model = SentenceTransformer(settings.EMBEDDING_MODEL)
     _model_instance = model
