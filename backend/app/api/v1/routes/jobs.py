@@ -85,23 +85,42 @@ async def search_job(
     )
 
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Could not find job listing for {request.company_name}. Try providing the job ID.",
+        detail = (
+            "Could not extract job details from that URL. "
+            "Make sure the link goes directly to a job posting page (not a search results page)."
+            if request.job_url
+            else f"Could not find job listing for {request.company_name}."
         )
+        raise HTTPException(status_code=404, detail=detail)
 
     parsed = result["parsed_data"]
     raw_text = result["raw_text"]
 
-    # Generate embedding
-    embed_text_input = f"{parsed.get('title', '')} {' '.join(parsed.get('required_skills', []))[:500]}"
-    embedding = embed_text(embed_text_input)
+    # Company name: always prefer the value extracted from the page
+    resolved_company = (
+        parsed.get("company")
+        or request.company_name
+        or ""
+    ).strip()
+    resolved_title = (
+        parsed.get("title")
+        or request.job_title
+        or ""
+    ).strip()
 
-    # Save to DB (use parsed company when URL-only)
+    # Back-fill into parsed_data so front-end confirm card always shows both
+    parsed["company"] = resolved_company
+    parsed["title"] = resolved_title
+
+    # Generate embedding from role + required skills
+    embed_input = f"{resolved_title} {resolved_company} {' '.join(parsed.get('required_skills', []))[:400]}"
+    embedding = embed_text(embed_input)
+
+    # Save to DB
     record = {
         "id": str(uuid.uuid4()),
-        "company_name": request.company_name or parsed.get("company", ""),
-        "job_title": parsed.get("title", request.job_title or ""),
+        "company_name": resolved_company,
+        "job_title": resolved_title,
         "job_id_external": request.job_id,
         "source_url": result.get("source_url"),
         "raw_text": raw_text[:50000],

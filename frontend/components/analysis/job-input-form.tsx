@@ -287,10 +287,10 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
 
         <div className="p-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/5">
           <div className="text-[16px] font-bold text-[var(--text-primary)] mb-1">
-            {foundJob.parsed_data.title}
+            {foundJob.parsed_data.title || foundJob.job_title}
           </div>
           <div className="text-[14px] text-[var(--text-secondary)] mb-3">
-            {foundJob.company_name}
+            {foundJob.company_name || (foundJob.parsed_data as any).company}
             {foundJob.parsed_data.location && ` · ${foundJob.parsed_data.location}`}
             {foundJob.parsed_data.job_type && ` · ${foundJob.parsed_data.job_type}`}
           </div>
