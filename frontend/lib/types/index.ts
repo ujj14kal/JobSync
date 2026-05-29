@@ -211,6 +211,9 @@ export interface Mentor {
   company: string;
   platform: "unstop" | "adplist" | "linkedin" | "mentorcruise" | "toptal" | "other";
   profile_url: string;
+  search_url?: string;       // always-valid platform search URL (fallback)
+  is_generated?: boolean;    // true = AI-generated (should not appear anymore)
+  is_platform_card?: boolean; // true = a "browse on platform" suggestion, not a real profile
   avatar_url?: string;
   specializations: string[];
   industries: string[];

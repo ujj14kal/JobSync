@@ -142,7 +142,7 @@ export default function InsightsPage() {
             <div className="flex items-center gap-2 mb-5">
               <DollarSign className="w-4 h-4 text-emerald-400" />
               <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                Salary Ranges · {insight.salary_range.location ?? "US"}
+                Salary Ranges · {typeof insight.salary_range.location === "string" ? insight.salary_range.location : "US"}
               </h2>
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -276,32 +276,38 @@ export default function InsightsPage() {
           </div>
 
           {/* Career paths */}
-          {insight.career_paths.length > 0 && (
+          {(insight.career_paths?.length ?? 0) > 0 && (
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
               <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-4">
                 Common Career Paths
               </h2>
               <div className="space-y-3">
-                {insight.career_paths.map((path, i) => (
+                {insight.career_paths.map((path, i) => {
+                  // LLM can return from/to as objects — coerce to string defensively
+                  const fromLabel = typeof path.from === "string" ? path.from : JSON.stringify(path.from);
+                  const toLabel = typeof path.to === "string" ? path.to : JSON.stringify(path.to);
+                  const timeLabel = typeof path.avg_transition_time === "string" ? path.avg_transition_time : "";
+                  return (
                   <div
                     key={i}
                     className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
                   >
                     <div className="text-[13px] font-medium text-[var(--text-primary)]">
-                      {path.from}
+                      {fromLabel}
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <div className="flex-1 h-px bg-[var(--border-default)]" />
                       <span className="text-[11px] text-[var(--text-muted)] whitespace-nowrap">
-                        {path.avg_transition_time}
+                        {timeLabel}
                       </span>
                       <div className="flex-1 h-px bg-[var(--border-default)]" />
                     </div>
                     <div className="text-[13px] font-medium text-[var(--accent-hover)]">
-                      {path.to}
+                      {toLabel}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

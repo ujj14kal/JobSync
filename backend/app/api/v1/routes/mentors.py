@@ -7,7 +7,11 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
-from app.services.mentor_finder import find_mentors_for_analysis, rank_mentors, fetch_unstop_mentors as scrape_unstop_mentors
+from app.services.mentor_finder import (
+    find_mentors_for_analysis, rank_mentors,
+    fetch_unstop_mentors as scrape_unstop_mentors,
+    _platform_card,
+)
 
 router = APIRouter(prefix="/mentors", tags=["mentors"])
 
@@ -99,25 +103,29 @@ async def search_mentors(
     result = query.execute()
     mentors = result.data or []
 
-    if not mentors or (request.role and not request.company):
-        # Scrape for specific role
-        scraped = await scrape_unstop_mentors(
-            role=request.role or "Software Engineer",
-            skills=request.skills or [],
-        )
+    role = request.role or "Software Engineer"
+    skills = request.skills or []
+
+    if not mentors:
+        scraped = await scrape_unstop_mentors(role=role, skills=skills)
         mentors.extend(scraped)
 
-    # Rank
+    # Add platform suggestion cards for platforms with no scraped data
+    has_adplist = any(m.get("platform") == "adplist" for m in mentors)
+    has_unstop = any(m.get("platform") == "unstop" for m in mentors)
+    if not has_adplist:
+        mentors.append(_platform_card("adplist", role, skills))
+    if not has_unstop:
+        mentors.append(_platform_card("unstop", role, skills))
+    mentors.append(_platform_card("linkedin", role, skills))
+
     ranked = rank_mentors(
         mentors=mentors,
-        target_role=request.role or "",
+        target_role=role,
         target_company=request.company or "",
-        skill_gaps=request.skills or [],
+        skill_gaps=skills,
         career_stage=request.career_stage or "entry",
     )
-
-    # Sort free mentors first, then by match score
-    ranked.sort(key=lambda m: (0 if m.get("is_free") else 1, -m.get("match_score", 0)))
     return ranked[:25]
 
 

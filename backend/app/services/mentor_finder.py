@@ -1,40 +1,40 @@
 """
-Mentor Finder v2 — real sources with pricing.
+Mentor Finder — real profiles only.
 
-Sources (in priority order):
-  1. ADPList      — free mentors, public API
-  2. MentorCruise — paid mentors, public profiles scraped
-  3. Toptal       — expert network, free discovery
-  4. LLM fallback — realistic generated profiles when all scraping fails
+Sources (tried in order):
+  1. ADPList   — free community platform, public search API
+  2. Unstop    — free for students, public mentor listing
+  3. MentorCruise — paid, public search page scrape
 
-Pricing model:
-  - ADPList:      Free (community-based free mentoring)
-  - MentorCruise: Paid ($50–$350/session or monthly subscriptions)
-  - Toptal:       Contact for pricing
-  - Unstop:       Free (student/early career)
-  - Generated:    Mix
+If a platform's API returns no data, the platform is surfaced as a
+"Browse on <Platform>" suggestion card (is_platform_card=True) so the
+redirect always lands on a real, relevant search-results page.
+
+NO LLM-generated fake profiles are created. Every mentor entry
+either came from a real API/scrape or is a platform search card.
 """
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
 import time
-import structlog
+import hashlib
+from urllib.parse import quote_plus
+
 import httpx
 from bs4 import BeautifulSoup
+import structlog
 
 from app.core.config import settings
 from app.services.embedding_service import cosine_similarity, embed_text
 from app.services.skill_normalizer import normalize_skills
-from app.services.groq_limiter import groq_call
 from app.db.supabase_client import get_supabase
+
+logger = structlog.get_logger()
 
 _MENTOR_CACHE: dict[str, tuple[list, float]] = {}
 _MENTOR_CACHE_TTL = 3600 * getattr(settings, "MENTOR_CACHE_TTL_HOURS", 48)
-
-logger = structlog.get_logger()
 
 HEADERS = {
     "User-Agent": (
@@ -47,55 +47,99 @@ HEADERS = {
 }
 
 
-# ─── ADPList (free mentors) ──────────────────────────────────────────────────
+# ─── Search URL Builder ───────────────────────────────────────────────────────
+
+def _search_url(platform: str, role: str, skills: list[str] = []) -> str:
+    """Return a verified, always-working search URL for the platform."""
+    q = quote_plus(f"{role} {' '.join(skills[:2])}".strip())
+    r = quote_plus(role.strip())
+    if platform == "adplist":
+        return f"https://adplist.org/mentors?search={r}"
+    elif platform == "unstop":
+        return f"https://unstop.com/mentors?search={r}"
+    elif platform == "linkedin":
+        return (
+            f"https://www.linkedin.com/search/results/people/"
+            f"?keywords={q}+mentor&network=%5B%22F%22%2C%22S%22%5D"
+        )
+    elif platform == "mentorcruise":
+        return f"https://mentorcruise.com/filter/search/?q={r}"
+    return f"https://adplist.org/mentors?search={r}"
+
+
+# ─── Platform suggestion cards (shown when scraping returns nothing) ──────────
+
+def _platform_card(platform: str, role: str, skills: list[str]) -> dict:
+    """
+    A non-fake suggestion card that sends the user to the platform's real
+    search page pre-filtered for their role.  Never shows a specific profile.
+    """
+    meta = {
+        "adplist":     {"label": "ADPList",      "desc": "Free 1:1 mentoring from professionals worldwide. Community-driven, no cost ever.", "is_free": True,  "color": "adplist"},
+        "unstop":      {"label": "Unstop",        "desc": "Free mentors for students and early-career professionals across India and beyond.", "is_free": True,  "color": "unstop"},
+        "mentorcruise": {"label": "MentorCruise", "desc": "Paid mentors with structured programmes. Monthly subscriptions or per-session booking.", "is_free": False, "color": "mentorcruise"},
+        "linkedin":    {"label": "LinkedIn",      "desc": "Search LinkedIn for professionals offering mentoring in your target role.", "is_free": True,  "color": "linkedin"},
+    }
+    m = meta.get(platform, meta["adplist"])
+    return {
+        "id": f"platform-card-{platform}",
+        "name": f"Find {role} mentors on {m['label']}",
+        "title": f"Browse real {role} mentors",
+        "company": m["label"],
+        "platform": platform,
+        "profile_url": _search_url(platform, role, skills),
+        "search_url": _search_url(platform, role, skills),
+        "is_platform_card": True,   # UI uses this to render a different card style
+        "is_generated": False,
+        "avatar_url": None,
+        "specializations": skills[:5],
+        "industries": ["Technology"],
+        "career_stages": ["all"],
+        "availability": "Varies by mentor",
+        "session_format": "1:1 Video / Chat",
+        "bio": m["desc"],
+        "rating": None,
+        "review_count": None,
+        "is_verified": True,
+        "is_free": m["is_free"],
+        "price_per_session": 0.0 if m["is_free"] else None,
+        "currency": "USD",
+        "pricing_model": "free" if m["is_free"] else "per_session",
+        "price_display": "Free" if m["is_free"] else "Paid",
+    }
+
+
+# ─── ADPList — real API ───────────────────────────────────────────────────────
 
 async def fetch_adplist_mentors(role: str, skills: list[str], limit: int = 15) -> list[dict]:
-    """
-    Fetch free mentors from ADPList public API.
-    ADPList is a community platform — all sessions are FREE.
-    """
-    query = f"{role} {' '.join(skills[:3])}"
-    try:
-        async with httpx.AsyncClient(timeout=15, headers=HEADERS) as client:
-            # ADPList search endpoint
-            resp = await client.get(
-                "https://adplist.org/api/search/",
-                params={"query": query, "type": "mentor", "limit": limit},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                mentors = data.get("results") or data.get("mentors") or data if isinstance(data, list) else []
-                parsed = [_parse_adplist_mentor(m) for m in mentors[:limit] if m]
-                parsed = [m for m in parsed if m]
-                if parsed:
-                    logger.info("ADPList returned mentors", count=len(parsed))
-                    return parsed
-    except Exception as e:
-        logger.warning("ADPList API failed", error=str(e))
-
-    # Try alternative endpoint
-    try:
-        async with httpx.AsyncClient(timeout=15, headers=HEADERS) as client:
-            resp = await client.get(
-                "https://adplist.org/api/mentors/",
-                params={"search": query, "page": 1, "page_size": limit},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                items = data.get("results") or data.get("data") or []
-                parsed = [_parse_adplist_mentor(m) for m in items[:limit] if m]
-                parsed = [m for m in parsed if m]
-                if parsed:
-                    logger.info("ADPList alt endpoint returned mentors", count=len(parsed))
-                    return parsed
-    except Exception as e:
-        logger.warning("ADPList alt endpoint failed", error=str(e))
-
+    query = f"{role} {' '.join(skills[:3])}".strip()
+    endpoints = [
+        ("https://adplist.org/api/search/",         {"query": query, "type": "mentor", "limit": limit}),
+        ("https://adplist.org/api/mentors/",         {"search": query, "page": 1, "page_size": limit}),
+        ("https://api.adplist.org/core/mentor/",     {"search": query, "limit": limit}),
+    ]
+    for url, params in endpoints:
+        try:
+            async with httpx.AsyncClient(timeout=15, headers=HEADERS) as client:
+                resp = await client.get(url, params=params)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    items = (
+                        data.get("results") or data.get("mentors") or
+                        data.get("data") or (data if isinstance(data, list) else [])
+                    )
+                    if items:
+                        parsed = [_parse_adplist(m, role, skills) for m in items[:limit] if m]
+                        parsed = [m for m in parsed if m]
+                        if parsed:
+                            logger.info("ADPList real mentors", count=len(parsed), endpoint=url)
+                            return parsed
+        except Exception as e:
+            logger.warning("ADPList endpoint failed", url=url, error=str(e))
     return []
 
 
-def _parse_adplist_mentor(m: dict) -> dict | None:
-    """Parse an ADPList API response item into our mentor schema."""
+def _parse_adplist(m: dict, role: str, skills: list[str]) -> dict | None:
     try:
         name = (
             m.get("name") or
@@ -105,20 +149,28 @@ def _parse_adplist_mentor(m: dict) -> dict | None:
         if not name or len(name) < 3:
             return None
 
+        slug = m.get("slug") or m.get("username") or ""
+        # Only link to a real profile when we have a real slug
+        profile_url = (
+            f"https://adplist.org/mentors/{slug}"
+            if slug and re.match(r"^[a-zA-Z0-9_\-]+$", slug)
+            else _search_url("adplist", role, skills)
+        )
+
         expertise = m.get("expertise") or m.get("skills") or []
         if isinstance(expertise, str):
-            expertise = [e.strip() for e in expertise.split(",")]
+            expertise = [e.strip() for e in expertise.split(",") if e.strip()]
 
+        title = m.get("designation") or m.get("title") or m.get("job_title") or "Professional"
         return {
             "name": name,
-            "title": m.get("designation") or m.get("title") or m.get("job_title") or "Professional",
+            "title": title,
             "company": m.get("company") or m.get("employer") or m.get("organization") or "",
             "platform": "adplist",
-            "profile_url": (
-                f"https://adplist.org/mentors/{m.get('slug') or m.get('username') or ''}"
-                if m.get("slug") or m.get("username")
-                else "https://adplist.org/mentors"
-            ),
+            "profile_url": profile_url,
+            "search_url": _search_url("adplist", role, skills),
+            "is_platform_card": False,
+            "is_generated": False,
             "avatar_url": m.get("profile_photo") or m.get("avatar") or m.get("photo_url"),
             "specializations": expertise[:8],
             "industries": [m.get("industry")] if m.get("industry") else ["Technology"],
@@ -129,7 +181,6 @@ def _parse_adplist_mentor(m: dict) -> dict | None:
             "rating": float(m.get("rating") or m.get("avg_rating") or 4.7),
             "review_count": int(m.get("sessions_count") or m.get("review_count") or 0),
             "is_verified": bool(m.get("is_verified") or m.get("verified")),
-            # Pricing
             "is_free": True,
             "price_per_session": 0.0,
             "currency": "USD",
@@ -140,130 +191,59 @@ def _parse_adplist_mentor(m: dict) -> dict | None:
         return None
 
 
-# ─── MentorCruise (paid mentors) ─────────────────────────────────────────────
-
-async def fetch_mentorcruise_mentors(role: str, skills: list[str], limit: int = 10) -> list[dict]:
-    """
-    Scrape MentorCruise public search results.
-    MentorCruise mentors charge $50–$350/month or per-session rates.
-    """
-    query = f"{role} {skills[0] if skills else ''}".strip()
-    url = f"https://mentorcruise.com/filter/search/?q={query.replace(' ', '+')}"
-    try:
-        async with httpx.AsyncClient(timeout=20, headers=HEADERS, follow_redirects=True) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                mentors = _parse_mentorcruise_html(resp.text, limit)
-                if mentors:
-                    logger.info("MentorCruise returned mentors", count=len(mentors))
-                    return mentors
-    except Exception as e:
-        logger.warning("MentorCruise scraping failed", error=str(e))
-    return []
-
-
-def _parse_mentorcruise_html(html: str, limit: int) -> list[dict]:
-    soup = BeautifulSoup(html, "lxml")
-    mentors = []
-
-    cards = (
-        soup.find_all("div", class_=re.compile(r"mentor-card|profile-card|MentorCard")) or
-        soup.find_all("article", class_=re.compile(r"mentor|profile"))
-    )
-
-    for card in cards[:limit]:
-        try:
-            name_el = (
-                card.find(["h2", "h3", "h4", "span"], class_=re.compile(r"name|title", re.I)) or
-                card.find(["h2", "h3", "h4"])
-            )
-            if not name_el:
-                continue
-            name = name_el.get_text(strip=True)
-            if not name or len(name) < 3:
-                continue
-
-            title_el = card.find(["p", "span"], class_=re.compile(r"job|role|position", re.I))
-            company_el = card.find(["p", "span"], class_=re.compile(r"company|employer", re.I))
-            price_el = card.find(["span", "div", "p"], class_=re.compile(r"price|rate|cost", re.I))
-            bio_el = card.find(["p"], class_=re.compile(r"bio|description|about", re.I))
-            link_el = card.find("a", href=True)
-
-            # Extract price
-            price_text = price_el.get_text(strip=True) if price_el else ""
-            price_num = None
-            if price_text:
-                nums = re.findall(r"\d+", price_text)
-                if nums:
-                    price_num = float(nums[0])
-
-            profile_url = ""
-            if link_el:
-                href = link_el["href"]
-                profile_url = href if href.startswith("http") else f"https://mentorcruise.com{href}"
-
-            mentors.append({
-                "name": name,
-                "title": title_el.get_text(strip=True) if title_el else "Professional",
-                "company": company_el.get_text(strip=True) if company_el else "",
-                "platform": "mentorcruise",
-                "profile_url": profile_url or "https://mentorcruise.com/mentors/",
-                "avatar_url": None,
-                "specializations": [],
-                "industries": ["Technology"],
-                "career_stages": ["mid", "senior"],
-                "availability": "Weekly sessions",
-                "session_format": "1:1 Video",
-                "bio": bio_el.get_text(strip=True)[:300] if bio_el else "",
-                "rating": 4.8,
-                "review_count": 0,
-                "is_verified": True,
-                "is_free": False,
-                "price_per_session": price_num,
-                "currency": "USD",
-                "pricing_model": "subscription",
-                "price_display": price_text or "From $50/month",
-            })
-        except Exception:
-            continue
-
-    return mentors
-
-
-# ─── Unstop (free, student-focused) ──────────────────────────────────────────
+# ─── Unstop — real API ────────────────────────────────────────────────────────
 
 async def fetch_unstop_mentors(role: str, skills: list[str], limit: int = 10) -> list[dict]:
-    """Fetch from Unstop — student/early career, free platform."""
     query = f"{role} {' '.join(skills[:2])}".strip()
-    url = f"https://unstop.com/api/public/mentors?search={query.replace(' ', '%20')}&limit={limit}"
-    try:
-        async with httpx.AsyncClient(timeout=15, headers={**HEADERS, "Accept": "application/json"}) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                data = resp.json()
-                items = data.get("data") or data.get("mentors") or (data if isinstance(data, list) else [])
-                parsed = [_parse_unstop_mentor(m) for m in items[:limit] if m]
-                parsed = [m for m in parsed if m]
-                if parsed:
-                    return parsed
-    except Exception as e:
-        logger.warning("Unstop API failed", error=str(e))
+    endpoints = [
+        f"https://unstop.com/api/public/mentors?search={quote_plus(query)}&limit={limit}",
+        f"https://unstop.com/api/public/opportunity/mentor/search?search={quote_plus(query)}&limit={limit}",
+    ]
+    for url in endpoints:
+        try:
+            async with httpx.AsyncClient(
+                timeout=15,
+                headers={**HEADERS, "Accept": "application/json"},
+            ) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    items = data.get("data") or data.get("mentors") or (data if isinstance(data, list) else [])
+                    if items:
+                        parsed = [_parse_unstop(m, role, skills) for m in items[:limit] if m]
+                        parsed = [m for m in parsed if m]
+                        if parsed:
+                            logger.info("Unstop real mentors", count=len(parsed))
+                            return parsed
+        except Exception as e:
+            logger.warning("Unstop endpoint failed", url=url, error=str(e))
     return []
 
 
-def _parse_unstop_mentor(m: dict) -> dict | None:
+def _parse_unstop(m: dict, role: str, skills: list[str]) -> dict | None:
     try:
         name = m.get("name") or m.get("full_name") or ""
-        if not name:
+        if not name or len(name) < 3:
             return None
+        username = m.get("username") or ""
+        profile_url = (
+            f"https://unstop.com/u/{username}"
+            if username and re.match(r"^[a-zA-Z0-9_.\-]+$", username)
+            else _search_url("unstop", role, skills)
+        )
+        specializations = m.get("skills") or m.get("expertise") or []
+        title = m.get("designation") or m.get("current_position") or "Professional"
         return {
             "name": name,
-            "title": m.get("designation") or m.get("current_position") or "Professional",
+            "title": title,
             "company": m.get("company") or m.get("current_company") or "",
             "platform": "unstop",
-            "profile_url": f"https://unstop.com/u/{m.get('username') or m.get('id', '')}",
+            "profile_url": profile_url,
+            "search_url": _search_url("unstop", role, skills),
+            "is_platform_card": False,
+            "is_generated": False,
             "avatar_url": m.get("profile_image") or m.get("avatar"),
-            "specializations": m.get("skills") or m.get("expertise") or [],
+            "specializations": specializations[:8],
             "industries": ["Technology"],
             "career_stages": ["student", "entry", "mid"],
             "availability": "Flexible",
@@ -282,91 +262,93 @@ def _parse_unstop_mentor(m: dict) -> dict | None:
         return None
 
 
-# ─── LLM Fallback ─────────────────────────────────────────────────────────────
+# ─── MentorCruise — HTML scrape ───────────────────────────────────────────────
 
-async def generate_mentors_with_llm(role: str, skills: list[str], country: str = "") -> list[dict]:
-    """
-    Generate realistic mentor profiles when all scraping fails.
-    Mix of free (ADPList/Unstop/LinkedIn) and paid (MentorCruise) mentors.
-    Generates 25 profiles, prioritising the user's country/region.
-    """
-    cache_key = hashlib.sha256(
-        f"{role}:{','.join(sorted(skills[:5]))}:{country}".encode()
-    ).hexdigest()[:16]
+async def fetch_mentorcruise_mentors(role: str, skills: list[str], limit: int = 8) -> list[dict]:
+    query = f"{role} {skills[0] if skills else ''}".strip()
+    url = f"https://mentorcruise.com/filter/search/?q={quote_plus(query)}"
+    try:
+        async with httpx.AsyncClient(timeout=20, headers=HEADERS, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                mentors = _parse_mentorcruise_html(resp.text, limit, role, skills)
+                if mentors:
+                    logger.info("MentorCruise real mentors", count=len(mentors))
+                    return mentors
+    except Exception as e:
+        logger.warning("MentorCruise scrape failed", error=str(e))
+    return []
 
-    entry = _MENTOR_CACHE.get(cache_key)
-    if entry and time.monotonic() < entry[1]:
-        return entry[0]
 
-    skills_str = ", ".join(skills[:5]) if skills else role
-    region_hint = (
-        f"Heavily prioritise mentors based in or with strong ties to {country}. "
-        f"Include local company names (e.g. startups, unicorns, MNCs present in {country}) where possible. "
-        if country else ""
+def _parse_mentorcruise_html(html: str, limit: int, role: str, skills: list[str]) -> list[dict]:
+    soup = BeautifulSoup(html, "lxml")
+    mentors: list[dict] = []
+
+    cards = (
+        soup.find_all("div", class_=re.compile(r"mentor-card|profile-card|MentorCard", re.I)) or
+        soup.find_all("article", class_=re.compile(r"mentor|profile", re.I))
     )
 
-    prompt = f"""Generate 25 realistic mentor profiles for someone targeting: "{role}".
-Skill gaps to address: {skills_str}.
-{region_hint}
-Mix of backgrounds: FAANG/Big-Tech engineers, startup founders, product managers, data scientists, recruiters.
-- 15 FREE mentors (platform "adplist", "unstop", or "linkedin", is_free: true, price_per_session: 0, price_display: "Free")
-- 10 PAID mentors (platform "mentorcruise", is_free: false, price_per_session: 50-250)
+    for card in cards[:limit]:
+        try:
+            name_el = (
+                card.find(["h2", "h3", "h4"], class_=re.compile(r"name", re.I)) or
+                card.find(["h2", "h3", "h4"])
+            )
+            if not name_el:
+                continue
+            name = name_el.get_text(strip=True)
+            if not name or len(name) < 3:
+                continue
 
-Return JSON only:
-{{"mentors":[{{
-  "name":"",
-  "title":"",
-  "company":"",
-  "platform":"adplist",
-  "profile_url":"https://adplist.org/mentors",
-  "specializations":[],
-  "industries":["Technology"],
-  "career_stages":["mid","senior"],
-  "availability":"Weekends",
-  "session_format":"1:1 Video",
-  "bio":"2-sentence bio",
-  "rating":4.8,
-  "review_count":42,
-  "is_verified":true,
-  "is_free":true,
-  "price_per_session":0,
-  "currency":"USD",
-  "pricing_model":"free",
-  "price_display":"Free"
-}}]}}"""
+            link_el = card.find("a", href=True)
+            if not link_el:
+                continue
+            href = link_el["href"]
+            # Only use profile URL if it points to a real mentor page (not a search page)
+            if href and ("/mentor/" in href or "/mentors/" in href):
+                profile_url = href if href.startswith("http") else f"https://mentorcruise.com{href}"
+            else:
+                profile_url = _search_url("mentorcruise", role, skills)
 
-    try:
-        raw = await groq_call(
-            model=settings.GROQ_FAST_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-            max_tokens=3000,
-            json_mode=True,
-            use_cache=True,
-            cache_ttl=_MENTOR_CACHE_TTL,
-        )
-        result = json.loads(raw)
-        mentors = result.get("mentors", [])
+            title_el = card.find(["p", "span"], class_=re.compile(r"job|role|position", re.I))
+            price_el = card.find(["span", "div"], class_=re.compile(r"price|rate|cost", re.I))
+            bio_el = card.find("p", class_=re.compile(r"bio|description|about", re.I))
 
-        for mentor in mentors:
-            spec_text = " ".join(mentor.get("specializations", []) + [mentor.get("title", "")])
-            mentor["embedding"] = embed_text(spec_text)
-            # Ensure required pricing fields exist
-            mentor.setdefault("is_free", True)
-            mentor.setdefault("price_per_session", 0.0)
-            mentor.setdefault("currency", "USD")
-            mentor.setdefault("pricing_model", "free")
-            mentor.setdefault("price_display", "Free")
+            price_text = price_el.get_text(strip=True) if price_el else ""
+            price_num: float | None = None
+            nums = re.findall(r"\d+", price_text)
+            if nums:
+                price_num = float(nums[0])
 
-        _MENTOR_CACHE[cache_key] = (mentors, time.monotonic() + _MENTOR_CACHE_TTL)
-        if len(_MENTOR_CACHE) > 200:
-            oldest = min(_MENTOR_CACHE, key=lambda k: _MENTOR_CACHE[k][1])
-            del _MENTOR_CACHE[oldest]
-
-        return mentors
-    except Exception as e:
-        logger.error("LLM mentor generation failed", error=str(e))
-        return []
+            mentors.append({
+                "name": name,
+                "title": title_el.get_text(strip=True) if title_el else "Professional",
+                "company": "",
+                "platform": "mentorcruise",
+                "profile_url": profile_url,
+                "search_url": _search_url("mentorcruise", role, skills),
+                "is_platform_card": False,
+                "is_generated": False,
+                "avatar_url": None,
+                "specializations": [],
+                "industries": ["Technology"],
+                "career_stages": ["mid", "senior"],
+                "availability": "Weekly sessions",
+                "session_format": "1:1 Video",
+                "bio": bio_el.get_text(strip=True)[:300] if bio_el else "",
+                "rating": 4.8,
+                "review_count": 0,
+                "is_verified": True,
+                "is_free": False,
+                "price_per_session": price_num,
+                "currency": "USD",
+                "pricing_model": "per_session",
+                "price_display": price_text or "Paid",
+            })
+        except Exception:
+            continue
+    return mentors
 
 
 # ─── Ranking ──────────────────────────────────────────────────────────────────
@@ -380,13 +362,17 @@ def rank_mentors(
 ) -> list[dict]:
     role_embedding = embed_text(f"{target_role} {' '.join(skill_gaps[:5])}")
     norm_gaps = set(normalize_skills(skill_gaps))
-    scored = []
+    scored: list[dict] = []
 
     for mentor in mentors:
+        # Platform cards float to the bottom (shown as a browse suggestion)
+        if mentor.get("is_platform_card"):
+            scored.append({**mentor, "match_score": 0.0, "match_reasons": []})
+            continue
+
         score = 0.0
         reasons: list[str] = []
 
-        # Semantic similarity
         emb = mentor.get("embedding")
         if emb:
             if isinstance(emb, str):
@@ -398,30 +384,23 @@ def rank_mentors(
                 sim = cosine_similarity(role_embedding, emb)
                 score += sim * 35
 
-        # Company match
         mentor_company = mentor.get("company", "").lower()
         tc_lower = (target_company or "").lower()
         if tc_lower and mentor_company and (tc_lower in mentor_company or mentor_company in tc_lower):
             score += 25
             reasons.append(f"Works at {mentor.get('company')}")
-        elif tc_lower and tc_lower in mentor.get("bio", "").lower():
-            score += 8
 
-        # Skill gap coverage
         mentor_specs = set(normalize_skills(mentor.get("specializations", [])))
-        matched_gaps = norm_gaps & mentor_specs
-        if matched_gaps:
-            score += min(len(matched_gaps) * 6, 20)
-            display_gaps = [g.replace("_", " ").title() for g in list(matched_gaps)[:2]]
-            reasons.append(f"Covers {', '.join(display_gaps)}")
+        matched = norm_gaps & mentor_specs
+        if matched:
+            score += min(len(matched) * 6, 20)
+            display = [g.replace("_", " ").title() for g in list(matched)[:2]]
+            reasons.append(f"Covers {', '.join(display)}")
 
-        # Career stage
         mentor_stages = [s.lower() for s in mentor.get("career_stages", [])]
         if career_stage.lower() in mentor_stages or "all" in mentor_stages:
             score += 8
-            reasons.append(f"Mentors {career_stage} professionals")
 
-        # Title relevance
         mentor_title = mentor.get("title", "").lower()
         for word in target_role.lower().split():
             if len(word) > 3 and word in mentor_title:
@@ -429,13 +408,12 @@ def rank_mentors(
                 reasons.append(f"Similar role: {mentor.get('title')}")
                 break
 
-        # Rating bonus
-        if mentor.get("rating", 0) >= 4.8:
+        if (mentor.get("rating") or 0) >= 4.8:
             score += 5
-        elif mentor.get("rating", 0) >= 4.5:
+        elif (mentor.get("rating") or 0) >= 4.5:
             score += 2
 
-        # Free mentor priority — shown before paid mentors
+        # Free mentors appear before paid
         if mentor.get("is_free"):
             score += 20
 
@@ -445,10 +423,10 @@ def rank_mentors(
             "match_reasons": reasons[:3],
         })
 
-    return sorted(scored, key=lambda m: m["match_score"], reverse=True)
+    return sorted(scored, key=lambda m: (0 if not m.get("is_platform_card") else 1, -m.get("match_score", 0)))
 
 
-# ─── Main Entry ───────────────────────────────────────────────────────────────
+# ─── Main Entry Point ─────────────────────────────────────────────────────────
 
 async def find_mentors_for_analysis(
     target_role: str,
@@ -460,54 +438,75 @@ async def find_mentors_for_analysis(
     limit: int = 25,
 ) -> list[dict]:
     """
-    Find and rank mentors from multiple real sources with pricing.
-    Priority: DB cache → ADPList → MentorCruise → Unstop → LLM fallback.
-    Free mentors are ranked first; results are region-filtered when country is set.
+    Fetch real mentors from ADPList, Unstop, MentorCruise.
+    If a platform returns no data, its result is replaced with a platform
+    suggestion card that links to the platform's real search results page.
+
+    NO fake / LLM-generated profiles are ever returned.
     """
     supabase = get_supabase()
 
-    # 1. Try DB first
+    # Try DB cache first (only real profiles, not platform cards)
     try:
-        result = supabase.table("mentors").select("*").limit(100).execute()
+        result = supabase.table("mentors").select("*").eq("is_platform_card", False).limit(100).execute()
         db_mentors = result.data or []
-    except Exception as e:
-        logger.error("Mentor DB query failed", error=str(e))
-        db_mentors = []
+    except Exception:
+        try:
+            result = supabase.table("mentors").select("*").limit(100).execute()
+            db_mentors = [m for m in (result.data or []) if not m.get("is_platform_card")]
+        except Exception as e:
+            logger.error("Mentor DB query failed", error=str(e))
+            db_mentors = []
 
-    if len(db_mentors) >= 20:
+    if len(db_mentors) >= 10:
         ranked = rank_mentors(db_mentors, target_role, target_company, skill_gaps, career_stage)
         return ranked[:limit]
 
-    # 2. Fetch from real sources in parallel
     skills_short = skill_gaps[:4]
+
+    # Fetch from real platforms in parallel
     adplist_task = fetch_adplist_mentors(target_role, skills_short, 15)
-    mentorcruise_task = fetch_mentorcruise_mentors(target_role, skills_short, 10)
     unstop_task = fetch_unstop_mentors(target_role, skills_short, 10)
+    mentorcruise_task = fetch_mentorcruise_mentors(target_role, skills_short, 8)
 
-    results = await asyncio.gather(adplist_task, mentorcruise_task, unstop_task, return_exceptions=True)
-    all_fetched: list[dict] = []
-    for r in results:
-        if isinstance(r, list):
-            all_fetched.extend(r)
+    results = await asyncio.gather(adplist_task, unstop_task, mentorcruise_task, return_exceptions=True)
 
-    if not all_fetched:
-        logger.info("All scrapers returned empty, falling back to LLM")
-        all_fetched = await generate_mentors_with_llm(target_role, skills_short, country=country)
+    adplist_mentors = results[0] if isinstance(results[0], list) else []
+    unstop_mentors = results[1] if isinstance(results[1], list) else []
+    mc_mentors = results[2] if isinstance(results[2], list) else []
 
-    # Attach embeddings for ranking
-    for mentor in all_fetched:
+    all_real: list[dict] = [*adplist_mentors, *unstop_mentors, *mc_mentors]
+
+    # For each platform that returned nothing, add a suggestion card
+    # so the user always has a path to real mentors
+    platform_cards: list[dict] = []
+    if not adplist_mentors:
+        platform_cards.append(_platform_card("adplist", target_role, skills_short))
+    if not unstop_mentors:
+        platform_cards.append(_platform_card("unstop", target_role, skills_short))
+    if not mc_mentors:
+        platform_cards.append(_platform_card("mentorcruise", target_role, skills_short))
+
+    # Add LinkedIn search card (we never scrape LinkedIn, always link to search)
+    platform_cards.append(_platform_card("linkedin", target_role, skills_short))
+
+    # Attach embeddings to real mentors for ranking
+    for mentor in all_real:
         if not mentor.get("embedding"):
             spec = " ".join(mentor.get("specializations", []) + [mentor.get("title", "")])
             mentor["embedding"] = embed_text(spec[:500])
 
-    # Cache to DB
-    await cache_mentors(all_fetched)
+    # Cache real mentors to DB
+    await _cache_mentors(all_real)
 
-    ranked = rank_mentors(all_fetched, target_role, target_company, skill_gaps, career_stage)
-    return ranked[:limit]
+    ranked_real = rank_mentors(all_real, target_role, target_company, skill_gaps, career_stage)
+
+    # Real mentors first, platform cards at the end
+    combined = ranked_real + platform_cards
+    return combined[:limit]
 
 
-async def cache_mentors(mentors: list[dict]) -> None:
+async def _cache_mentors(mentors: list[dict]) -> None:
     if not mentors:
         return
     supabase = get_supabase()
