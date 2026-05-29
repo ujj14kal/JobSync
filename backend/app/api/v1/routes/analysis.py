@@ -241,14 +241,14 @@ async def run_analysis(
             timeout=50.0,
         )
 
-        # Extract structured scores
+        # Extract structured scores — int() ensures DB integer columns accept values
         scores = {
-            "overall_score":               ai_result.get("overall_score", 0),
-            "ats_score":                   ai_result.get("ats_score", 0),
-            "technical_fit_score":         ai_result.get("technical_fit_score", 0),
-            "semantic_match_score":        ai_result.get("semantic_match_score", 0),
-            "recruiter_impression_score":  ai_result.get("recruiter_impression_score", 0),
-            "project_relevance_score":     ai_result.get("project_relevance_score", 0),
+            "overall_score":               int(round(ai_result.get("overall_score", 0))),
+            "ats_score":                   int(round(ai_result.get("ats_score", 0))),
+            "technical_fit_score":         int(round(ai_result.get("technical_fit_score", 0))),
+            "semantic_match_score":        int(round(ai_result.get("semantic_match_score", 0))),
+            "recruiter_impression_score":  int(round(ai_result.get("recruiter_impression_score", 0))),
+            "project_relevance_score":     int(round(ai_result.get("project_relevance_score", 0))),
         }
         missing_keywords = ai_result.get("missing_keywords", [])
         ai_reasoning = ai_result.get("reasoning", {})
