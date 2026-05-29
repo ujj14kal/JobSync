@@ -39,13 +39,13 @@ export default function CTASection() {
           </div>
 
           <h2 className="text-5xl sm:text-6xl font-bold text-primary mb-6 leading-tight">
-            Your dream job is{" "}
-            <span className="gradient-cyan-blue">one analysis away</span>
+            Stop guessing.{" "}
+            <span className="gradient-cyan-blue">Start knowing.</span>
           </h2>
 
           <p className="text-xl text-secondary max-w-2xl mx-auto mb-10">
-            Join 2,400+ engineers who used JobSync's AI to land roles at Google, Stripe,
-            Anthropic, and more. Analyze your first resume free.
+            Paste a job URL, upload your resume, and get a full AI-powered ATS analysis in under 30 seconds.
+            Free forever. No credit card. No fluff.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

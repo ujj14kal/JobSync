@@ -79,8 +79,8 @@ const FLOAT_CARDS = [
           <Zap size={16} className="text-green-400" />
         </div>
         <div>
-          <div className="text-xs font-semibold text-primary">Interview Probability</div>
-          <div className="text-xl font-bold" style={{ color: "#10b981" }}>79%</div>
+          <div className="text-xs font-semibold text-primary">Analysis Time</div>
+          <div className="text-xl font-bold" style={{ color: "#10b981" }}>&lt; 30s</div>
         </div>
       </div>
     ),
@@ -185,13 +185,7 @@ export default function HeroSection() {
             }}
           >
             <Sparkles size={14} className="text-purple-400" />
-            <span>Proprietary AI Intelligence Layer</span>
-            <span
-              className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
-              style={{ background: "#8b5cf6", color: "white" }}
-            >
-              NEW
-            </span>
+            <span>JobSync AI — free for students &amp; job seekers</span>
           </div>
         </motion.div>
 
@@ -202,11 +196,11 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <span className="text-primary">Land your dream job</span>
+          <span className="text-primary">Know exactly why</span>
           <br />
-          <span className="gradient-cyan-blue">with AI that learns</span>
+          <span className="gradient-cyan-blue">your resume gets</span>
           <br />
-          <span className="text-primary">from every hire</span>
+          <span className="text-primary">filtered out</span>
         </motion.h1>
 
         {/* Sub-headline */}
@@ -216,9 +210,9 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          JobSync's proprietary AI analyzes your resume with recruiter-grade intelligence —
-          semantic matching, skill gap prediction, and interview probability scoring that
-          improves with every application.
+          Paste a job URL. Upload your resume. JobSync AI scores it across 5 dimensions,
+          finds every missing keyword, rewrites weak bullets, and tells you exactly what to fix —
+          all in under 30 seconds. Free, always.
         </motion.p>
 
         {/* Trust chips */}
@@ -230,8 +224,8 @@ export default function HeroSection() {
         >
           {[
             { icon: <Shield size={12} />, text: "Local AI — no data sent to OpenAI" },
-            { icon: <Zap size={12} />, text: "Real-time analysis in seconds" },
-            { icon: <Sparkles size={12} />, text: "Learns from 10K+ outcomes" },
+            { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
+            { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
           ].map((chip) => (
             <div
               key={chip.text}

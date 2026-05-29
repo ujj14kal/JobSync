@@ -32,10 +32,10 @@ function CountUp({ to, suffix = "", prefix = "", decimals = 0, duration = 2.0 }:
 }
 
 const STATS = [
-  { value: 94, suffix: "%", label: "Resume Score Accuracy", sublabel: "vs. real recruiter feedback", color: "#3b82f6" },
-  { value: 2.4, suffix: "K+", label: "Active Job Seekers", sublabel: "trusted JobSync this month", color: "#8b5cf6", decimals: 1 },
-  { value: 79, suffix: "%", label: "Interview Rate Boost", sublabel: "after using AI optimization", color: "#10b981" },
-  { value: 10, suffix: "K+", label: "Outcome Signals", sublabel: "training our proprietary AI", color: "#06b6d4" },
+  { value: 5, suffix: "", label: "AI Score Dimensions", sublabel: "ATS · Technical · Semantic · Recruiter · Projects", color: "#3b82f6" },
+  { value: 0, suffix: "$", prefix: "", label: "Cost to Use", sublabel: "Free forever — no credit card, no subscription", color: "#10b981", isZero: true },
+  { value: 30, suffix: "s", label: "Analysis Time", sublabel: "Full AI report generated in under 30 seconds", color: "#8b5cf6" },
+  { value: 100, suffix: "%", label: "Private by Design", sublabel: "Your resume never sent to OpenAI or third parties", color: "#06b6d4" },
 ];
 
 export default function StatsSection() {
@@ -73,7 +73,10 @@ export default function StatsSection() {
                 className="text-4xl sm:text-5xl font-bold tabular-nums mb-1"
                 style={{ color: stat.color }}
               >
-                <CountUp to={stat.value} suffix={stat.suffix} decimals={stat.decimals ?? 0} />
+                {(stat as any).isZero
+                  ? <span>$0</span>
+                  : <CountUp to={stat.value} suffix={stat.suffix} decimals={(stat as any).decimals ?? 0} />
+                }
               </div>
 
               {/* Label */}

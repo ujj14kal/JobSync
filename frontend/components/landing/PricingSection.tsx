@@ -2,83 +2,41 @@
 
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
-import { Check, Sparkles, Zap } from "lucide-react";
+import {
+  Brain, Shield, Zap, GitBranch, Target, FileText,
+  Users, TrendingUp, Lock, Heart,
+} from "lucide-react";
 import Link from "next/link";
 
-const PLANS = [
+const EVERYTHING_FREE = [
+  { icon: Brain,      color: "#3b82f6", text: "Full 5-dimension ATS score" },
+  { icon: Target,     color: "#8b5cf6", text: "Skill gap analysis with learning paths" },
+  { icon: GitBranch,  color: "#06b6d4", text: "Missing keyword detection" },
+  { icon: FileText,   color: "#10b981", text: "AI resume bullet rewriter" },
+  { icon: TrendingUp, color: "#f59e0b", text: "Career insights & salary data" },
+  { icon: Users,      color: "#ec4899", text: "Mentor discovery (ADPList, Unstop, LinkedIn)" },
+  { icon: Zap,        color: "#06b6d4", text: "Instant JD extraction from any URL" },
+  { icon: Shield,     color: "#10b981", text: "Local AI — resume never sent to OpenAI" },
+];
+
+const WHY_TRUST = [
   {
-    name: "Free",
-    price: "$0",
-    per: "forever",
-    desc: "Get started with basic ATS analysis",
-    color: "#475569",
-    accent: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(255,255,255,0.08)",
-    glowColor: "transparent",
-    cta: "Get Started Free",
-    ctaStyle: "secondary" as const,
-    badge: null,
-    features: [
-      "3 analyses per month",
-      "Basic ATS score (5 dimensions)",
-      "Keyword gap detection",
-      "Basic improvement suggestions",
-      "Resume upload (PDF/DOCX)",
-    ],
-    missing: [
-      "Interview probability prediction",
-      "Skill gap roadmap",
-      "Semantic matching engine",
-      "Cohort benchmarking",
-    ],
+    icon: Heart,
+    color: "#ec4899",
+    title: "Built for students & job seekers",
+    body: "We're job seekers who built the tool we wished existed. No VC-backed paywalls, no upsells.",
   },
   {
-    name: "Pro",
-    price: "$19",
-    per: "per month",
-    desc: "Full intelligence layer for serious job seekers",
-    color: "#3b82f6",
-    accent: "rgba(59,130,246,0.06)",
-    borderColor: "rgba(59,130,246,0.25)",
-    glowColor: "rgba(59,130,246,0.12)",
-    cta: "Start Pro Trial",
-    ctaStyle: "primary" as const,
-    badge: { text: "Most Popular", color: "#3b82f6" },
-    features: [
-      "Unlimited analyses",
-      "Full 8-dimension ATS scoring",
-      "Interview probability prediction",
-      "Skill gap intelligence + roadmap",
-      "Semantic matching engine",
-      "Bullet rewrite suggestions",
-      "Cohort benchmarking",
-      "Career insights dashboard",
-      "Mentor discovery (semantic)",
-    ],
-    missing: [],
-  },
-  {
-    name: "Team",
-    price: "$49",
-    per: "per month",
-    desc: "For career coaches and recruiting teams",
+    icon: Lock,
     color: "#8b5cf6",
-    accent: "rgba(139,92,246,0.06)",
-    borderColor: "rgba(139,92,246,0.2)",
-    glowColor: "rgba(139,92,246,0.10)",
-    cta: "Contact Sales",
-    ctaStyle: "secondary" as const,
-    badge: null,
-    features: [
-      "Everything in Pro",
-      "Up to 10 seats",
-      "Team analytics dashboard",
-      "Bulk resume analysis",
-      "White-label reports",
-      "API access",
-      "Priority support",
-    ],
-    missing: [],
+    title: "Your data stays yours",
+    body: "Resumes are stored privately in your account. The AI runs on local models — nothing is shared with third-party LLM APIs.",
+  },
+  {
+    icon: Brain,
+    color: "#3b82f6",
+    title: "Honest AI, no magic numbers",
+    body: "We show you what the model actually computed — every score has a dimension breakdown and reasoning behind it.",
   },
 ];
 
@@ -92,7 +50,7 @@ export default function PricingSection() {
       <div
         className="absolute top-1/2 left-1/2 w-[800px] h-[400px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, rgba(59,130,246,0.05) 0%, transparent 70%)",
           filter: "blur(60px)",
         }}
       />
@@ -105,8 +63,8 @@ export default function PricingSection() {
             initial={{ opacity: 0, y: 10 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
           >
-            <Sparkles size={12} />
-            Pricing
+            <Heart size={12} />
+            Free, always
           </motion.div>
           <motion.h2
             className="text-4xl sm:text-5xl font-bold text-primary mb-4"
@@ -114,115 +72,130 @@ export default function PricingSection() {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            Invest in your{" "}
-            <span className="gradient-blue">next $50K raise</span>
+            Everything included.{" "}
+            <span className="gradient-blue">No catch.</span>
           </motion.h2>
           <motion.p
-            className="text-secondary text-lg"
+            className="text-secondary text-lg max-w-xl mx-auto"
             initial={{ opacity: 0 }}
             animate={isInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.2 }}
           >
-            One interview from Pro pays for itself 500×.
+            JobSync is free while we&apos;re building it. Every feature is unlocked — because we believe students and job seekers shouldn&apos;t have to pay to compete.
           </motion.p>
         </div>
 
-        {/* Plans */}
-        <div className="grid md:grid-cols-3 gap-6 items-start">
-          {PLANS.map((plan, i) => (
-            <motion.div
-              key={i}
-              className="relative rounded-3xl p-8"
-              style={{
-                background: plan.accent,
-                border: `1px solid ${plan.borderColor}`,
-                boxShadow: plan.glowColor !== "transparent"
-                  ? `0 0 60px -10px ${plan.glowColor}, 0 24px 48px rgba(0,0,0,0.3)`
-                  : "0 4px 16px rgba(0,0,0,0.2)",
-              }}
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: i * 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {/* Popular badge */}
-              {plan.badge && (
-                <div
-                  className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold flex items-center gap-1.5"
-                  style={{
-                    background: `linear-gradient(135deg, ${plan.color}, #8b5cf6)`,
-                    color: "white",
-                    boxShadow: `0 0 20px -4px ${plan.color}80`,
-                  }}
-                >
-                  <Zap size={11} />
-                  {plan.badge.text}
-                </div>
-              )}
-
-              {/* Plan header */}
-              <div className="mb-6">
-                <div className="text-sm font-semibold mb-1" style={{ color: plan.color }}>{plan.name}</div>
-                <div className="flex items-end gap-2 mb-2">
-                  <span className="text-4xl font-bold text-primary">{plan.price}</span>
-                  <span className="text-sm text-muted mb-1">{plan.per}</span>
-                </div>
-                <p className="text-xs text-secondary">{plan.desc}</p>
+        <div className="grid lg:grid-cols-2 gap-10 items-start">
+          {/* Feature checklist */}
+          <motion.div
+            className="p-8 rounded-3xl"
+            style={{
+              background: "rgba(59,130,246,0.04)",
+              border: "1px solid rgba(59,130,246,0.15)",
+            }}
+            initial={{ opacity: 0, y: 24 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.15, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="text-sm font-semibold mb-0.5" style={{ color: "#3b82f6" }}>Full Access</div>
+                <div className="text-4xl font-bold text-primary">$0 <span className="text-lg font-normal text-muted">/ forever</span></div>
               </div>
+              <div
+                className="px-3 py-1.5 rounded-full text-xs font-bold"
+                style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+              >
+                No credit card
+              </div>
+            </div>
 
-              {/* CTA */}
-              <Link href={plan.name === "Team" ? "/contact" : "/signup"}>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {EVERYTHING_FREE.map((feat, i) => (
+                <motion.div
+                  key={i}
+                  className="flex items-center gap-3"
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={isInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ delay: 0.2 + i * 0.05, duration: 0.4 }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${feat.color}18`, border: `1px solid ${feat.color}30` }}
+                  >
+                    <feat.icon size={13} style={{ color: feat.color }} />
+                  </div>
+                  <span className="text-xs text-secondary">{feat.text}</span>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="mt-8">
+              <Link href="/signup">
                 <motion.button
-                  className={`w-full py-3 rounded-xl text-sm font-semibold mb-6 transition-all ${
-                    plan.ctaStyle === "primary" ? "btn-primary justify-center" : ""
-                  }`}
-                  style={
-                    plan.ctaStyle === "secondary"
-                      ? {
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "rgba(241,245,249,0.9)",
-                          cursor: "pointer",
-                        }
-                      : {}
-                  }
+                  className="btn-primary w-full justify-center py-3.5 text-sm"
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  {plan.cta}
+                  Get started — it&apos;s free
                 </motion.button>
               </Link>
+            </div>
+          </motion.div>
 
-              {/* Divider */}
-              <div className="h-px mb-6" style={{ background: "rgba(255,255,255,0.07)" }} />
+          {/* Why trust us */}
+          <div className="space-y-5">
+            <motion.p
+              className="text-xs font-semibold text-muted uppercase tracking-widest mb-6"
+              initial={{ opacity: 0 }}
+              animate={isInView ? { opacity: 1 } : {}}
+              transition={{ delay: 0.25 }}
+            >
+              Why students trust us
+            </motion.p>
 
-              {/* Features */}
-              <div className="flex flex-col gap-3">
-                {plan.features.map((feat, j) => (
-                  <div key={j} className="flex items-start gap-3">
-                    <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: plan.color }} />
-                    <span className="text-xs text-secondary">{feat}</span>
-                  </div>
-                ))}
-                {plan.missing.map((feat, j) => (
-                  <div key={j} className="flex items-start gap-3 opacity-30">
-                    <div className="w-3.5 h-px flex-shrink-0 mt-2 bg-muted" />
-                    <span className="text-xs text-muted line-through">{feat}</span>
-                  </div>
-                ))}
-              </div>
+            {WHY_TRUST.map((item, i) => (
+              <motion.div
+                key={i}
+                className="flex gap-4 p-5 rounded-2xl"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+                initial={{ opacity: 0, y: 16 }}
+                animate={isInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.3 + i * 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${item.color}15`, border: `1px solid ${item.color}25` }}
+                >
+                  <item.icon size={16} style={{ color: item.color }} />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-primary mb-1">{item.title}</div>
+                  <p className="text-xs text-secondary leading-relaxed">{item.body}</p>
+                </div>
+              </motion.div>
+            ))}
+
+            <motion.div
+              className="p-4 rounded-2xl text-center"
+              style={{ background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.05)" }}
+              initial={{ opacity: 0 }}
+              animate={isInView ? { opacity: 1 } : {}}
+              transition={{ delay: 0.65 }}
+            >
+              <p className="text-xs text-muted leading-relaxed">
+                We&apos;re early-stage and actively improving.{" "}
+                <span className="text-secondary font-medium">
+                  Your feedback directly shapes what we build next.
+                </span>{" "}
+                Every analysis you run helps us make the AI smarter for everyone.
+              </p>
             </motion.div>
-          ))}
+          </div>
         </div>
-
-        {/* Guarantee */}
-        <motion.p
-          className="text-center text-sm text-muted mt-10"
-          initial={{ opacity: 0 }}
-          animate={isInView ? { opacity: 1 } : {}}
-          transition={{ delay: 0.5 }}
-        >
-          🔒 No credit card required · Cancel anytime · 14-day free trial on Pro
-        </motion.p>
       </div>
     </section>
   );

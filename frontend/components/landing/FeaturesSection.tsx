@@ -27,7 +27,7 @@ const FEATURES = [
       "16-feature ML model predicts interview probability. Starts rule-based, evolves to XGBoost as outcome data accumulates.",
     badge: "AI Model",
     badgeColor: "#8b5cf6",
-    detail: "79% average accuracy · Confidence scoring · Tier classification",
+    detail: "Rule-based → ML as data grows · Confidence scoring · Tier classification",
   },
   {
     icon: GitBranch,
