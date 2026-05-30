@@ -1,5 +1,21 @@
 # JobSync — Developer Guide
 
+## ⚠️ GCP Cost Rules — READ BEFORE BUILDING ANYTHING
+
+**Hard cap: ₹15/month. Target: ₹0–10/month.**
+
+### Rules Claude must follow:
+1. **Always develop and test locally first.** Backend runs on `uvicorn` locally. Only deploy to Cloud Run when a feature is fully working.
+2. **Never push to `main` to test something.** Cloud Build is disabled — deploying to Cloud Run must be done manually and intentionally.
+3. **Before suggesting any new GCP service** (Cloud Build, Vertex AI, GCS, Pub/Sub, etc.) — STOP and have a cost conversation first. Estimate the monthly cost in INR before writing any code.
+4. **Cloud Build is off.** No CI/CD trigger exists. Manual deploy only via `gcloud run deploy`.
+5. **Artifact Registry**: cleanup policy set (max 2 images, delete after 7 days). Never create repos in multiple regions.
+6. **Cloud Run**: min-instances=0 always. No idle compute cost.
+7. **No new GCP services without explicit approval.** Supabase (free), Groq (free), Vercel (free), ElevenLabs (free tier) are approved. Everything else needs discussion.
+
+### Current monthly cost estimate: ~₹8–10 (just 1 Docker image in Artifact Registry)
+### Budget alerts set: email at ₹5, ₹10, ₹15
+
 ## Project Overview
 JobSync is an AI-powered career platform built with Next.js 16 + FastAPI.
 It provides semantic ATS analysis, resume optimization, job scraping, and mentor discovery.
