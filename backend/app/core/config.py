@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # HuggingFace (optional)
     HUGGINGFACE_API_KEY: str = ""
 
+    # ElevenLabs (free tier TTS for AI interviews)
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel — free on all plans
+
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384

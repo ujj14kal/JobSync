@@ -16,6 +16,7 @@ import {
   Settings,
   Briefcase,
   Brain,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -57,6 +58,11 @@ const navItems = [
     href: "/insights",
     icon: TrendingUp,
     label: "Career Insights",
+  },
+  {
+    href: "/interview",
+    icon: Mic,
+    label: "AI Interview",
   },
   {
     href: "/ai-lab",

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
 import { ScoreRingLarge } from "@/components/analysis/score-ring";
+import { SpeedometerReveal } from "@/components/analysis/SpeedometerReveal";
 import { ScoreBreakdownPanel } from "@/components/analysis/score-breakdown";
 import { KeywordGapPanel } from "@/components/analysis/keyword-gap";
 import {
@@ -28,10 +29,17 @@ import { cn } from "@/lib/utils";
 
 type Tab = "overview" | "keywords" | "feedback" | "rewrite" | "mentors";
 
+const SPEEDO_KEY = (id: string) => `speedo_shown_${id}`;
+
 export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
   const [tracked, setTracked] = useState(false);
+  // true = show speedometer intro; false = show normal layout
+  const [showSpeedo, setShowSpeedo] = useState<boolean>(() => {
+    try { return !sessionStorage.getItem(SPEEDO_KEY(id)); }
+    catch { return true; }
+  });
 
   async function handleTrackJob() {
     if (!analysis || tracked) return;
@@ -169,8 +177,23 @@ export function AnalysisResultClient({ id }: { id: string }) {
     { id: "mentors", label: "Mentor Matches" },
   ] as const;
 
+  // Speedometer reveal — shown once per analysis session
+  const handleSpeedoDone = () => {
+    try { sessionStorage.setItem(SPEEDO_KEY(id), "1"); } catch {}
+    setShowSpeedo(false);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Fullscreen speedometer shown once when analysis first loads */}
+      {showSpeedo && analysis?.scores?.overall_score !== undefined && (
+        <SpeedometerReveal
+          score={analysis.scores.overall_score}
+          analysisId={id}
+          onComplete={handleSpeedoDone}
+        />
+      )}
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
