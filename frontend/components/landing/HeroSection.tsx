@@ -7,6 +7,63 @@ import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ScoreRing } from "@/components/ui/ScoreDonut";
 
+/* ── Rotating hero headlines (positive, empowering) ── */
+const HERO_VARIANTS = [
+  {
+    line1: "Get the interview",
+    line2: "your resume",
+    line3: "has always deserved",
+    sub: "Paste a job URL. Upload your resume. JobSync AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free, always.",
+  },
+  {
+    line1: "Make your resume",
+    line2: "impossible",
+    line3: "to overlook",
+    sub: "JobSync AI reads every job posting like a recruiter, then tells you precisely how to match it — keyword by keyword, bullet by bullet. Stand out before a human even opens your file.",
+  },
+  {
+    line1: "Land your dream role",
+    line2: "with AI working",
+    line3: "in your corner",
+    sub: "Upload your resume. JobSync AI compares it to the job in real time — scoring every section, surfacing skill gaps, and rewriting weak bullets so recruiters see your best self first.",
+  },
+  {
+    line1: "Turn your resume",
+    line2: "into your strongest",
+    line3: "career asset",
+    sub: "JobSync AI does in seconds what recruiters do in years — matching you to the right roles, highlighting your strengths, and giving you a clear path to more interviews.",
+  },
+  {
+    line1: "See exactly how to",
+    line2: "make recruiters",
+    line3: "say yes",
+    sub: "Paste a job link, upload your resume, and get a full AI report in under 30 seconds — score, missing keywords, improved bullets, and the one thing that will move you to the top of the pile.",
+  },
+  {
+    line1: "Beat the ATS and",
+    line2: "let your talent",
+    line3: "shine through",
+    sub: "Most resumes never reach a human. JobSync AI makes sure yours does — by scoring your resume against the actual job requirements and showing you exactly how to clear every filter.",
+  },
+] as const;
+
+const SESSION_KEY = "hero_variant";
+const STORAGE_KEY = "hero_variant_idx";
+
+function pickVariant(): number {
+  try {
+    const session = sessionStorage.getItem(SESSION_KEY);
+    if (session !== null) return Number(session);
+    const last = Number(localStorage.getItem(STORAGE_KEY) ?? -1);
+    const next = (last + 1) % HERO_VARIANTS.length;
+    sessionStorage.setItem(SESSION_KEY, String(next));
+    localStorage.setItem(STORAGE_KEY, String(next));
+    return next;
+  } catch {
+    return 0;
+  }
+}
+
 const NeuralNetworkCanvas = dynamic(
   () => import("@/components/3d/NeuralNetworkCanvas"),
   { ssr: false }
@@ -92,6 +149,10 @@ export default function HeroSection() {
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "25%"]);
   const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+
+  const [variantIdx, setVariantIdx] = useState(0);
+  useEffect(() => { setVariantIdx(pickVariant()); }, []);
+  const variant = HERO_VARIANTS[variantIdx];
 
   return (
     <section
@@ -196,11 +257,11 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <span className="text-primary">Know exactly why</span>
+          <span className="text-primary">{variant.line1}</span>
           <br />
-          <span className="gradient-cyan-blue">your resume gets</span>
+          <span className="gradient-cyan-blue">{variant.line2}</span>
           <br />
-          <span className="text-primary">filtered out</span>
+          <span className="text-primary">{variant.line3}</span>
         </motion.h1>
 
         {/* Sub-headline */}
@@ -210,9 +271,7 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          Paste a job URL. Upload your resume. JobSync AI scores it across 5 dimensions,
-          finds every missing keyword, rewrites weak bullets, and tells you exactly what to fix —
-          all in under 30 seconds. Free, always.
+          {variant.sub}
         </motion.p>
 
         {/* Trust chips */}
