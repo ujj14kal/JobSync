@@ -506,18 +506,25 @@ async def find_mentors_for_analysis(
     return combined[:limit]
 
 
+_DB_MENTOR_COLUMNS = {
+    "name", "title", "company", "platform", "profile_url", "search_url",
+    "is_platform_card", "is_generated", "avatar_url", "specializations",
+    "industries", "career_stages", "availability", "session_format", "bio",
+    "rating", "review_count", "is_verified", "is_free", "price_per_session",
+    "currency", "pricing_model", "price_display",
+}
+
 async def _cache_mentors(mentors: list[dict]) -> None:
-    if not mentors:
+    # Only persist real mentor profiles — platform suggestion cards are transient
+    real = [m for m in mentors if not m.get("is_platform_card")]
+    if not real:
         return
     supabase = get_supabase()
     try:
-        to_insert = []
-        for m in mentors:
-            record = {
-                k: v for k, v in m.items()
-                if k not in ("embedding", "match_score", "match_reasons")
-            }
-            to_insert.append(record)
+        to_insert = [
+            {k: v for k, v in m.items() if k in _DB_MENTOR_COLUMNS}
+            for m in real
+        ]
         supabase.table("mentors").upsert(to_insert, on_conflict="name,platform").execute()
     except Exception as e:
         logger.warning("Failed to cache mentors", error=str(e))

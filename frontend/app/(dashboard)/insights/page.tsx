@@ -239,14 +239,17 @@ export default function InsightsPage() {
                 <div>
                   <span className="text-[12px] text-[var(--text-secondary)]">Top ATS systems</span>
                   <div className="flex flex-wrap gap-1.5 mt-1">
-                    {insight.job_market.top_ats_systems.map((ats) => (
+                    {insight.job_market.top_ats_systems.map((ats, idx) => {
+                      const atsLabel = typeof ats === "string" ? ats : (ats as Record<string, unknown>)?.name ?? String(ats);
+                      return (
                       <span
-                        key={ats}
+                        key={idx}
                         className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-overlay)] border border-[var(--border-subtle)] text-[var(--text-muted)]"
                       >
-                        {ats}
+                        {atsLabel as string}
                       </span>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -260,17 +263,24 @@ export default function InsightsPage() {
                 </h2>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {insight.top_companies.map((company, i) => (
+                {insight.top_companies.map((company, i) => {
+                  const companyLabel =
+                    typeof company === "string"
+                      ? company
+                      : (company as Record<string, unknown>)?.name
+                        ?? JSON.stringify(company);
+                  return (
                   <div
-                    key={company}
+                    key={i}
                     className="flex items-center gap-2 p-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
                   >
                     <div className="w-5 h-5 rounded-md bg-[var(--accent-muted)] flex items-center justify-center flex-shrink-0">
                       <span className="text-[9px] font-bold text-[var(--accent-hover)]">{i + 1}</span>
                     </div>
-                    <span className="text-[12px] text-[var(--text-secondary)] truncate">{company}</span>
+                    <span className="text-[12px] text-[var(--text-secondary)] truncate">{companyLabel as string}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

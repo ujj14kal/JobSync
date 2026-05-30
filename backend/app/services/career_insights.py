@@ -96,7 +96,25 @@ async def generate_insights_with_llm(role: str, industry: str) -> dict:
             use_cache=True,
             cache_ttl=86400,  # 24 h in-memory cache on top of DB cache
         )
-        return json.loads(raw)
+        data = json.loads(raw)
+        # Normalize top_companies — LLMs sometimes return objects instead of strings
+        if "top_companies" in data:
+            data["top_companies"] = [
+                c if isinstance(c, str) else (c.get("name") or str(c))
+                for c in (data["top_companies"] or [])
+            ]
+        # Normalize top_ats_systems — same risk
+        job_market = data.get("job_market") or {}
+        if "top_ats_systems" in job_market:
+            job_market["top_ats_systems"] = [
+                s if isinstance(s, str) else (s.get("name") or str(s))
+                for s in (job_market["top_ats_systems"] or [])
+            ]
+        # Normalize salary_range.location to string
+        salary = data.get("salary_range") or {}
+        if "location" in salary and not isinstance(salary["location"], str):
+            salary["location"] = str(salary["location"])
+        return data
     except Exception as e:
         logger.error("Insights generation failed", error=str(e))
         return _fallback_insights(role, industry)
