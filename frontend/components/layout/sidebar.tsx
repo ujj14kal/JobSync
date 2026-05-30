@@ -15,7 +15,6 @@ import {
   LogOut,
   Settings,
   Briefcase,
-  Brain,
   Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,11 +62,6 @@ const navItems = [
     href: "/interview",
     icon: Mic,
     label: "AI Interview",
-  },
-  {
-    href: "/ai-lab",
-    icon: Brain,
-    label: "AI Lab",
   },
 ];
 

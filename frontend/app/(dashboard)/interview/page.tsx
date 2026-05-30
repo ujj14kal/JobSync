@@ -253,12 +253,12 @@ export default function InterviewPage() {
           </span>
           {ttsAvailable && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-emerald-400/10 border-emerald-400/20 text-emerald-400">
-              <Volume2 className="w-2.5 h-2.5" /> Voice on
+              <Volume2 className="w-2.5 h-2.5" /> Voice
             </span>
           )}
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Practice real interview questions with AI feedback. {ttsAvailable ? "Questions are spoken aloud via ElevenLabs AI voice." : "Add your ElevenLabs API key to enable voice."}
+          Practice real interview questions with instant AI feedback on every answer.
         </p>
       </motion.div>
 
@@ -366,7 +366,6 @@ export default function InterviewPage() {
                 <li>· Answer out loud or type your full response — AI scores both equally</li>
                 <li>· Use the STAR method for behavioural questions (Situation, Task, Action, Result)</li>
                 <li>· Be specific — mention technologies, team sizes, and outcomes</li>
-                {!ttsAvailable && <li className="text-amber-400">· Add ELEVENLABS_API_KEY to your backend .env for voice interviewer</li>}
               </ul>
             </div>
           </motion.div>
