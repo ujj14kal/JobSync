@@ -16,6 +16,7 @@ import {
   Settings,
   Briefcase,
   Mic,
+  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -40,7 +41,7 @@ const navItems = [
   },
   {
     href: "/resume/build",
-    icon: Sparkles,
+    icon: Wand2,
     label: "Resume Builder",
   },
   {
