@@ -405,7 +405,7 @@ async def text_to_speech(
     if not settings.ELEVENLABS_API_KEY:
         raise HTTPException(status_code=503, detail="TTS not configured — set ELEVENLABS_API_KEY")
 
-    text = body.text[:500].strip()
+    text = body.text[:300].strip()  # ~300 chars keeps cost low on paid tier
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
@@ -456,17 +456,19 @@ async def tts_status(user_id: str = Depends(get_current_user_id)):
 
 @router.get("/voices")
 async def list_voices(user_id: str = Depends(get_current_user_id)):
-    """Curated list of professional female voices for interview use."""
+    """3 female + 3 male professional voices, all pre-made and available on every plan."""
     return {
         "voices": [
-            {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",    "desc": "Determined · American · Clear"},
-            {"id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel",   "desc": "Calm · Professional · Polished"},
-            {"id": "XrExE9yKIg1WjnnlVkGX", "name": "Matilda",  "desc": "Warm · Confident · Natural"},
-            {"id": "cgSgspJ2msm6clMCkdW9", "name": "Jessica",  "desc": "Bright · Articulate · Modern"},
-            {"id": "9BWtsMINqrJLrRacOk9x", "name": "Aria",     "desc": "Conversational · Friendly"},
-            {"id": "pFZP5JQG7iQjIQuC4Bku", "name": "Lily",     "desc": "Authoritative · Crisp · British"},
+            # Female
+            {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",    "gender": "F", "desc": "Determined · American · Clear"},
+            {"id": "XrExE9yKIg1WjnnlVkGX", "name": "Matilda",  "gender": "F", "desc": "Warm · Confident · Natural"},
+            {"id": "XB0fDUnXU5powFXDhCwa", "name": "Charlotte", "gender": "F", "desc": "Authoritative · European · Crisp"},
+            # Male
+            {"id": "JBFqnCBsd6RMkjVDRZzb", "name": "George",   "gender": "M", "desc": "Warm · British · Professional"},
+            {"id": "pNInz6obpgDQGcFmaJgB", "name": "Adam",     "gender": "M", "desc": "Deep · American · Authoritative"},
+            {"id": "nPczCjzI2devNBz1zQrb", "name": "Brian",    "gender": "M", "desc": "Natural · Clear · American"},
         ],
-        "default": settings.ELEVENLABS_VOICE_ID,
+        "default": "EXAVITQu4vr4xnSDxMaL",
     }
 
 

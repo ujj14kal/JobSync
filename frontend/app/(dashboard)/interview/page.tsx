@@ -113,7 +113,7 @@ function FrequencyBars({
       return;
     }
 
-    analyser.fftSize = bars * 4;
+    analyser.fftSize = 256;  // must be power of 2
     const bufLen = analyser.frequencyBinCount;
     const data   = new Uint8Array(bufLen);
     const cw     = canvas.width;
@@ -230,7 +230,7 @@ export default function InterviewPage() {
   const [aiSpeaking,  setAiSpeaking]  = useState(false);
   const [selectedVoice, setSelectedVoice] = useState("EXAVITQu4vr4xnSDxMaL"); // Sarah default
   const [previewing,  setPreviewing]  = useState<string | null>(null);
-  const [voices, setVoices] = useState<{ id: string; name: string; desc: string }[]>([]);
+  const [voices, setVoices] = useState<{ id: string; name: string; desc: string; gender: string }[]>([]);
 
   // Setup fields
   const [role,      setRole]      = useState("Software Engineer");
@@ -385,7 +385,7 @@ export default function InterviewPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ text: "Hello! I'll be your interviewer today. Let's get started.", voice_id: voiceId }),
+          body: JSON.stringify({ text: "Hi, I'm your interviewer. Ready?", voice_id: voiceId }),
         }
       );
       if (!resp.ok) throw new Error();
@@ -743,36 +743,46 @@ export default function InterviewPage() {
               {/* Voice picker */}
               {ttsAvail && voices.length > 0 && (
                 <div>
-                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">
-                    Interviewer Voice
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {voices.map(v => (
-                      <div key={v.id}
-                        onClick={() => setSelectedVoice(v.id)}
-                        className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
-                          selectedVoice === v.id
-                            ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                            : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
-                        }`}
-                      >
-                        <div className={`text-[13px] font-semibold mb-0.5 ${selectedVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                          {v.name}
-                        </div>
-                        <div className="text-[10px] text-[var(--text-muted)]">{v.desc}</div>
-                        <button
-                          onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                          className={`mt-2 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                            previewing === v.id
-                              ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                              : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          {previewing === v.id ? "▐▌ Stop" : "▶ Preview"}
-                        </button>
-                      </div>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[12px] font-medium text-[var(--text-secondary)]">
+                      Interviewer Voice
+                    </label>
+                    <span className="text-[10px] text-[var(--text-muted)]">~32 chars per preview</span>
                   </div>
+                  {(["F", "M"] as const).map(gender => (
+                    <div key={gender} className="mb-3">
+                      <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+                        {gender === "F" ? "♀ Female" : "♂ Male"}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {voices.filter(v => v.gender === gender).map(v => (
+                          <div key={v.id}
+                            onClick={() => setSelectedVoice(v.id)}
+                            className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
+                              selectedVoice === v.id
+                                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                            }`}
+                          >
+                            <div className={`text-[13px] font-semibold mb-0.5 ${selectedVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                              {v.name}
+                            </div>
+                            <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
+                            <button
+                              onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                              className={`mt-2 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                previewing === v.id
+                                  ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                                  : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                              }`}
+                            >
+                              {previewing === v.id ? "■ Stop" : "▶ Hear"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
