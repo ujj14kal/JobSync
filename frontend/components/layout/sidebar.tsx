@@ -36,7 +36,12 @@ const navItems = [
   {
     href: "/resume",
     icon: FileText,
-    label: "My Resumes",
+    label: "My Resume",
+  },
+  {
+    href: "/resume/build",
+    icon: Sparkles,
+    label: "Resume Builder",
   },
   {
     href: "/improve",
