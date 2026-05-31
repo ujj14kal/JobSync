@@ -53,6 +53,15 @@ echo "║  Service : ${SERVICE_NAME}"
 echo "║  Tag     : ${TAG}"
 echo "╚══════════════════════════════════════════════╝"
 echo ""
+echo "⚠️  Each deploy = 1 Cloud Build job (~10 min, free tier: 120 min/day)."
+echo "   Only deploy when explicitly needed."
+echo ""
+read -rp "Type 'deploy' to confirm: " CONFIRM
+if [[ "$CONFIRM" != "deploy" ]]; then
+  echo "Aborted."
+  exit 0
+fi
+echo ""
 
 run() {
   if [[ "$DRY_RUN" == "true" ]]; then
