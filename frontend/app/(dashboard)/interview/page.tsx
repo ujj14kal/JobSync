@@ -6,7 +6,8 @@ import { apiClient } from "@/lib/api/client";
 import {
   Mic, MicOff, Volume2, VolumeX, ChevronRight,
   CheckCircle2, AlertCircle, RotateCcw, Sparkles, Brain,
-  Play, Loader2, ArrowRight,
+  Play, Loader2, ArrowRight, Building2, User, FileText,
+  TrendingUp, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,48 +28,70 @@ interface Feedback {
   follow_up: string | null;
 }
 
-type Phase = "setup" | "loading" | "session" | "results";
+type Phase = "setup" | "analyzing" | "session" | "results";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ROLES = [
   "Software Engineer", "Product Manager", "Data Scientist", "ML Engineer",
-  "Frontend Engineer", "Backend Engineer", "DevOps Engineer", "UX Designer",
-  "Business Analyst", "Marketing Manager", "Data Analyst", "Full Stack Engineer",
+  "Frontend Engineer", "Backend Engineer", "Full Stack Engineer", "DevOps Engineer",
+  "UX Designer", "Business Analyst", "Data Analyst", "Marketing Manager",
+  "Investment Analyst", "Quantitative Analyst", "Solutions Architect",
+];
+
+const COMPANIES = [
+  { name: "Google",       emoji: "🔵" },
+  { name: "Meta",         emoji: "🟣" },
+  { name: "Amazon",       emoji: "🟠" },
+  { name: "BlackRock",    emoji: "⚫" },
+  { name: "Microsoft",    emoji: "🟢" },
+  { name: "Apple",        emoji: "⚪" },
+  { name: "Netflix",      emoji: "🔴" },
+  { name: "Goldman Sachs",emoji: "🟡" },
+  { name: "Stripe",       emoji: "🔷" },
+  { name: "Uber",         emoji: "⬛" },
+  { name: "Airbnb",       emoji: "🩷" },
+  { name: "OpenAI",       emoji: "🤍" },
+  { name: "General",      emoji: "🌐" },
 ];
 
 const EXPERIENCE_LEVELS = [
-  { value: "student",  label: "Student / Intern" },
-  { value: "entry",    label: "Entry Level (0-2 yrs)" },
-  { value: "mid",      label: "Mid Level (2-5 yrs)" },
-  { value: "senior",   label: "Senior (5+ yrs)" },
+  { value: "student", label: "Student / Intern" },
+  { value: "entry",   label: "Entry (0–2 yrs)" },
+  { value: "mid",     label: "Mid (2–5 yrs)" },
+  { value: "senior",  label: "Senior (5+ yrs)" },
 ];
 
 const INTERVIEW_TYPES = [
-  { value: "behavioral", label: "Behavioural", desc: "STAR-format questions about past experience" },
-  { value: "technical",  label: "Technical",   desc: "Problem-solving & domain knowledge" },
-  { value: "mixed",      label: "Mixed",        desc: "Both behavioural and technical" },
+  { value: "behavioral", label: "Behavioural", desc: "STAR-format past experience" },
+  { value: "technical",  label: "Technical",   desc: "Problem-solving & depth" },
+  { value: "mixed",      label: "Mixed",       desc: "Both behavioural & technical" },
 ];
 
-// ── Waveform animation ───────────────────────────────────────────────────────
+const ANALYSIS_STEPS = [
+  { label: "Scanning your active resume",    icon: FileText },
+  { label: "Loading company interview profile", icon: Building2 },
+  { label: "Analysing your background",      icon: User },
+  { label: "Generating personalised questions", icon: Sparkles },
+];
+
+// ── Waveform ─────────────────────────────────────────────────────────────────
 
 function Waveform({ active }: { active: boolean }) {
   return (
     <div className="flex items-end gap-[3px] h-8">
-      {[...Array(12)].map((_, i) => (
+      {[...Array(14)].map((_, i) => (
         <motion.div
           key={i}
           className="w-[3px] rounded-full"
           style={{ background: "var(--accent-primary)" }}
-          animate={active ? {
-            height: [8, 6 + Math.random() * 22, 8],
-          } : { height: 4 }}
+          animate={active ? { height: [6, 6 + Math.random() * 24, 6] } : { height: 4 }}
           transition={active ? {
-            duration: 0.4 + (i % 3) * 0.15,
+            duration: 0.35 + (i % 4) * 0.1,
             repeat: Infinity,
             repeatType: "mirror",
             ease: "easeInOut",
-            delay: i * 0.06,
+            delay: i * 0.05,
           } : { duration: 0.2 }}
         />
       ))}
@@ -76,57 +99,150 @@ function Waveform({ active }: { active: boolean }) {
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Analysis loading screen ───────────────────────────────────────────────────
 
-export default function InterviewPage() {
-  const [phase, setPhase]         = useState<Phase>("setup");
-  const [ttsAvailable, setTtsAvailable] = useState(false);
+function AnalysisScreen({ company }: { company: string }) {
+  const [step, setStep] = useState(0);
 
-  // Setup form
-  const [role,       setRole]       = useState("Software Engineer");
-  const [expLevel,   setExpLevel]   = useState("entry");
-  const [iType,      setIType]      = useState("mixed");
-  const [numQ,       setNumQ]       = useState(5);
-
-  // Session state
-  const [questions,  setQuestions]  = useState<Question[]>([]);
-  const [qIndex,     setQIndex]     = useState(0);
-  const [answer,     setAnswer]     = useState("");
-  const [feedback,   setFeedback]   = useState<Feedback | null>(null);
-  const [allFeedback, setAllFeedback] = useState<Feedback[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const [recording,  setRecording]  = useState(false);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const recognitionRef = useRef<any>(null);
-
-  // Check TTS availability on mount
   useEffect(() => {
-    apiClient.get("/interview/tts/status")
-      .then(({ data }) => setTtsAvailable(data.available))
-      .catch(() => setTtsAvailable(false));
+    const timers = ANALYSIS_STEPS.map((_, i) =>
+      setTimeout(() => setStep(i + 1), (i + 1) * 900)
+    );
+    return () => timers.forEach(clearTimeout);
   }, []);
 
-  // Auto-play question audio when question changes
+  return (
+    <motion.div
+      key="analyzing"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      className="flex flex-col items-center justify-center py-16 space-y-8"
+    >
+      <div className="text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center mx-auto mb-4">
+          <Brain className="w-8 h-8 text-[var(--accent-primary)]" />
+        </div>
+        <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-1">
+          Preparing Your Interview
+        </h2>
+        <p className="text-[13px] text-[var(--text-secondary)]">
+          Tailoring questions for{" "}
+          <span className="font-medium text-[var(--text-primary)]">{company}</span>
+        </p>
+      </div>
+
+      <div className="w-full max-w-sm space-y-3">
+        {ANALYSIS_STEPS.map((s, i) => {
+          const Icon = s.icon;
+          const done    = step > i;
+          const current = step === i;
+          return (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: step >= i ? 1 : 0.35, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                done
+                  ? "border-emerald-400/30 bg-emerald-400/5"
+                  : current
+                    ? "border-[var(--accent-primary)]/30 bg-[var(--accent-subtle)]"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                done ? "bg-emerald-400/15" : current ? "bg-[var(--accent-muted)]" : "bg-[var(--bg-elevated)]"
+              }`}>
+                {done ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : current ? (
+                  <Loader2 className="w-4 h-4 text-[var(--accent-primary)] animate-spin" />
+                ) : (
+                  <Icon className="w-4 h-4 text-[var(--text-muted)]" />
+                )}
+              </div>
+              <span className={`text-[13px] ${
+                done ? "text-emerald-400" : current ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"
+              }`}>
+                {s.label}
+                {done && " ✓"}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function InterviewPage() {
+  const [phase, setPhase]     = useState<Phase>("setup");
+  const [ttsAvail, setTtsAvail] = useState(false);
+
+  // Setup
+  const [role,        setRole]        = useState("Software Engineer");
+  const [company,     setCompany]     = useState("General");
+  const [expLevel,    setExpLevel]    = useState("entry");
+  const [iType,       setIType]       = useState("mixed");
+  const [numQ,        setNumQ]        = useState(5);
+  const [showAllCo,   setShowAllCo]   = useState(false);
+
+  // Session
+  const [questions,   setQuestions]   = useState<Question[]>([]);
+  const [qIndex,      setQIndex]      = useState(0);
+  const [answer,      setAnswer]      = useState("");
+  const [feedback,    setFeedback]    = useState<Feedback | null>(null);
+  const [allFeedback, setAllFeedback] = useState<Feedback[]>([]);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [recording,   setRecording]   = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<{ name: string; style: string; focus: string[] } | null>(null);
+  const [resumeLoaded, setResumeLoaded] = useState(false);
+
+  // Inline follow-up — a follow-up question injected after submit
+  const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null);
+
+  const audioRef     = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+
   useEffect(() => {
-    if (phase === "session" && questions[qIndex] && ttsAvailable) {
-      playQuestionAudio(questions[qIndex].question);
+    apiClient.get("/interview/tts/status")
+      .then(({ data }) => setTtsAvail(data.available))
+      .catch(() => setTtsAvail(false));
+  }, []);
+
+  // Auto-play when question changes
+  useEffect(() => {
+    if (phase === "session" && questions[qIndex] && ttsAvail) {
+      playAudio(questions[qIndex].question);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qIndex, phase]);
 
   async function startInterview() {
-    setPhase("loading");
+    setPhase("analyzing");
+    // Give analysis animation time to play (4 steps × 0.9s = 3.6s + buffer)
+    await new Promise((r) => setTimeout(r, 4200));
+
     try {
-      const { data } = await apiClient.post("/interview/start", {
-        role, experience_level: expLevel, interview_type: iType, num_questions: numQ,
+      const { data } = await apiClient.post("/interview/hirevue/start", {
+        role,
+        company,
+        experience_level: expLevel,
+        interview_type: iType,
+        num_questions: numQ,
       });
       setQuestions(data.questions);
+      setCompanyInfo(data.company_profile);
+      setResumeLoaded(data.resume_loaded ?? false);
       setQIndex(0);
       setAllFeedback([]);
       setFeedback(null);
       setAnswer("");
+      setPendingFollowUp(null);
       setPhase("session");
     } catch {
       toast.error("Failed to generate questions. Try again.");
@@ -134,18 +250,19 @@ export default function InterviewPage() {
     }
   }
 
-  async function playQuestionAudio(text: string) {
-    if (!ttsAvailable) return;
+  async function playAudio(text: string) {
+    if (!ttsAvail) return;
+    stopAudio();
     try {
       setAudioPlaying(true);
+      const { createClient } = await import("@/lib/supabase/client");
+      const token = await createClient().auth.getSession()
+        .then((r) => r.data.session?.access_token ?? "");
       const resp = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${(await import("@/lib/supabase/client")).createClient().auth.getSession().then(r => r.data.session?.access_token ?? "")}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ text }),
         }
       );
@@ -163,10 +280,8 @@ export default function InterviewPage() {
   }
 
   function stopAudio() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    audioRef.current?.pause();
+    audioRef.current = null;
     setAudioPlaying(false);
   }
 
@@ -178,16 +293,12 @@ export default function InterviewPage() {
     }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("Speech recognition not supported in this browser"); return; }
-
     const recog = new SR();
     recog.lang = "en-US";
     recog.continuous = true;
     recog.interimResults = true;
     recog.onresult = (e: any) => {
-      const transcript = Array.from(e.results)
-        .map((r: any) => r[0].transcript)
-        .join("");
-      setAnswer(transcript);
+      setAnswer(Array.from(e.results).map((r: any) => r[0].transcript).join(""));
     };
     recog.onerror = () => { setRecording(false); toast.error("Microphone error"); };
     recog.onend   = () => setRecording(false);
@@ -199,15 +310,23 @@ export default function InterviewPage() {
   async function submitAnswer() {
     if (!answer.trim()) { toast.error("Please type or speak your answer first"); return; }
     setSubmitting(true);
+    const currentQ = pendingFollowUp ?? questions[qIndex]?.question;
+    const currentType = pendingFollowUp ? "situational" : questions[qIndex]?.type;
+
     try {
-      const { data } = await apiClient.post("/interview/evaluate", {
-        role,
-        question: questions[qIndex].question,
-        answer: answer.trim(),
-        question_type: questions[qIndex].type,
-      });
-      setFeedback(data as Feedback);
-      setAllFeedback((prev) => [...prev, data as Feedback]);
+      const [evalRes] = await Promise.all([
+        apiClient.post("/interview/evaluate", {
+          role,
+          question: currentQ,
+          answer: answer.trim(),
+          question_type: currentType,
+        }),
+      ]);
+      const fb = evalRes.data as Feedback;
+      setFeedback(fb);
+      if (!pendingFollowUp) {
+        setAllFeedback((prev) => [...prev, fb]);
+      }
     } catch {
       toast.error("Evaluation failed. Try again.");
     } finally {
@@ -215,15 +334,34 @@ export default function InterviewPage() {
     }
   }
 
-  function nextQuestion() {
+  async function nextQuestion() {
     stopAudio();
+    // If we were on a follow-up, clear it and don't advance qIndex
+    if (pendingFollowUp) {
+      setPendingFollowUp(null);
+      setAnswer("");
+      setFeedback(null);
+      return;
+    }
+
     if (qIndex + 1 >= questions.length) {
       setPhase("results");
       return;
     }
+
+    // Check if we should ask a follow-up before advancing
+    if (feedback && answer.length > 80 && feedback.follow_up) {
+      setPendingFollowUp(feedback.follow_up);
+      setAnswer("");
+      setFeedback(null);
+      if (ttsAvail) playAudio(feedback.follow_up);
+      return;
+    }
+
     setQIndex((i) => i + 1);
     setAnswer("");
     setFeedback(null);
+    setPendingFollowUp(null);
   }
 
   function restart() {
@@ -234,31 +372,36 @@ export default function InterviewPage() {
     setAnswer("");
     setFeedback(null);
     setAllFeedback([]);
+    setPendingFollowUp(null);
   }
 
   const overallScore = allFeedback.length
     ? Math.round(allFeedback.reduce((s, f) => s + f.score, 0) / allFeedback.length)
     : 0;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const displayedCompanies = showAllCo ? COMPANIES : COMPANIES.slice(0, 8);
+  const currentQuestion = pendingFollowUp ?? questions[qIndex]?.question;
+  const currentType     = pendingFollowUp ? "situational" : questions[qIndex]?.type;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview Practice</h1>
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview</h1>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-            <Brain className="w-2.5 h-2.5" /> Powered by JobSync AI
+            <Brain className="w-2.5 h-2.5" /> HireVue-style
           </span>
-          {ttsAvailable && (
+          {ttsAvail && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-emerald-400/10 border-emerald-400/20 text-emerald-400">
-              <Volume2 className="w-2.5 h-2.5" /> Voice
+              <Volume2 className="w-2.5 h-2.5" /> AI Voice Active
             </span>
           )}
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Practice real interview questions with instant AI feedback on every answer.
+          Personalised interview based on your resume and target company. Adaptive follow-ups included.
         </p>
       </motion.div>
 
@@ -271,9 +414,39 @@ export default function InterviewPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
-            className="space-y-6"
+            className="space-y-5"
           >
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] space-y-5">
+
+              {/* Target Company */}
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">
+                  Target Company
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {displayedCompanies.map((co) => (
+                    <button
+                      key={co.name}
+                      onClick={() => setCompany(co.name)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium border transition-colors ${
+                        company === co.name
+                          ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/40 text-[var(--accent-hover)]"
+                          : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      <span>{co.emoji}</span> {co.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setShowAllCo((v) => !v)}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-dashed border-[var(--border-subtle)] transition-colors"
+                  >
+                    {showAllCo ? "Less" : "More"}
+                    <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+              </div>
+
               {/* Role */}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Target Role</label>
@@ -335,7 +508,7 @@ export default function InterviewPage() {
               {/* Number of questions */}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">
-                  Number of questions: <span className="text-[var(--accent-hover)] font-bold">{numQ}</span>
+                  Questions: <span className="text-[var(--accent-hover)] font-bold">{numQ}</span>
                 </label>
                 <input
                   type="range" min={3} max={10} step={1}
@@ -344,7 +517,7 @@ export default function InterviewPage() {
                   className="w-full accent-[var(--accent-primary)]"
                 />
                 <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1">
-                  <span>3 (quick)</span><span>10 (full)</span>
+                  <span>3 (quick)</span><span>10 (thorough)</span>
                 </div>
               </div>
 
@@ -354,7 +527,7 @@ export default function InterviewPage() {
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-medium text-[14px] transition-colors disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4" />
-                Start Interview
+                Analyse & Start Interview
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -363,26 +536,17 @@ export default function InterviewPage() {
             <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
               <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-2">Tips for best results</div>
               <ul className="space-y-1 text-[12px] text-[var(--text-muted)]">
-                <li>· Answer out loud or type your full response — AI scores both equally</li>
+                <li>· Upload your active resume first — questions will reference your real projects</li>
                 <li>· Use the STAR method for behavioural questions (Situation, Task, Action, Result)</li>
-                <li>· Be specific — mention technologies, team sizes, and outcomes</li>
+                <li>· Mention specific numbers, outcomes, and technologies you used</li>
               </ul>
             </div>
           </motion.div>
         )}
 
-        {/* ── Loading ── */}
-        {phase === "loading" && (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-24 gap-4"
-          >
-            <Loader2 className="w-8 h-8 animate-spin text-[var(--accent-primary)]" />
-            <div className="text-[14px] text-[var(--text-secondary)]">Generating your personalised interview…</div>
-          </motion.div>
+        {/* ── Analyzing ── */}
+        {phase === "analyzing" && (
+          <AnalysisScreen key="analyzing" company={company} />
         )}
 
         {/* ── Session ── */}
@@ -394,10 +558,31 @@ export default function InterviewPage() {
             exit={{ opacity: 0 }}
             className="space-y-5"
           >
+            {/* Context bar */}
+            {(companyInfo || resumeLoaded) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {companyInfo && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
+                    🏢 {companyInfo.name}
+                  </span>
+                )}
+                {resumeLoaded && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400">
+                    ✓ Resume loaded
+                  </span>
+                )}
+                {pendingFollowUp && (
+                  <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-400">
+                    ↳ Follow-up
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Progress */}
             <div className="flex items-center gap-3">
               <span className="text-[12px] text-[var(--text-muted)]">
-                Question {qIndex + 1} of {questions.length}
+                {pendingFollowUp ? `Q${qIndex + 1} follow-up` : `Question ${qIndex + 1} of ${questions.length}`}
               </span>
               <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
                 <motion.div
@@ -407,13 +592,13 @@ export default function InterviewPage() {
                 />
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
-                questions[qIndex]?.type === "technical"
+                currentType === "technical"
                   ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
-                  : questions[qIndex]?.type === "situational"
+                  : currentType === "situational"
                     ? "text-purple-400 bg-purple-400/10 border-purple-400/20"
                     : "text-amber-400 bg-amber-400/10 border-amber-400/20"
               }`}>
-                {questions[qIndex]?.type}
+                {currentType}
               </span>
             </div>
 
@@ -421,19 +606,24 @@ export default function InterviewPage() {
             <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center">
-                    <Brain className="w-4.5 h-4.5 text-[var(--accent-primary)]" />
+                  <div className="w-10 h-10 rounded-full bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center">
+                    <Brain className="w-5 h-5 text-[var(--accent-primary)]" />
                   </div>
                   <div>
-                    <div className="text-[12px] font-semibold text-[var(--text-primary)]">JobSync AI Interviewer</div>
-                    {audioPlaying && <div className="text-[10px] text-[var(--accent-hover)]">Speaking…</div>}
+                    <div className="text-[12px] font-semibold text-[var(--text-primary)]">
+                      {companyInfo ? `${companyInfo.name} AI Interviewer` : "AI Interviewer"}
+                    </div>
+                    {audioPlaying
+                      ? <div className="text-[10px] text-[var(--accent-hover)]">Speaking…</div>
+                      : <div className="text-[10px] text-[var(--text-muted)]">Listening</div>
+                    }
                   </div>
                 </div>
-                {ttsAvailable && (
+                {ttsAvail && (
                   <div className="flex items-center gap-2">
                     <Waveform active={audioPlaying} />
                     <button
-                      onClick={audioPlaying ? stopAudio : () => playQuestionAudio(questions[qIndex].question)}
+                      onClick={audioPlaying ? stopAudio : () => playAudio(currentQuestion)}
                       className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
                     >
                       {audioPlaying ? <VolumeX className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -443,11 +633,11 @@ export default function InterviewPage() {
               </div>
 
               <p className="text-[15px] text-[var(--text-primary)] leading-relaxed font-medium">
-                {questions[qIndex]?.question}
+                {currentQuestion}
               </p>
             </div>
 
-            {/* Answer area — only show if no feedback yet */}
+            {/* Answer area / Feedback */}
             <AnimatePresence mode="wait">
               {!feedback ? (
                 <motion.div
@@ -462,7 +652,7 @@ export default function InterviewPage() {
                     <textarea
                       value={answer}
                       onChange={(e) => setAnswer(e.target.value)}
-                      placeholder="Type your answer here, or use the microphone button below…"
+                      placeholder="Type your answer here, or use the microphone…"
                       rows={5}
                       className="w-full px-4 py-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors resize-none"
                     />
@@ -473,20 +663,18 @@ export default function InterviewPage() {
                       </div>
                     )}
                   </div>
-
                   <div className="flex items-center gap-3">
                     <button
                       onClick={toggleRecording}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[12px] font-medium transition-colors ${
                         recording
                           ? "bg-red-400/10 border-red-400/30 text-red-400"
-                          : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--border-default)]"
+                          : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)]"
                       }`}
                     >
                       {recording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                      {recording ? "Stop Recording" : "Record Answer"}
+                      {recording ? "Stop" : "Record"}
                     </button>
-
                     <button
                       onClick={submitAnswer}
                       disabled={submitting || !answer.trim()}
@@ -500,34 +688,30 @@ export default function InterviewPage() {
                   </div>
                 </motion.div>
               ) : (
-                /* Feedback panel */
                 <motion.div
                   key="feedback"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] space-y-4"
                 >
-                  {/* Score bar */}
+                  {/* Score */}
                   <div className="flex items-center gap-3">
                     <div
                       className="text-2xl font-black tabular-nums"
-                      style={{
-                        color: feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444",
-                      }}
+                      style={{ color: feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444" }}
                     >
                       {feedback.score}/10
                     </div>
                     <div className="flex-1 h-2 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
-                        style={{
-                          background: feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444",
-                        }}
+                        style={{ background: feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444" }}
                         initial={{ width: 0 }}
                         animate={{ width: `${(feedback.score / 10) * 100}%` }}
                         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                       />
                     </div>
+                    <TrendingUp className={`w-4 h-4 ${feedback.score >= 7 ? "text-emerald-400" : feedback.score >= 5 ? "text-amber-400" : "text-red-400"}`} />
                   </div>
 
                   <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
@@ -535,7 +719,6 @@ export default function InterviewPage() {
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Strengths */}
                     {feedback.strengths.length > 0 && (
                       <div>
                         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 mb-2">
@@ -544,14 +727,12 @@ export default function InterviewPage() {
                         <ul className="space-y-1">
                           {feedback.strengths.map((s, i) => (
                             <li key={i} className="text-[12px] text-[var(--text-secondary)] flex gap-2">
-                              <span className="text-emerald-400 mt-0.5 flex-shrink-0">·</span> {s}
+                              <span className="text-emerald-400 flex-shrink-0">·</span> {s}
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
-
-                    {/* Improvements */}
                     {feedback.improvements.length > 0 && (
                       <div>
                         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 mb-2">
@@ -560,7 +741,7 @@ export default function InterviewPage() {
                         <ul className="space-y-1">
                           {feedback.improvements.map((s, i) => (
                             <li key={i} className="text-[12px] text-[var(--text-secondary)] flex gap-2">
-                              <span className="text-amber-400 mt-0.5 flex-shrink-0">·</span> {s}
+                              <span className="text-amber-400 flex-shrink-0">·</span> {s}
                             </li>
                           ))}
                         </ul>
@@ -568,20 +749,17 @@ export default function InterviewPage() {
                     )}
                   </div>
 
-                  {feedback.follow_up && (
-                    <div className="p-3 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-primary)]/10">
-                      <div className="text-[10px] font-semibold text-[var(--accent-primary)] uppercase tracking-wider mb-1">
-                        Follow-up probe
-                      </div>
-                      <p className="text-[12px] text-[var(--text-secondary)]">{feedback.follow_up}</p>
-                    </div>
-                  )}
-
                   <button
                     onClick={nextQuestion}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
                   >
-                    {qIndex + 1 >= questions.length ? "See Results" : "Next Question"}
+                    {qIndex + 1 >= questions.length && !feedback.follow_up
+                      ? "See Results"
+                      : pendingFollowUp
+                        ? "Next Question"
+                        : feedback.follow_up
+                          ? "Answer Follow-up"
+                          : "Next Question"}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </motion.div>
@@ -599,26 +777,25 @@ export default function InterviewPage() {
             exit={{ opacity: 0 }}
             className="space-y-6"
           >
-            {/* Overall score */}
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-center">
-              <div className="text-[12px] font-medium text-[var(--text-muted)] mb-2 uppercase tracking-widest">Interview Complete</div>
+              <div className="text-[11px] font-medium text-[var(--text-muted)] mb-2 uppercase tracking-widest">
+                Interview Complete
+                {companyInfo && ` · ${companyInfo.name}`}
+              </div>
               <div
-                className="text-6xl font-black mb-2"
-                style={{
-                  color: overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444",
-                }}
+                className="text-6xl font-black mb-2 tabular-nums"
+                style={{ color: overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444" }}
               >
                 {overallScore}/10
               </div>
               <div className="text-[14px] text-[var(--text-secondary)]">
-                {overallScore >= 8 ? "Outstanding — you're well-prepared!" :
-                 overallScore >= 6 ? "Good performance with room to improve." :
-                 overallScore >= 4 ? "Fair — focus on the feedback to level up." :
-                 "Needs more practice — keep going!"}
+                {overallScore >= 8 ? "Outstanding — you're interview-ready!" :
+                 overallScore >= 6 ? "Good performance with clear areas to polish." :
+                 overallScore >= 4 ? "Fair start — keep practising the weaker areas." :
+                 "Needs more practice — keep going, it gets better!"}
               </div>
             </div>
 
-            {/* Per-question breakdown */}
             <div className="space-y-3">
               <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Question Breakdown</h3>
               {questions.map((q, i) => {
@@ -649,10 +826,10 @@ export default function InterviewPage() {
                 <RotateCcw className="w-3.5 h-3.5" /> New Interview
               </button>
               <button
-                onClick={() => { setPhase("session"); setQIndex(0); setAllFeedback([]); setFeedback(null); setAnswer(""); }}
+                onClick={() => { setPhase("session"); setQIndex(0); setAllFeedback([]); setFeedback(null); setAnswer(""); setPendingFollowUp(null); }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
+                <RotateCcw className="w-3.5 h-3.5" /> Retry Questions
               </button>
             </div>
           </motion.div>

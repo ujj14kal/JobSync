@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -24,7 +25,9 @@ export default async function DashboardLayout({
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {children}
+          <DashboardShell>
+            {children}
+          </DashboardShell>
         </div>
       </main>
     </div>

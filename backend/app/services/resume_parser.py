@@ -133,45 +133,47 @@ def extract_text_from_pdf(content: bytes) -> str:
     Extract full text from PDF bytes.
 
     Strategy:
-    1. Use pdfplumber.extract_words() to get individual word bounding boxes,
-       then reconstruct lines by grouping on y-coordinate and joining with a
-       single space.  This avoids the x_tolerance merging problem entirely.
-    2. Fall back to pdfplumber.extract_text() with a relaxed x_tolerance (7)
-       if extract_words returns nothing for a page.
-    3. Fall back to PyMuPDF (fitz) if pdfplumber fails completely.
-    4. Apply _fix_merged_text() as a final cleanup pass.
+    1. PyMuPDF (fitz) first — preserves word spacing most reliably.
+    2. Fall back to pdfplumber word reconstruction with strict x_tolerance.
+    3. Apply _fix_merged_text() as a final cleanup pass.
     """
+    # ── Primary: PyMuPDF ──────────────────────────────────────────────────────
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=content, filetype="pdf")
+        parts = []
+        for page in doc:
+            parts.append(page.get_text("text", sort=True))
+        doc.close()
+        raw = "\n".join(parts)
+        if len(raw.strip()) > 50:
+            return _fix_merged_text(raw)
+    except Exception as e:
+        logger.warning("PyMuPDF failed, trying pdfplumber", error=str(e))
+
+    # ── Fallback: pdfplumber word reconstruction ───────────────────────────
     text_parts = []
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for page in pdf.pages:
                 try:
                     words = page.extract_words(
-                        x_tolerance=5,
+                        x_tolerance=3,   # tighter — avoids merging adjacent words
                         y_tolerance=5,
                         keep_blank_chars=False,
                     )
                     if words:
                         text_parts.append(_reconstruct_lines_from_words(words))
                     else:
-                        # Page has no selectable text (image-only), try extract_text
                         page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
                         if page_text:
                             text_parts.append(page_text)
                 except Exception:
-                    # Per-page fallback
                     page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
                     if page_text:
                         text_parts.append(page_text)
     except Exception as e:
-        logger.warning("pdfplumber failed, trying fallback", error=str(e))
-        try:
-            import fitz  # PyMuPDF
-            doc = fitz.open(stream=content, filetype="pdf")
-            for page in doc:
-                text_parts.append(page.get_text())
-        except Exception as e2:
-            logger.error("PDF extraction failed", error=str(e2))
+        logger.error("PDF extraction failed completely", error=str(e))
 
     raw_text = "\n".join(text_parts)
     return _fix_merged_text(raw_text)
@@ -248,10 +250,27 @@ def extract_email(text: str) -> Optional[str]:
 
 
 def extract_phone(text: str) -> Optional[str]:
-    match = re.search(
-        r"(\+?1?\s?)?(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})", text
-    )
-    return match.group(0).strip() if match else None
+    """Extract phone number — US, Indian, and common international formats."""
+    patterns = [
+        # US/Canada: (123) 456-7890 / 123-456-7890 / +1 123 456 7890
+        r"(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})",
+        # Indian mobile with country code: +91 98765 43210
+        r"(?:\+?91[\s\-]?)?[6-9]\d{4}[\s.\-]\d{5}",
+        # Indian 10-digit no separator: 9876543210
+        r"(?:\+?91[\s\-]?)?[6-9]\d{9}",
+        # Generic grouped: 4–6 digits, separator, 4–6 digits (covers 6-4, 5-5, etc.)
+        r"\b\d{4,6}[\s.\-]\d{4,6}\b",
+        # Any 10 consecutive digits
+        r"\b\d{10}\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            phone = match.group(0).strip()
+            digits = re.sub(r"\D", "", phone)
+            if 7 <= len(digits) <= 15:
+                return phone
+    return None
 
 
 def extract_linkedin(text: str) -> Optional[str]:
@@ -264,11 +283,22 @@ def extract_github(text: str) -> Optional[str]:
     return f"https://github.com/{match.group(1)}" if match else None
 
 
+def _split_camelcase_name(word: str) -> str:
+    """
+    Split a CamelCase word that looks like a merged name.
+    e.g. 'UjjwalKalra' → 'Ujjwal Kalra'.
+    Only splits at lowercase→uppercase boundaries; leaves ALL_CAPS and tech
+    abbreviations (e.g. 'PhD', 'MCom') alone.
+    """
+    if word.isupper() or word.islower():
+        return word
+    return re.sub(r"([a-z])([A-Z])", r"\1 \2", word)
+
+
 def extract_name_from_header(header_text: str) -> Optional[str]:
-    """Extract name from top of resume (first non-contact-info line that looks like a name)."""
-    # Word char pattern: ASCII + extended Latin + common name punctuation (hyphen, apostrophe, dot)
+    """Extract candidate name from the top section of the resume."""
+    # Valid name-word chars (Latin, Devanagari, hyphen, apostrophe, dot)
     _NAME_WORD = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿऀ-ॿ\-\'\.]+$")
-    # Allowed short words: particles, suffixes, initials
     _ALLOWED_SHORT = {"de", "van", "von", "bin", "binti", "jr", "sr", "ii", "iii", "iv", "phd", "md"}
 
     candidates: list[str] = []
@@ -277,26 +307,31 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
         line = line.strip()
         if not line or len(line) > 60:
             continue
-        # Skip lines that look like contact info
         if re.search(r"@|http|www\.|linkedin|github|portfolio|\d{3}[-.\s]\d{3}", line.lower()):
             continue
-        # Skip lines that are clearly addresses or locations (contain digits after stripping)
         if re.search(r"\d", line):
             continue
+
         words = line.split()
         if not (1 <= len(words) <= 5):
             continue
-        cleaned_words = [w.rstrip(".,;:") for w in words]
-        if all(
-            _NAME_WORD.match(w) or w.lower() in _ALLOWED_SHORT
-            for w in cleaned_words
-        ):
-            candidates.append(line)
-            # Prefer 2-4 word names; return immediately if found
-            if 2 <= len(words) <= 4:
-                return line
 
-    # Fallback: return first candidate (single-word name) if any
+        cleaned_words = [w.rstrip(".,;:") for w in words]
+        if not all(_NAME_WORD.match(w) or w.lower() in _ALLOWED_SHORT for w in cleaned_words):
+            continue
+
+        # Multi-word name — return immediately (most likely outcome for well-parsed PDFs)
+        if 2 <= len(words) <= 4:
+            return line
+
+        # Single-word candidate — it might be a CamelCase merged name (PDF artefact)
+        if len(words) == 1:
+            split = _split_camelcase_name(cleaned_words[0])
+            # If splitting produced ≥2 words, it was a merged name — return fixed version
+            if " " in split:
+                return split
+            candidates.append(line)
+
     return candidates[0] if candidates else None
 
 

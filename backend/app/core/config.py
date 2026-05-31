@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # ElevenLabs (free tier TTS for AI interviews)
     ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel — free on all plans
+    ELEVENLABS_VOICE_ID: str = "onwK4e9ZLuTAKqWW03F9"  # Daniel — news presenter, professional (free)
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
