@@ -56,6 +56,8 @@ echo ""
 echo "⚠️  Each deploy = 1 Cloud Build job (~10 min, free tier: 120 min/day)."
 echo "   Only deploy when explicitly needed."
 echo ""
+echo "   Run from repo root:  cd ~/Documents/GitHub/JobSync && ./deploy.sh"
+echo ""
 read -rp "Type 'deploy' to confirm: " CONFIRM
 if [[ "$CONFIRM" != "deploy" ]]; then
   echo "Aborted."
@@ -171,7 +173,6 @@ run gcloud run deploy "${SERVICE_NAME}" \
   --min-instances=0 \
   --max-instances=5 \
   --timeout=300 \
-  --no-cpu-throttling \
   --set-env-vars="APP_VERSION=${TAG},DEBUG=false,OLLAMA_BASE_URL=,SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co,SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE,MAX_CONCURRENT_ANALYSES=8,MAX_CONCURRENT_LLM_CALLS=3" \
   --update-secrets="GROQ_API_KEY=JOBSYNC_GROQ_API_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=JOBSYNC_SUPABASE_SERVICE_KEY:latest" \
   --service-account="${SERVICE_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
