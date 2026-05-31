@@ -45,7 +45,9 @@ coverage/
 
 # Trained model binaries (large files — stored separately)
 backend/models/*.joblib
-backend/models/training_metadata.json
+backend/models/*.pt
+backend/models/*.json
+backend/models/*.bin
 !backend/models/.gitkeep
 backend/.env.production
 backend/.env
