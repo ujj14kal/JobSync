@@ -225,12 +225,17 @@ export default function InterviewPage() {
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
 
-  // TTS + voice
-  const [ttsAvail,    setTtsAvail]    = useState(false);
-  const [aiSpeaking,  setAiSpeaking]  = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState("EXAVITQu4vr4xnSDxMaL"); // Sarah default
-  const [previewing,  setPreviewing]  = useState<string | null>(null);
-  const [voices, setVoices] = useState<{ id: string; name: string; desc: string; gender: string }[]>([]);
+  // TTS engine
+  const [ttsAvail,      setTtsAvail]      = useState(false);
+  const [aiSpeaking,    setAiSpeaking]    = useState(false);
+  const [useElevenLabs, setUseElevenLabs] = useState(false); // false = free browser TTS
+  const [previewing,    setPreviewing]    = useState<string | null>(null);
+  // ElevenLabs voices
+  const [elVoices, setElVoices] = useState<{ id: string; name: string; desc: string; gender: string }[]>([]);
+  const [selectedElVoice, setSelectedElVoice] = useState("EXAVITQu4vr4xnSDxMaL");
+  // Browser voices
+  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedBrowserVoice, setSelectedBrowserVoice] = useState("");
 
   // Setup fields
   const [role,      setRole]      = useState("Software Engineer");
@@ -277,14 +282,31 @@ export default function InterviewPage() {
   // ── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    // ElevenLabs check
     apiClient.get("/interview/tts/status")
       .then(({ data }) => setTtsAvail(data.available))
       .catch(() => setTtsAvail(false));
     apiClient.get("/interview/voices")
-      .then(({ data }) => { setVoices(data.voices); setSelectedVoice(data.default); })
+      .then(({ data }) => { setElVoices(data.voices); setSelectedElVoice(data.default); })
       .catch(() => {});
-    if (typeof window !== "undefined" && "speechSynthesis" in window)
-      window.speechSynthesis.getVoices();
+
+    // Browser voices — load async (some browsers fire voiceschanged)
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const load = () => {
+      const all = window.speechSynthesis.getVoices();
+      // Prefer high-quality English voices; keep up to 8
+      const PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Alex", "Tom", "Daniel", "Karen"];
+      const sorted = [
+        ...PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[],
+        ...all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name)),
+      ].slice(0, 8);
+      if (sorted.length) {
+        setBrowserVoices(sorted);
+        setSelectedBrowserVoice(sorted[0].name);
+      }
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
   }, []);
 
   // ── Audio helpers ─────────────────────────────────────────────────────────
@@ -300,8 +322,8 @@ export default function InterviewPage() {
     stopAudio();
     setAiSpeaking(true);
 
-    if (ttsAvail) {
-      // ElevenLabs path
+    // ── ElevenLabs (premium, uses credits) ───────────────────────────────
+    if (useElevenLabs && ttsAvail) {
       try {
         const { createClient } = await import("@/lib/supabase/client");
         const token = await createClient().auth.getSession()
@@ -311,16 +333,14 @@ export default function InterviewPage() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ text, voice_id: selectedVoice }),
+            body: JSON.stringify({ text, voice_id: selectedElVoice }),
           }
         );
-        if (!resp.ok) throw new Error("TTS failed");
-        const blob = await resp.blob();
-        const url  = URL.createObjectURL(blob);
+        if (!resp.ok) throw new Error();
+        const blob  = await resp.blob();
+        const url   = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audioElRef.current = audio;
-
-        // Wire frequency analyser on the audio element
         const ctx      = getAudioCtx();
         const src      = ctx.createMediaElementSource(audio);
         const analyser = ctx.createAnalyser();
@@ -328,32 +348,26 @@ export default function InterviewPage() {
         src.connect(analyser);
         analyser.connect(ctx.destination);
         aiAnalyserRef.current = analyser;
-
-        audio.onended = () => {
-          setAiSpeaking(false);
-          aiAnalyserRef.current = null;
-          URL.revokeObjectURL(url);
-          startThinkTime();
-        };
+        audio.onended = () => { setAiSpeaking(false); aiAnalyserRef.current = null; URL.revokeObjectURL(url); startThinkTime(); };
         audio.onerror = () => { setAiSpeaking(false); startThinkTime(); };
         await audio.play();
         return;
       } catch {
-        // fallthrough to browser TTS
+        // fallthrough to browser
       }
     }
 
-    // Browser Speech Synthesis fallback
+    // ── Browser Web Speech API (free, unlimited) ──────────────────────────
     if ("speechSynthesis" in window) {
-      const utt  = new SpeechSynthesisUtterance(text);
-      utt.rate   = 0.88;
-      utt.pitch  = 1.0;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate  = 0.9;
+      utt.pitch = 1.0;
       utt.volume = 1;
-      const voices = window.speechSynthesis.getVoices();
-      const pick = voices.find(v =>
-        v.name.includes("Samantha") || v.name.includes("Karen") ||
-        v.name.includes("Daniel") || (v.lang === "en-US" && !v.name.includes("Google"))
-      ) ?? voices.find(v => v.lang.startsWith("en")) ?? null;
+      const allVoices = window.speechSynthesis.getVoices();
+      const pick = allVoices.find(v => v.name === selectedBrowserVoice)
+        ?? allVoices.find(v => v.name === "Samantha")
+        ?? allVoices.find(v => v.lang.startsWith("en") && !v.name.includes("Google"))
+        ?? null;
       if (pick) utt.voice = pick;
       utt.onend   = () => { setAiSpeaking(false); startThinkTime(); };
       utt.onerror = () => { setAiSpeaking(false); startThinkTime(); };
@@ -372,10 +386,25 @@ export default function InterviewPage() {
     setAiSpeaking(false);
   }
 
-  async function previewVoice(voiceId: string) {
-    if (previewing) { stopAudio(); setPreviewing(null); return; }
-    if (!ttsAvail) { toast.error("ElevenLabs not configured"); return; }
+  async function previewVoice(voiceId: string, isBrowser = false) {
+    if (previewing) { stopAudio(); window.speechSynthesis?.cancel(); setPreviewing(null); return; }
     setPreviewing(voiceId);
+    const SAMPLE = "Hi, I'm your interviewer. Ready?";
+
+    if (isBrowser) {
+      if (!("speechSynthesis" in window)) { setPreviewing(null); return; }
+      const utt  = new SpeechSynthesisUtterance(SAMPLE);
+      utt.rate   = 0.9; utt.pitch = 1.0; utt.volume = 1;
+      const pick = window.speechSynthesis.getVoices().find(v => v.name === voiceId) ?? null;
+      if (pick) utt.voice = pick;
+      utt.onend   = () => setPreviewing(null);
+      utt.onerror = () => setPreviewing(null);
+      window.speechSynthesis.speak(utt);
+      return;
+    }
+
+    // ElevenLabs preview
+    if (!ttsAvail) { toast.error("ElevenLabs not configured"); setPreviewing(null); return; }
     try {
       const { createClient } = await import("@/lib/supabase/client");
       const token = await createClient().auth.getSession()
@@ -385,7 +414,7 @@ export default function InterviewPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ text: "Hi, I'm your interviewer. Ready?", voice_id: voiceId }),
+          body: JSON.stringify({ text: SAMPLE, voice_id: voiceId }),
         }
       );
       if (!resp.ok) throw new Error();
@@ -741,50 +770,106 @@ export default function InterviewPage() {
               </div>
 
               {/* Voice picker */}
-              {ttsAvail && voices.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[12px] font-medium text-[var(--text-secondary)]">
-                      Interviewer Voice
-                    </label>
-                    <span className="text-[10px] text-[var(--text-muted)]">~32 chars per preview</span>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[12px] font-medium text-[var(--text-secondary)]">Interviewer Voice</label>
+                  <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
+                    <button
+                      onClick={() => setUseElevenLabs(false)}
+                      className={`px-3 py-1 transition-colors ${!useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                    >
+                      🆓 Free (Unlimited)
+                    </button>
+                    {ttsAvail && (
+                      <button
+                        onClick={() => setUseElevenLabs(true)}
+                        className={`px-3 py-1 transition-colors ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                      >
+                        ✨ ElevenLabs
+                      </button>
+                    )}
                   </div>
-                  {(["F", "M"] as const).map(gender => (
-                    <div key={gender} className="mb-3">
-                      <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
-                        {gender === "F" ? "♀ Female" : "♂ Male"}
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {voices.filter(v => v.gender === gender).map(v => (
-                          <div key={v.id}
-                            onClick={() => setSelectedVoice(v.id)}
-                            className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
-                              selectedVoice === v.id
-                                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                </div>
+
+                {/* Free browser voices */}
+                {!useElevenLabs && (
+                  <div>
+                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                      Uses your device's built-in voices — 100% free, no limits, no API calls.
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {browserVoices.map(v => (
+                        <div key={v.name}
+                          onClick={() => setSelectedBrowserVoice(v.name)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                            selectedBrowserVoice === v.name
+                              ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                              : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                          }`}
+                        >
+                          <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                            {v.name.split(" ")[0]}
+                          </div>
+                          <div className="text-[10px] text-[var(--text-muted)] truncate">{v.lang}</div>
+                          <button
+                            onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                            className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                              previewing === v.name
+                                ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                                : "border-[var(--border-subtle)] text-[var(--text-muted)]"
                             }`}
                           >
-                            <div className={`text-[13px] font-semibold mb-0.5 ${selectedVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                              {v.name}
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
-                            <button
-                              onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                              className={`mt-2 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                                previewing === v.id
-                                  ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                                  : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                            {previewing === v.name ? "■" : "▶"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ElevenLabs premium voices */}
+                {useElevenLabs && ttsAvail && (
+                  <div>
+                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                      Uses ElevenLabs API credits (~32 chars per preview, ~200 per question).
+                    </p>
+                    {(["F", "M"] as const).map(gender => (
+                      <div key={gender} className="mb-2">
+                        <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+                          {gender === "F" ? "♀ Female" : "♂ Male"}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {elVoices.filter(v => v.gender === gender).map(v => (
+                            <div key={v.id}
+                              onClick={() => setSelectedElVoice(v.id)}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                                selectedElVoice === v.id
+                                  ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                                  : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
                               }`}
                             >
-                              {previewing === v.id ? "■ Stop" : "▶ Hear"}
-                            </button>
-                          </div>
-                        ))}
+                              <div className={`text-[13px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                                {v.name}
+                              </div>
+                              <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
+                              <button
+                                onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                                className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                  previewing === v.id
+                                    ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                                    : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+                                }`}
+                              >
+                                {previewing === v.id ? "■ Stop" : "▶ Hear"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button onClick={startInterview} disabled={!role.trim()}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-medium text-[14px] transition-colors disabled:opacity-50">
