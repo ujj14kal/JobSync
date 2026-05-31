@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # ElevenLabs (free tier TTS for AI interviews)
     ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_VOICE_ID: str = "onwK4e9ZLuTAKqWW03F9"  # Daniel — news presenter, professional (free)
+    ELEVENLABS_VOICE_ID: str = "9BWtsMINqrJLrRacOk9x"  # Aria — conversational, natural American female
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"

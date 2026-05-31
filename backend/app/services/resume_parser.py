@@ -297,7 +297,6 @@ def _split_camelcase_name(word: str) -> str:
 
 def extract_name_from_header(header_text: str) -> Optional[str]:
     """Extract candidate name from the top section of the resume."""
-    # Valid name-word chars (Latin, Devanagari, hyphen, apostrophe, dot)
     _NAME_WORD = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿऀ-ॿ\-\'\.]+$")
     _ALLOWED_SHORT = {"de", "van", "von", "bin", "binti", "jr", "sr", "ii", "iii", "iv", "phd", "md"}
 
@@ -305,9 +304,9 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
 
     for line in header_text.split("\n"):
         line = line.strip()
-        if not line or len(line) > 60:
+        if not line or len(line) > 80:
             continue
-        if re.search(r"@|http|www\.|linkedin|github|portfolio|\d{3}[-.\s]\d{3}", line.lower()):
+        if re.search(r"@|http|www\.|linkedin|github|portfolio", line.lower()):
             continue
         if re.search(r"\d", line):
             continue
@@ -316,23 +315,34 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
         if not (1 <= len(words) <= 5):
             continue
 
-        cleaned_words = [w.rstrip(".,;:") for w in words]
+        cleaned_words = [w.rstrip(".,;:|•–—") for w in words]
         if not all(_NAME_WORD.match(w) or w.lower() in _ALLOWED_SHORT for w in cleaned_words):
             continue
 
-        # Multi-word name — return immediately (most likely outcome for well-parsed PDFs)
         if 2 <= len(words) <= 4:
-            return line
+            return " ".join(cleaned_words)
 
-        # Single-word candidate — it might be a CamelCase merged name (PDF artefact)
         if len(words) == 1:
             split = _split_camelcase_name(cleaned_words[0])
-            # If splitting produced ≥2 words, it was a merged name — return fixed version
             if " " in split:
                 return split
-            candidates.append(line)
+            candidates.append(cleaned_words[0])
 
-    return candidates[0] if candidates else None
+    if candidates:
+        return candidates[0]
+
+    # Fallback: scan the first 400 chars for a Title-Case name sequence
+    # This catches PDFs where name + contact are on a single long line.
+    text_start = re.sub(r"\s+", " ", header_text[:400])
+    # Match 2–4 consecutive Title-Case words (≥2 chars each, no digits)
+    name_re = re.compile(r"\b([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){1,3})\b")
+    for m in name_re.finditer(text_start):
+        candidate = m.group(1)
+        parts = candidate.split()
+        if all(_NAME_WORD.match(p) for p in parts):
+            return candidate
+
+    return None
 
 
 def extract_skills_from_text(text: str) -> list[str]:

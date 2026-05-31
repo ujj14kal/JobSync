@@ -404,15 +404,20 @@ async def text_to_speech(
     if not settings.ELEVENLABS_API_KEY:
         raise HTTPException(status_code=503, detail="TTS not configured — set ELEVENLABS_API_KEY")
 
-    text = body.text[:350].strip()
+    text = body.text[:500].strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{settings.ELEVENLABS_VOICE_ID}"
     payload = {
         "text": text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {"stability": 0.55, "similarity_boost": 0.75, "style": 0.1},
+        "model_id": "eleven_multilingual_v2",   # highest quality, most natural
+        "voice_settings": {
+            "stability": 0.38,           # lower = more natural vocal variation
+            "similarity_boost": 0.88,    # stay close to the voice character
+            "style": 0.45,               # expressiveness
+            "use_speaker_boost": True,   # clarity boost
+        },
     }
 
     try:
