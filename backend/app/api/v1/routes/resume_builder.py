@@ -114,11 +114,11 @@ _LATEX_PREAMBLE = r"""%-------------------------
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 
-\addtolength{\oddsidemargin}{-0.5in}
-\addtolength{\evensidemargin}{-0.5in}
-\addtolength{\textwidth}{1in}
-\addtolength{\topmargin}{-.5in}
-\addtolength{\textheight}{1.0in}
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.6in}
+\addtolength{\textheight}{1.2in}
 
 \urlstyle{same}
 \raggedbottom
@@ -189,15 +189,21 @@ def _build_latex(data: dict) -> str:
         inst = _escape_latex(e.get("institution", ""))
         loc  = _escape_latex(e.get("location", ""))
         sd   = _escape_latex(e.get("start_date", ""))
-        ed   = _escape_latex(e.get("end_date", ""))
-        gpa  = e.get("gpa", "")
-        date_str = f"{sd} -- {ed}" if sd else ed
-        gpa_line = rf"        \small{{GPA: {_escape_latex(gpa)}}}" if gpa else ""
-        edu_tex += rf"""
-    \resumeSubheading
-      {{{inst}}}{{{loc}}}
-      {{{deg}}}{{{date_str}}}
-{gpa_line}"""
+        ed_  = _escape_latex(e.get("end_date", ""))
+        gpa  = _escape_latex(str(e.get("gpa", "")))
+        date_str = f"{sd} -- {ed_}" if sd else ed_
+        # GPA shown as a sub-item using resumeItemListStart so it renders cleanly
+        gpa_block = (
+            f"\n      \\resumeItemListStart\n"
+            f"        \\resumeItem{{GPA: {gpa}}}\n"
+            f"      \\resumeItemListEnd"
+        ) if gpa else ""
+        edu_tex += (
+            f"\n    \\resumeSubheading\n"
+            f"      {{{inst}}}{{{loc}}}\n"
+            f"      {{{deg}}}{{{date_str}}}"
+            f"{gpa_block}"
+        )
 
     # Experience
     exp_tex = ""
@@ -320,64 +326,85 @@ async def generate_resume(
     user_id: str = Depends(get_current_user_id),
 ):
     """
-    Use Groq to turn raw user input (or active resume) into a polished,
-    ATS-optimised resume structure, then convert to Jake's Resume LaTeX.
+    Use Groq to generate a full Jake's Resume from uploaded resume or form data.
     """
-    # Pull from active resume if requested
-    raw_data = {}
+    raw_data: dict = {}
+    raw_text: str = ""
+
     if body.use_active_resume:
         try:
             sb = get_supabase()
             result = (
                 sb.table("resumes")
-                .select("parsed_data")
+                .select("parsed_data, raw_text")
                 .eq("user_id", user_id)
                 .eq("is_active", True)
                 .limit(1)
                 .execute()
             )
             if result.data:
-                raw_data = result.data[0].get("parsed_data") or {}
+                row = result.data[0]
+                raw_data = row.get("parsed_data") or {}
+                # raw_sections gives us activities/awards even if parser missed them
+                raw_sections = raw_data.get("raw_sections", {})
+                raw_text = "\n\n".join(
+                    f"[{k.upper()}]\n{v}" for k, v in raw_sections.items() if v.strip()
+                )
         except Exception as e:
             logger.warning("Could not fetch active resume", error=str(e))
 
-    # Build prompt
-    user_info = {
-        "contact": body.contact.model_dump() if not body.use_active_resume else raw_data.get("contact", {}),
-        "education": [e.model_dump() for e in body.education] if not body.use_active_resume else raw_data.get("education", []),
-        "experience": [e.model_dump() for e in body.experience] if not body.use_active_resume else raw_data.get("experience", []),
-        "projects":   [p.model_dump() for p in body.projects]   if not body.use_active_resume else raw_data.get("projects", []),
-        "skills_raw": body.skills_raw if not body.use_active_resume else ", ".join(raw_data.get("skills", [])),
-        "activities": body.activities,
-        "awards":     body.awards,
-    }
+    if body.use_active_resume:
+        user_info = {
+            "contact":    raw_data.get("contact", {}),
+            "education":  raw_data.get("education", []),
+            "experience": raw_data.get("experience", []),
+            "projects":   raw_data.get("projects", []),
+            "skills":     raw_data.get("skills", []),
+            "summary":    raw_data.get("summary", ""),
+        }
+    else:
+        user_info = {
+            "contact":    body.contact.model_dump(),
+            "education":  [e.model_dump() for e in body.education],
+            "experience": [e.model_dump() for e in body.experience],
+            "projects":   [p.model_dump() for p in body.projects],
+            "skills":     body.skills_raw,
+            "activities": body.activities,
+            "awards":     body.awards,
+        }
 
-    jd_context = f"\n\nTarget job description:\n{body.target_job[:800]}" if body.target_job else ""
+    jd_context = f"\n\nTARGET JOB DESCRIPTION (tailor keywords to this):\n{body.target_job[:1000]}" if body.target_job else ""
 
-    prompt = f"""You are a professional resume writer. Polish and enhance this resume data into an ATS-optimised, impact-driven resume.{jd_context}
+    raw_context = f"\n\nFULL RESUME RAW TEXT (use this to find activities, awards, projects the parser may have missed):\n{raw_text[:3000]}" if raw_text else ""
 
-Raw data:
+    prompt = f"""You are an elite resume writer for top tech and finance companies. Transform this data into a FULL, page-filling, ATS-optimised resume.{jd_context}{raw_context}
+
+PARSED DATA:
 {json.dumps(user_info, indent=2)}
 
-Rules:
-- Every experience bullet MUST start with a strong action verb (Built, Led, Designed, Reduced, Increased, etc.)
-- Add metrics/numbers wherever you can infer them (even approximate)
-- Keep bullets concise (under 120 chars each), max 5 per role
-- Write a 2-3 sentence professional summary
-- Organise skills into: Languages, Frameworks/Libraries, Databases, Tools, Cloud
-- Keep all factual details (company names, dates, institutions) exactly as given
-- If target JD provided, weave in relevant keywords naturally
+STRICT RULES:
+1. EVERY experience bullet starts with a powerful action verb (Built, Engineered, Designed, Led, Reduced, Increased, Launched, Automated, Scaled, Optimised, Implemented, Architected...)
+2. Write 5-6 bullets per experience role — be specific, detailed, and add approximate metrics where reasonable
+3. Each bullet should be 80-140 characters — substantial and impactful, NOT vague one-liners
+4. Generate 2-3 projects from the experience if no explicit projects exist
+5. Each project gets 2-3 strong bullets describing what was built and the impact
+6. Write a compelling 3-sentence professional summary covering: who they are, what they build, what they're driven by
+7. Extract ALL activities (clubs, competitions, sports) from raw text — include all of them
+8. Extract ALL awards/achievements from raw text — include all of them
+9. Organise skills into exactly these 5 categories: Languages, Frameworks/Libraries, Databases, Tools, Cloud
+10. Keep all facts (company names, dates, institutions, GPA) EXACTLY as provided — never invent facts
+11. The output must be RICH and COMPREHENSIVE enough to fill a full A4 page
 
-Return JSON with this exact structure:
+Return ONLY this JSON structure:
 {{
   "contact": {{"name":"","email":"","phone":"","location":"","linkedin":"","github":"","portfolio":""}},
-  "summary": "2-3 sentence summary",
+  "summary": "3-sentence professional summary",
   "education": [{{"degree":"","institution":"","location":"","start_date":"","end_date":"","gpa":""}}],
-  "experience": [{{"title":"","company":"","location":"","start_date":"","end_date":"","bullets":["..."]}}],
-  "projects": [{{"name":"","tech_stack":"","url":"","bullets":["..."]}}],
-  "skills": {{"Languages":[],"Frameworks/Libraries":[],"Databases":[],"Tools":[],"Cloud":[]}},
-  "activities": ["..."],
-  "awards": ["..."]
+  "experience": [{{"title":"","company":"","location":"","start_date":"","end_date":"","bullets":["5-6 detailed bullets each"]}}],
+  "projects": [{{"name":"","tech_stack":"comma,separated,stack","url":"","bullets":["2-3 strong bullets"]}}],
+  "skills": {{"Languages":["..."],"Frameworks/Libraries":["..."],"Databases":["..."],"Tools":["..."],"Cloud":["..."]}},
+  "activities": ["Full activity description with year range"],
+  "awards": ["Full award description with year"]
 }}"""
 
     try:
@@ -387,8 +414,8 @@ Return JSON with this exact structure:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user",   "content": prompt},
             ],
-            temperature=0.4,
-            max_tokens=3000,
+            temperature=0.35,
+            max_tokens=4000,
             json_mode=True,
             use_cache=False,
         )
