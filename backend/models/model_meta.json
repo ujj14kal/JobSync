@@ -1,0 +1,15 @@
+{
+  "trained_at": "2026-05-29T16:25:05.807079",
+  "encoder": {
+    "val_loss": 1.884288,
+    "pos_cosine_sim": 0.9532,
+    "epochs": 15
+  },
+  "scorer": {
+    "val_mse": 159.25,
+    "val_mae": 8.68,
+    "epochs": 30
+  },
+  "device": "cpu",
+  "architecture": "DualEncoder(2L\u00d74H\u00d7128d)+Scorer5heads"
+}
