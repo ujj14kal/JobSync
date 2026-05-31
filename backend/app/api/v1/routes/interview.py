@@ -111,6 +111,7 @@ class HireVueStartRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
+    voice_id: Optional[str] = None   # override default voice
 
 
 class EvalRequest(BaseModel):
@@ -408,7 +409,8 @@ async def text_to_speech(
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{settings.ELEVENLABS_VOICE_ID}"
+    voice_id = body.voice_id or settings.ELEVENLABS_VOICE_ID
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     payload = {
         "text": text,
         "model_id": "eleven_multilingual_v2",   # highest quality, most natural
@@ -450,6 +452,22 @@ async def text_to_speech(
 async def tts_status(user_id: str = Depends(get_current_user_id)):
     """Check if TTS is configured."""
     return {"available": bool(settings.ELEVENLABS_API_KEY)}
+
+
+@router.get("/voices")
+async def list_voices(user_id: str = Depends(get_current_user_id)):
+    """Curated list of professional female voices for interview use."""
+    return {
+        "voices": [
+            {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",    "desc": "Determined · American · Clear"},
+            {"id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel",   "desc": "Calm · Professional · Polished"},
+            {"id": "XrExE9yKIg1WjnnlVkGX", "name": "Matilda",  "desc": "Warm · Confident · Natural"},
+            {"id": "cgSgspJ2msm6clMCkdW9", "name": "Jessica",  "desc": "Bright · Articulate · Modern"},
+            {"id": "9BWtsMINqrJLrRacOk9x", "name": "Aria",     "desc": "Conversational · Friendly"},
+            {"id": "pFZP5JQG7iQjIQuC4Bku", "name": "Lily",     "desc": "Authoritative · Crisp · British"},
+        ],
+        "default": settings.ELEVENLABS_VOICE_ID,
+    }
 
 
 @router.get("/companies")

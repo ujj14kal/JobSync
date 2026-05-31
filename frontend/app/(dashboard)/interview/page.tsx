@@ -225,9 +225,12 @@ export default function InterviewPage() {
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
 
-  // TTS
-  const [ttsAvail, setTtsAvail] = useState(false);
-  const [aiSpeaking, setAiSpeaking] = useState(false);
+  // TTS + voice
+  const [ttsAvail,    setTtsAvail]    = useState(false);
+  const [aiSpeaking,  setAiSpeaking]  = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState("EXAVITQu4vr4xnSDxMaL"); // Sarah default
+  const [previewing,  setPreviewing]  = useState<string | null>(null);
+  const [voices, setVoices] = useState<{ id: string; name: string; desc: string }[]>([]);
 
   // Setup fields
   const [role,      setRole]      = useState("Software Engineer");
@@ -277,7 +280,9 @@ export default function InterviewPage() {
     apiClient.get("/interview/tts/status")
       .then(({ data }) => setTtsAvail(data.available))
       .catch(() => setTtsAvail(false));
-    // preload browser voices as fallback
+    apiClient.get("/interview/voices")
+      .then(({ data }) => { setVoices(data.voices); setSelectedVoice(data.default); })
+      .catch(() => {});
     if (typeof window !== "undefined" && "speechSynthesis" in window)
       window.speechSynthesis.getVoices();
   }, []);
@@ -306,7 +311,7 @@ export default function InterviewPage() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({ text, voice_id: selectedVoice }),
           }
         );
         if (!resp.ok) throw new Error("TTS failed");
@@ -365,6 +370,36 @@ export default function InterviewPage() {
     window.speechSynthesis?.cancel();
     aiAnalyserRef.current = null;
     setAiSpeaking(false);
+  }
+
+  async function previewVoice(voiceId: string) {
+    if (previewing) { stopAudio(); setPreviewing(null); return; }
+    if (!ttsAvail) { toast.error("ElevenLabs not configured"); return; }
+    setPreviewing(voiceId);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const token = await createClient().auth.getSession()
+        .then(r => r.data.session?.access_token ?? "");
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ text: "Hello! I'll be your interviewer today. Let's get started.", voice_id: voiceId }),
+        }
+      );
+      if (!resp.ok) throw new Error();
+      const blob  = await resp.blob();
+      const url   = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioElRef.current = audio;
+      audio.onended = () => { setPreviewing(null); URL.revokeObjectURL(url); };
+      audio.onerror = () => setPreviewing(null);
+      await audio.play();
+    } catch {
+      setPreviewing(null);
+      toast.error("Preview failed");
+    }
   }
 
   // ── Think time ────────────────────────────────────────────────────────────
@@ -704,6 +739,42 @@ export default function InterviewPage() {
                   className="w-full accent-[var(--accent-primary)]" />
                 <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1"><span>3</span><span>10</span></div>
               </div>
+
+              {/* Voice picker */}
+              {ttsAvail && voices.length > 0 && (
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">
+                    Interviewer Voice
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {voices.map(v => (
+                      <div key={v.id}
+                        onClick={() => setSelectedVoice(v.id)}
+                        className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
+                          selectedVoice === v.id
+                            ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                            : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                        }`}
+                      >
+                        <div className={`text-[13px] font-semibold mb-0.5 ${selectedVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                          {v.name}
+                        </div>
+                        <div className="text-[10px] text-[var(--text-muted)]">{v.desc}</div>
+                        <button
+                          onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                          className={`mt-2 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                            previewing === v.id
+                              ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                              : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          {previewing === v.id ? "▐▌ Stop" : "▶ Preview"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <button onClick={startInterview} disabled={!role.trim()}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-medium text-[14px] transition-colors disabled:opacity-50">
