@@ -6,7 +6,8 @@
 
 ### Rules Claude must follow:
 1. **Always develop and test locally first.** Backend runs on `uvicorn` locally. Only deploy to Cloud Run when a feature is fully working.
-2. **Never push to `main` to test something.** Cloud Build is disabled — deploying to Cloud Run must be done manually and intentionally.
+2. **Max 2-3 deploys per day.** Each deploy = 1 Cloud Build job (~10 min). Free tier = 120 min/day. 3 builds/day = 30 min = ₹0. Never exceed this.
+3. **Never push to `main` to test something.** Deploying to Cloud Run must be done manually via `./deploy.sh` only.
 3. **Before suggesting any new GCP service** (Cloud Build, Vertex AI, GCS, Pub/Sub, etc.) — STOP and have a cost conversation first. Estimate the monthly cost in INR before writing any code.
 4. **Cloud Build is off.** No CI/CD trigger exists. Manual deploy only via `gcloud run deploy`.
 5. **Artifact Registry**: cleanup policy set (max 2 images, delete after 7 days). Never create repos in multiple regions.
