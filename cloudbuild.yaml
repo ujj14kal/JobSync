@@ -26,7 +26,7 @@ substitutions:
   _AR_HOSTNAME: asia-south1-docker.pkg.dev
   _AR_PROJECT_ID: jobsync-497608
   _AR_REPOSITORY: jobsync
-  _SERVICE_NAME: jobsync-api
+  _SERVICE_NAME: jobsync
   _DEPLOY_REGION: asia-south1
   _CORS_ORIGINS: '["https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
 
@@ -73,7 +73,7 @@ steps:
       - --min-instances=0
       - --max-instances=3
       - --timeout=300
-      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
+      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
       # Use ^|^ custom delimiter so the JSON array in BACKEND_CORS_ORIGINS
       # (which contains commas) doesn't break gcloud's dict-arg parser.
       # --set-env-vars and --update-env-vars are mutually exclusive, so all
