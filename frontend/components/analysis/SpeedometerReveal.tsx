@@ -97,10 +97,10 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
   const [phase, setPhase]               = useState<Phase>("intro");
   const needleRot                       = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const soundFired    = useRef(false);
-  const audioCtxRef   = useRef<AudioContext | null>(null);
-  const audioBufRef   = useRef<AudioBuffer  | null>(null);
-  const needleRef     = useRef<SVGGElement>(null);
+  const soundFired       = useRef(false);
+  const audioCtxRef      = useRef<AudioContext | null>(null);
+  const audioBufPromise  = useRef<Promise<AudioBuffer> | null>(null);
+  const needleRef        = useRef<SVGGElement>(null);
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
@@ -114,23 +114,21 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     return needleRot.on("change", sync);
   }, [needleRot]);
 
-  // ── Create AudioContext + decode buffer on mount (within user-action window)
+  // ── Create AudioContext + start decoding immediately on mount ────────────
+  // Mount is synchronous with the user's navigation click, so resume() works.
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx: AudioContext = new AudioCtx();
     audioCtxRef.current = ctx;
-
-    // Unlock immediately — this effect fires synchronously after the
-    // navigation click, so the user-gesture context is still active.
     ctx.resume().catch(() => {});
 
-    fetch("/engine-rev.wav")
+    // Store the Promise itself — we await it at play time so we never miss
+    // if the network is slow and the buffer isn't decoded within 900 ms.
+    audioBufPromise.current = fetch("/engine-rev.wav")
       .then((r) => r.arrayBuffer())
-      .then((ab) => ctx.decodeAudioData(ab))
-      .then((buf) => { audioBufRef.current = buf; })
-      .catch(() => {});
+      .then((ab) => ctx.decodeAudioData(ab));
 
     return () => { ctx.close().catch(() => {}); };
   }, []);
@@ -150,20 +148,18 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
       if (!soundFired.current) {
         soundFired.current = true;
         if (isGood) {
-          const ctx = audioCtxRef.current;
-          const buf = audioBufRef.current;
-          if (ctx && buf) {
-            // Re-resume in case browser suspended between mount and here
-            ctx.resume().then(() => {
-              const gain = ctx.createGain();
-              gain.gain.value = 1.8;          // boost so it's clearly audible
-              gain.connect(ctx.destination);
-
-              const src = ctx.createBufferSource();
-              src.buffer = buf;
-              src.connect(gain);
-              src.start(0);
-            }).catch(() => {});
+          const ctx     = audioCtxRef.current;
+          const promise = audioBufPromise.current;
+          if (ctx && promise) {
+            // Await the buffer (handles slow networks) then re-resume + play
+            promise.then((buf) =>
+              ctx.resume().then(() => {
+                const src  = ctx.createBufferSource();
+                src.buffer = buf;
+                src.connect(ctx.destination);
+                src.start(0);
+              })
+            ).catch(() => {});
           }
         } else {
           playFailedStart();
