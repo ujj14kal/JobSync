@@ -10,9 +10,9 @@ export function formatScore(score: number): string {
 }
 
 export function getScoreColor(score: number): string {
-  if (score >= 75) return "var(--score-high)";
-  if (score >= 50) return "var(--score-mid)";
-  return "var(--score-low)";
+  if (score >= 65) return "#10b981"; // green
+  if (score >= 40) return "#f59e0b"; // yellow
+  return "#ef4444";                   // red
 }
 
 export function getScoreLabel(score: number): string {

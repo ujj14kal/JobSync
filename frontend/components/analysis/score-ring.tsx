@@ -86,13 +86,16 @@ export function ScoreRingLarge({ score }: { score: number }) {
   const label = getScoreLabel(score);
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <ScoreRing score={score} size={160} strokeWidth={10} animated />
-      <div>
-        <div className="text-[14px] font-semibold text-center" style={{ color }}>
+    <div className="flex flex-col items-center gap-4">
+      <ScoreRing score={score} size={180} strokeWidth={12} animated />
+      <div className="text-center">
+        <div
+          className="text-[16px] font-bold tracking-wide uppercase"
+          style={{ color, textShadow: `0 0 20px ${color}55` }}
+        >
           {label}
         </div>
-        <div className="text-[12px] text-[var(--text-muted)] text-center">
+        <div className="text-[12px] text-[var(--text-muted)] mt-0.5">
           Overall ATS Score
         </div>
       </div>
