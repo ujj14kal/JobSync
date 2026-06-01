@@ -152,47 +152,41 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (phase !== "intro") return; // wait until gate is tapped
 
     const INTRO_DELAY = 900;
-    const ANIM_DUR    = 5.7; // exact audio length
 
-    // Needle must stay in meaningful motion for the FULL audio duration.
-    // Only settle in the last 0.7s (matching audio fade 4.9→5.7s).
-    //   0.0→0.6s   rise to peak1  (0.6s)
-    //   0.6→2.6s   fall to dip1   (2.0s) ← exact
-    //   2.6→3.2s   rise to peak2  (0.6s)
-    //   3.2→5.2s   fall to dip2   (2.0s) ← exact
-    //   5.2→5.5s   rise to peak3  (0.3s — final burst)
-    //   5.5→5.7s   settle         (0.2s — land on score)
-    const D = ANIM_DUR;
-    const animTimes = [0, 0.6/D, 2.6/D, 3.2/D, 5.2/D, 5.5/D, 1.0];
+    // Chained individual animate() calls — each segment has its own guaranteed duration.
+    // (Using a single animate() with times[] is unreliable in Framer Motion v11.)
+    //   rise peak1 : 0.6s
+    //   drop dip1  : 2.0s  ← exact
+    //   rise peak2 : 0.6s
+    //   drop dip2  : 2.0s  ← exact
+    //   rise peak3 : 0.3s
+    //   settle     : 0.2s
+    const upd = (v: number) =>
+      setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100))));
 
     const t1 = setTimeout(() => {
       setPhase("revving");
 
       if (isGood) {
-        // Keep needle travelling the full arc — no tiny invisible oscillations
-        const peak1 = Math.max(62, Math.min(score * 0.78, 88)); // first rev
-        const dip1  = Math.max(8,  score * 0.10);               // clear dip (not near zero)
-        const peak2 = Math.max(70, Math.min(score * 0.95, 96)); // second rev
-        const dip2  = Math.max(12, score * 0.15);               // second dip
-        const peak3 = Math.min(score + 8, 100);                 // final overshoot
-        const keyframes = [0, peak1, dip1, peak2, dip2, peak3, score].map(targetRot);
-        animate(needleRot, keyframes, {
-          duration: ANIM_DUR,
-          times: animTimes,
-          // easeInOut on all segments — smooth start+end, no front-loaded zipping
-          ease: ["easeInOut", "easeInOut", "easeInOut", "easeInOut", "easeInOut", [0.16, 1, 0.3, 1]],
-          onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))),
-        });
+        const peak1 = Math.max(62, Math.min(score * 0.78, 88));
+        const dip1  = Math.max(8,  score * 0.10);
+        const peak2 = Math.max(70, Math.min(score * 0.95, 96));
+        const dip2  = Math.max(12, score * 0.15);
+        const peak3 = Math.min(score + 8, 100);
+
+        // Chain: each .then() starts the next segment after the previous finishes
+        animate(needleRot, targetRot(peak1), { duration: 0.6,  ease: "easeInOut", onUpdate: upd })
+        .then(() => animate(needleRot, targetRot(dip1),  { duration: 2.0,  ease: "easeInOut", onUpdate: upd }))
+        .then(() => animate(needleRot, targetRot(peak2), { duration: 0.6,  ease: "easeInOut", onUpdate: upd }))
+        .then(() => animate(needleRot, targetRot(dip2),  { duration: 2.0,  ease: "easeInOut", onUpdate: upd }))
+        .then(() => animate(needleRot, targetRot(peak3), { duration: 0.3,  ease: "easeOut",   onUpdate: upd }))
+        .then(() => animate(needleRot, targetRot(score), { duration: 0.2,  ease: "easeInOut", onUpdate: upd }));
       } else {
         const rot = targetRot(score);
         animate(needleRot,
           [0, rot * 0.40, rot * 0.08, rot * 0.72, rot * 0.28, rot],
-          {
-            duration: 2.6,
-            times: [0, 0.20, 0.36, 0.62, 0.76, 1],
-            ease: "easeInOut",
-            onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))),
-          }
+          { duration: 2.6, ease: "easeInOut",
+            onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))) }
         );
       }
     }, INTRO_DELAY);
@@ -229,6 +223,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
           <div className="text-center space-y-2">
             <div className="text-slate-400 text-sm tracking-widest uppercase">Analysis Complete</div>
             <div className="text-white text-3xl font-bold">Your ATS Score is Ready</div>
+            <div className="text-slate-600 text-xs">v2.6s-drops</div>
           </div>
 
           <motion.button
