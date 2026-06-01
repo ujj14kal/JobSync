@@ -126,7 +126,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     // navigation click, so the user-gesture context is still active.
     ctx.resume().catch(() => {});
 
-    fetch("/engine-rev.m4a")
+    fetch("/engine-rev.wav")
       .then((r) => r.arrayBuffer())
       .then((ab) => ctx.decodeAudioData(ab))
       .then((buf) => { audioBufRef.current = buf; })
