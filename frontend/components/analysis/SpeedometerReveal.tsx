@@ -12,10 +12,10 @@ const R  = 190;       // gauge arc radius
 const NEEDLE_LEN = 182; // extends close to arc face for clean alignment
 const NEEDLE_BASE = 14; // small base indicator radius
 
-// Score 0 → angle 180° (pointing left)
-// Score 100 → angle 0° (pointing right)
-// Needle drawn pointing LEFT, rotated by -(score/100)*180 degrees
-const targetRot = (score: number) => -(score / 100) * 180;
+// Score 0 → needle at rest (pointing left, 0° rotation)
+// Score 100 → needle rotated +180° (clockwise, pointing right through the top)
+// CSS positive rotation = clockwise; from LEFT, CW sweeps through UP then RIGHT
+const targetRot = (score: number) => (score / 100) * 180;
 
 function polarPt(angleDeg: number, r: number = R) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -46,139 +46,133 @@ const LABEL_TICKS = [0, 25, 50, 75, 100];
 
 function playSportsCar(score: number) {
   try {
-    const ctx = new AudioContext();
-    const t0  = ctx.currentTime + 0.15;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx: AudioContext = new Ctx();
 
-    // Frequency ramp: idle → scream → settle
-    const idleHz  = 65;
-    const peakHz  = 95 + (score / 100) * 195;   // 95–290 Hz fundamental at peak
-    const rampDur = 1.9;
-    const holdDur = 0.55;
-    const fallDur = 0.45;
-    const total   = rampDur + holdDur + fallDur;
+    // Safari suspends AudioContext created outside a direct user-gesture handler;
+    // resume() unlocks it before we schedule anything.
+    ctx.resume().then(() => {
+      const t0  = ctx.currentTime + 0.08;
 
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0, t0);
-    master.gain.linearRampToValueAtTime(0.7, t0 + 0.06);
-    master.gain.setValueAtTime(0.7, t0 + rampDur + holdDur);
-    master.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-    master.connect(ctx.destination);
+      const idleHz  = 65;
+      const peakHz  = 95 + (score / 100) * 195;
+      const rampDur = 1.9;
+      const holdDur = 0.55;
+      const fallDur = 0.45;
+      const total   = rampDur + holdDur + fallDur;
 
-    // ── Layer 1: Deep bass rumble (fundamental) ──
-    const rumble = ctx.createOscillator();
-    const rumbleFilter = ctx.createBiquadFilter();
-    const rumbleGain   = ctx.createGain();
-    rumble.type = "sawtooth";
-    rumbleFilter.type = "lowpass";
-    rumbleFilter.frequency.setValueAtTime(600, t0);
-    rumbleFilter.frequency.linearRampToValueAtTime(2200, t0 + rampDur);
-    rumbleFilter.Q.value = 1.8;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0, t0);
+      master.gain.linearRampToValueAtTime(0.7, t0 + 0.06);
+      master.gain.setValueAtTime(0.7, t0 + rampDur + holdDur);
+      master.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+      master.connect(ctx.destination);
 
-    rumble.frequency.setValueAtTime(idleHz, t0);
-    rumble.frequency.exponentialRampToValueAtTime(peakHz, t0 + rampDur);
-    rumble.frequency.setValueAtTime(peakHz, t0 + rampDur + holdDur);
-    rumble.frequency.exponentialRampToValueAtTime(idleHz * 1.3, t0 + total);
+      // Layer 1: deep bass rumble
+      const rumble       = ctx.createOscillator();
+      const rumbleFilt   = ctx.createBiquadFilter();
+      const rumbleGain   = ctx.createGain();
+      rumble.type        = "sawtooth";
+      rumbleFilt.type    = "lowpass";
+      rumbleFilt.frequency.setValueAtTime(600, t0);
+      rumbleFilt.frequency.linearRampToValueAtTime(2200, t0 + rampDur);
+      rumbleFilt.Q.value = 1.8;
+      rumble.frequency.setValueAtTime(idleHz, t0);
+      rumble.frequency.exponentialRampToValueAtTime(peakHz, t0 + rampDur);
+      rumble.frequency.setValueAtTime(peakHz, t0 + rampDur + holdDur);
+      rumble.frequency.exponentialRampToValueAtTime(idleHz * 1.3, t0 + total);
+      rumbleGain.gain.setValueAtTime(0.55, t0);
+      rumble.connect(rumbleFilt); rumbleFilt.connect(rumbleGain); rumbleGain.connect(master);
+      rumble.start(t0); rumble.stop(t0 + total + 0.1);
 
-    rumbleGain.gain.setValueAtTime(0.55, t0);
-    rumble.connect(rumbleFilter);
-    rumbleFilter.connect(rumbleGain);
-    rumbleGain.connect(master);
-    rumble.start(t0); rumble.stop(t0 + total + 0.1);
+      // Layer 2: mid growl (2nd harmonic + bandpass sweep)
+      const growl       = ctx.createOscillator();
+      const growlFilt   = ctx.createBiquadFilter();
+      const growlGain   = ctx.createGain();
+      growl.type        = "sawtooth";
+      growl.detune.value = 8;
+      growlFilt.type    = "bandpass";
+      growlFilt.frequency.setValueAtTime(1400, t0);
+      growlFilt.frequency.linearRampToValueAtTime(5800, t0 + rampDur);
+      growlFilt.Q.value = 0.7;
+      growl.frequency.setValueAtTime(idleHz * 2, t0);
+      growl.frequency.exponentialRampToValueAtTime(peakHz * 2, t0 + rampDur);
+      growl.frequency.setValueAtTime(peakHz * 2, t0 + rampDur + holdDur);
+      growl.frequency.exponentialRampToValueAtTime(idleHz * 2.6, t0 + total);
+      growlGain.gain.setValueAtTime(0.28, t0);
+      growlGain.gain.linearRampToValueAtTime(0.38, t0 + rampDur);
+      growl.connect(growlFilt); growlFilt.connect(growlGain); growlGain.connect(master);
+      growl.start(t0); growl.stop(t0 + total + 0.1);
 
-    // ── Layer 2: Mid growl — 2nd harmonic with slight detune for "bite" ──
-    const growl = ctx.createOscillator();
-    const growlFilter = ctx.createBiquadFilter();
-    const growlGain   = ctx.createGain();
-    growl.type = "sawtooth";
-    growl.detune.value = 8; // slight detune adds organic warmth
-    growlFilter.type = "bandpass";
-    growlFilter.frequency.setValueAtTime(1400, t0);
-    growlFilter.frequency.linearRampToValueAtTime(5800, t0 + rampDur);
-    growlFilter.Q.value = 0.7;
+      // Layer 3: exhaust whine (delayed entry, high sine)
+      const whine       = ctx.createOscillator();
+      const whineFilt   = ctx.createBiquadFilter();
+      const whineGain   = ctx.createGain();
+      whine.type        = "sine";
+      whineFilt.type    = "highpass";
+      whineFilt.frequency.value = 800;
+      whine.frequency.setValueAtTime(idleHz * 3.2, t0);
+      whine.frequency.exponentialRampToValueAtTime(peakHz * 3.8, t0 + rampDur);
+      whine.frequency.setValueAtTime(peakHz * 3.8, t0 + rampDur + holdDur);
+      whine.frequency.exponentialRampToValueAtTime(idleHz * 4, t0 + total);
+      whineGain.gain.setValueAtTime(0, t0 + 0.4);
+      whineGain.gain.linearRampToValueAtTime(0.18, t0 + rampDur);
+      whineGain.gain.setValueAtTime(0.18, t0 + rampDur + holdDur);
+      whineGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+      whine.connect(whineFilt); whineFilt.connect(whineGain); whineGain.connect(master);
+      whine.start(t0); whine.stop(t0 + total + 0.1);
 
-    growl.frequency.setValueAtTime(idleHz * 2, t0);
-    growl.frequency.exponentialRampToValueAtTime(peakHz * 2, t0 + rampDur);
-    growl.frequency.setValueAtTime(peakHz * 2, t0 + rampDur + holdDur);
-    growl.frequency.exponentialRampToValueAtTime(idleHz * 2.6, t0 + total);
+      // Layer 4: cylinder burst texture (square AM)
+      const pulse     = ctx.createOscillator();
+      const pulseGain = ctx.createGain();
+      pulse.type      = "square";
+      pulse.frequency.setValueAtTime(idleHz * 4, t0);
+      pulse.frequency.exponentialRampToValueAtTime(peakHz * 4, t0 + rampDur);
+      pulseGain.gain.setValueAtTime(0.06, t0);
+      pulseGain.gain.linearRampToValueAtTime(0.10, t0 + rampDur);
+      pulseGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+      pulse.connect(pulseGain); pulseGain.connect(master);
+      pulse.start(t0); pulse.stop(t0 + total + 0.1);
 
-    growlGain.gain.setValueAtTime(0.28, t0);
-    growlGain.gain.linearRampToValueAtTime(0.38, t0 + rampDur);
-    growl.connect(growlFilter);
-    growlFilter.connect(growlGain);
-    growlGain.connect(master);
-    growl.start(t0); growl.stop(t0 + total + 0.1);
-
-    // ── Layer 3: Exhaust "whine" — high-pitched sine (intake/exhaust resonance) ──
-    const whine = ctx.createOscillator();
-    const whineFilter = ctx.createBiquadFilter();
-    const whineGain   = ctx.createGain();
-    whine.type = "sine";
-    whineFilter.type = "highpass";
-    whineFilter.frequency.value = 800;
-
-    whine.frequency.setValueAtTime(idleHz * 3.2, t0);
-    whine.frequency.exponentialRampToValueAtTime(peakHz * 3.8, t0 + rampDur);
-    whine.frequency.setValueAtTime(peakHz * 3.8, t0 + rampDur + holdDur);
-    whine.frequency.exponentialRampToValueAtTime(idleHz * 4, t0 + total);
-
-    whineGain.gain.setValueAtTime(0, t0 + 0.4); // whine comes in as RPM rises
-    whineGain.gain.linearRampToValueAtTime(0.18, t0 + rampDur);
-    whineGain.gain.setValueAtTime(0.18, t0 + rampDur + holdDur);
-    whineGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-    whine.connect(whineFilter);
-    whineFilter.connect(whineGain);
-    whineGain.connect(master);
-    whine.start(t0); whine.stop(t0 + total + 0.1);
-
-    // ── Layer 4: Cylinder burst pulses (amplitude modulation for "brap" texture) ──
-    const pulse = ctx.createOscillator();
-    const pulseGain = ctx.createGain();
-    pulse.type = "square";
-    pulse.frequency.setValueAtTime(idleHz * 4, t0); // ~4 firing events per cycle
-    pulse.frequency.exponentialRampToValueAtTime(peakHz * 4, t0 + rampDur);
-
-    pulseGain.gain.setValueAtTime(0.06, t0);
-    pulseGain.gain.linearRampToValueAtTime(0.10, t0 + rampDur);
-    pulseGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-    pulse.connect(pulseGain);
-    pulseGain.connect(master);
-    pulse.start(t0); pulse.stop(t0 + total + 0.1);
-
-    setTimeout(() => ctx.close(), (total + 1) * 1000);
-  } catch { /* Safari / blocked — silent fallback */ }
+      setTimeout(() => ctx.close(), (total + 1) * 1000);
+    });
+  } catch { /* silent fallback */ }
 }
 
 function playFailedStart() {
   try {
-    const ctx = new AudioContext();
-    [
-      { delay: 0.10, dur: 0.22, peak: 62,  vol: 0.22 },
-      { delay: 0.50, dur: 0.18, peak: 58,  vol: 0.17 },
-      { delay: 0.88, dur: 0.28, peak: 70,  vol: 0.20 },
-      { delay: 1.34, dur: 0.48, peak: 84,  vol: 0.26 }, // almost catches
-    ].forEach(({ delay, dur, peak, vol }) => {
-      const t0 = ctx.currentTime + delay;
-      const osc  = ctx.createOscillator();
-      const filt = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
-      osc.type  = "sawtooth";
-      filt.type = "lowpass";
-      filt.frequency.setValueAtTime(350, t0);
-      filt.frequency.linearRampToValueAtTime(900, t0 + dur * 0.4);
-      filt.frequency.exponentialRampToValueAtTime(150, t0 + dur);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx: AudioContext = new Ctx();
 
-      osc.frequency.setValueAtTime(48, t0);
-      osc.frequency.exponentialRampToValueAtTime(peak, t0 + dur * 0.4);
-      osc.frequency.exponentialRampToValueAtTime(32, t0 + dur);
-
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(vol, t0 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-
-      osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0 + dur + 0.08);
+    ctx.resume().then(() => {
+      [
+        { delay: 0.10, dur: 0.22, peak: 62, vol: 0.22 },
+        { delay: 0.50, dur: 0.18, peak: 58, vol: 0.17 },
+        { delay: 0.88, dur: 0.28, peak: 70, vol: 0.20 },
+        { delay: 1.34, dur: 0.48, peak: 84, vol: 0.26 },
+      ].forEach(({ delay, dur, peak, vol }) => {
+        const t0   = ctx.currentTime + delay;
+        const osc  = ctx.createOscillator();
+        const filt = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        osc.type        = "sawtooth";
+        filt.type       = "lowpass";
+        filt.frequency.setValueAtTime(350, t0);
+        filt.frequency.linearRampToValueAtTime(900, t0 + dur * 0.4);
+        filt.frequency.exponentialRampToValueAtTime(150, t0 + dur);
+        osc.frequency.setValueAtTime(48, t0);
+        osc.frequency.exponentialRampToValueAtTime(peak, t0 + dur * 0.4);
+        osc.frequency.exponentialRampToValueAtTime(32, t0 + dur);
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(vol, t0 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+        osc.start(t0); osc.stop(t0 + dur + 0.08);
+      });
+      setTimeout(() => ctx.close(), 5000);
     });
-    setTimeout(() => ctx.close(), 5000);
   } catch { /* silent fallback */ }
 }
 
