@@ -152,24 +152,17 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (phase !== "intro") return; // wait until gate is tapped
 
     const INTRO_DELAY = 900;
-    const ANIM_DUR    = 5.4; // matches audio length (5.696s ≈ 5.4s audible)
+    const ANIM_DUR    = 5.7; // exact audio length (5.696s)
 
-    // Keyframe times matched to actual audio waveform peaks/dips:
-    //   t=0.5s  → peak1  (audio Rev1   0.0–1.1s  loudest burst)
-    //   t=1.6s  → dip1   (audio Dip1   1.1–2.1s  engine settles)
-    //   t=2.5s  → peak2  (audio Rev2   2.1–3.0s  second rev)
-    //   t=3.5s  → dip2   (audio Dip2   3.0–4.0s  quiet valley)
-    //   t=4.4s  → peak3  (audio Rev3   4.0–4.9s  biggest rev)
-    //   t=5.4s  → final  (audio Fade   4.9–5.7s)
-    const animTimes = [
-      0,
-      0.5  / 5.4,   // 0.093
-      1.6  / 5.4,   // 0.296
-      2.5  / 5.4,   // 0.463
-      3.5  / 5.4,   // 0.648
-      4.4  / 5.4,   // 0.815
-      1.0,
-    ];
+    // Keyframe absolute times → normalised against 5.7s duration
+    //   t=0.5s  → peak1  (audio Rev1   0.0–1.1s)
+    //   t=1.6s  → dip1   (audio Dip1   1.1–2.1s)
+    //   t=2.5s  → peak2  (audio Rev2   2.1–3.0s)
+    //   t=3.5s  → dip2   (audio Dip2   3.0–4.0s)
+    //   t=4.4s  → peak3  (audio Rev3   4.0–4.9s)
+    //   t=5.7s  → final  (audio Fade   4.9–5.7s)
+    const D = ANIM_DUR;
+    const animTimes = [0, 0.5/D, 1.6/D, 2.5/D, 3.5/D, 4.4/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
