@@ -156,14 +156,14 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
 
     // Needle must stay in meaningful motion for the FULL audio duration.
     // Only settle in the last 0.7s (matching audio fade 4.9→5.7s).
-    //   0.0→0.7s   rise to peak1  (0.7s)
-    //   0.7→2.0s   fall to dip1   (1.3s) ← exact
-    //   2.0→3.0s   rise to peak2  (1.0s)
-    //   3.0→4.3s   fall to dip2   (1.3s) ← exact
-    //   4.3→5.2s   rise to peak3  (0.9s — final build during audio Rev3)
-    //   5.2→5.7s   settle         (0.5s — audio fading, needle lands on score)
+    //   0.0→0.6s   rise to peak1  (0.6s)
+    //   0.6→2.6s   fall to dip1   (2.0s) ← exact
+    //   2.6→3.2s   rise to peak2  (0.6s)
+    //   3.2→5.2s   fall to dip2   (2.0s) ← exact
+    //   5.2→5.5s   rise to peak3  (0.3s — final burst)
+    //   5.5→5.7s   settle         (0.2s — land on score)
     const D = ANIM_DUR;
-    const animTimes = [0, 0.7/D, 2.0/D, 3.0/D, 4.3/D, 5.2/D, 1.0];
+    const animTimes = [0, 0.6/D, 2.6/D, 3.2/D, 5.2/D, 5.5/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
