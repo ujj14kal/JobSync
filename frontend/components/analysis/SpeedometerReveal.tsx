@@ -154,15 +154,15 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     const INTRO_DELAY = 900;
     const ANIM_DUR    = 5.7; // exact audio length (5.696s)
 
-    // Keyframe absolute times matched to 25ms-resolution waveform analysis:
-    //   t=0.25s → peak1  audio attacks instantly at 0.025s (93%), peak at ~0.1s
-    //   t=1.90s → dip1   audio minimum 24% at t=2.0s
-    //   t=2.30s → peak2  audio Rev2 peak 98% at t=2.3s (sharp attack)
-    //   t=3.80s → dip2   audio dip2 minimum 29% at t=3.85s
-    //   t=4.25s → peak3  audio Rev3 strong 93% at t=4.175s
-    //   t=5.70s → final  audio fade complete
+    // Keyframe absolute times — spread so each rev/dip takes visible time:
+    //   t=0.70s → peak1  audio still loud at 0.7s (75%), gives 0.7s to rise
+    //   t=2.00s → dip1   audio minimum 24% at exactly 2.0s
+    //   t=2.70s → peak2  audio Rev2 sustained 81% at 2.7s, 0.7s rise from dip
+    //   t=3.90s → dip2   audio dip2 ~33% at 3.9s
+    //   t=4.55s → peak3  audio Rev3 94% at 4.55s, 0.65s rise from dip
+    //   t=5.70s → final  audio fade ~17% at 5.7s
     const D = ANIM_DUR;
-    const animTimes = [0, 0.25/D, 1.90/D, 2.30/D, 3.80/D, 4.25/D, 1.0];
+    const animTimes = [0, 0.70/D, 2.00/D, 2.70/D, 3.90/D, 4.55/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
@@ -177,8 +177,8 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
         animate(needleRot, keyframes, {
           duration: ANIM_DUR,
           times: animTimes,
-          // up=easeOut (fast attack), down=easeOut (drops quickly, no lingering)
-          ease: ["easeOut", "easeOut", "easeOut", "easeOut", "easeOut", [0.16, 1, 0.3, 1]],
+          // easeInOut on all segments — smooth start+end, no front-loaded zipping
+          ease: ["easeInOut", "easeInOut", "easeInOut", "easeInOut", "easeInOut", [0.16, 1, 0.3, 1]],
           onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))),
         });
       } else {
