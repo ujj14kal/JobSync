@@ -152,28 +152,29 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (phase !== "intro") return; // wait until gate is tapped
 
     const INTRO_DELAY = 900;
-    const ANIM_DUR    = 5.7;
+    const ANIM_DUR    = 5.7; // exact audio length
 
-    // 2-rev design — each movement takes at least 1s so the needle travels visibly:
-    //   0.0s → 1.2s  rise to peak1   (1.2s climb — first rev)
-    //   1.2s → 2.3s  fall to dip1    (1.1s drop)
-    //   2.3s → 4.2s  rise to peak2   (1.9s big sustained rev — main dramatic moment)
-    //   4.2s → 4.9s  fall to dip2    (0.7s slight drop)
-    //   4.9s → 5.3s  rise to peak3   (0.4s small bounce)
-    //   5.3s → 5.7s  settle to final (0.4s land)
+    // Needle must stay in meaningful motion for the FULL audio duration.
+    // Only settle in the last 0.7s (matching audio fade 4.9→5.7s).
+    //   0.0→0.8s   rise to peak1  (0.8s — quick first burst)
+    //   0.8→1.9s   fall to dip1   (1.1s)
+    //   1.9→3.0s   rise to peak2  (1.1s — second rev)
+    //   3.0→3.8s   fall to dip2   (0.8s)
+    //   3.8→5.0s   rise to peak3  (1.2s — final big rev, still climbing at audio fade)
+    //   5.0→5.7s   settle         (0.7s — audio fading, needle lands on score)
     const D = ANIM_DUR;
-    const animTimes = [0, 1.2/D, 2.3/D, 4.2/D, 4.9/D, 5.3/D, 1.0];
+    const animTimes = [0, 0.8/D, 1.9/D, 3.0/D, 3.8/D, 5.0/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
 
       if (isGood) {
-        // 2-rev shape: moderate first rev → dip → big overshoot rev → gentle settle
-        const peak1 = Math.max(60, Math.min(score * 0.78, 88));  // first rev ~78% of score
-        const dip1  = Math.max(5,  score * 0.06);                // clear dip
-        const peak2 = Math.min(score + 8, 100);                  // overshoot above final
-        const dip2  = Math.max(score - 6, 0);                    // slight undershoot
-        const peak3 = Math.min(score + 2, 100);                  // tiny bounce
+        // Keep needle travelling the full arc — no tiny invisible oscillations
+        const peak1 = Math.max(62, Math.min(score * 0.78, 88)); // first rev
+        const dip1  = Math.max(8,  score * 0.10);               // clear dip (not near zero)
+        const peak2 = Math.max(70, Math.min(score * 0.95, 96)); // second rev
+        const dip2  = Math.max(12, score * 0.15);               // second dip
+        const peak3 = Math.min(score + 8, 100);                 // final overshoot
         const keyframes = [0, peak1, dip1, peak2, dip2, peak3, score].map(targetRot);
         animate(needleRot, keyframes, {
           duration: ANIM_DUR,
