@@ -98,8 +98,9 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
   const [phase, setPhase]               = useState<Phase>("gate");
   const needleRot                       = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const needleRef  = useRef<SVGGElement>(null);
+  const needleRef   = useRef<SVGGElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const rawBufRef   = useRef<ArrayBuffer | null>(null);  // pre-fetched before gate tap
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
@@ -120,24 +121,29 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (AudioCtx) {
       const ctx: AudioContext = new AudioCtx();
       audioCtxRef.current = ctx;
-      // resume() inside click handler = always unlocked regardless of score
       ctx.resume().then(() => {
-        fetch("/engine-rev.wav")
-          .then((r) => r.arrayBuffer())
-          .then((ab) => ctx.decodeAudioData(ab))
-          .then((buf) => {
-            const src = ctx.createBufferSource();
-            src.buffer = buf;
-            src.connect(ctx.destination);
-            src.start(0); // play immediately when decoded — no fragile timing
-          })
-          .catch(() => {});
+        const raw = rawBufRef.current;
+        if (!raw) return;
+        // raw.slice(0) — decodeAudioData detaches the buffer, so copy first
+        ctx.decodeAudioData(raw.slice(0)).then((buf) => {
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          // Schedule exactly when needle animation starts (INTRO_DELAY = 900ms)
+          src.start(ctx.currentTime + 0.9);
+        }).catch(() => {});
       });
     }
     setPhase("intro");
   };
 
+  // Pre-fetch the WAV while gate screen is visible — no AudioContext needed,
+  // just a plain fetch so the ArrayBuffer is ready before the tap.
   useEffect(() => {
+    fetch("/engine-rev.wav")
+      .then((r) => r.arrayBuffer())
+      .then((ab) => { rawBufRef.current = ab; })
+      .catch(() => {});
     return () => { audioCtxRef.current?.close().catch(() => {}); };
   }, []);
 
@@ -146,8 +152,24 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (phase !== "intro") return; // wait until gate is tapped
 
     const INTRO_DELAY = 900;
-    const ANIM_DUR    = 5.4;
-    const animTimes   = [0, 0.15, 0.32, 0.54, 0.70, 0.87, 1.0];
+    const ANIM_DUR    = 5.4; // matches audio length (5.696s ≈ 5.4s audible)
+
+    // Keyframe times matched to actual audio waveform peaks/dips:
+    //   t=0.5s  → peak1  (audio Rev1   0.0–1.1s  loudest burst)
+    //   t=1.6s  → dip1   (audio Dip1   1.1–2.1s  engine settles)
+    //   t=2.5s  → peak2  (audio Rev2   2.1–3.0s  second rev)
+    //   t=3.5s  → dip2   (audio Dip2   3.0–4.0s  quiet valley)
+    //   t=4.4s  → peak3  (audio Rev3   4.0–4.9s  biggest rev)
+    //   t=5.4s  → final  (audio Fade   4.9–5.7s)
+    const animTimes = [
+      0,
+      0.5  / 5.4,   // 0.093
+      1.6  / 5.4,   // 0.296
+      2.5  / 5.4,   // 0.463
+      3.5  / 5.4,   // 0.648
+      4.4  / 5.4,   // 0.815
+      1.0,
+    ];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
