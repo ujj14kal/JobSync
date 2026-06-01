@@ -91,19 +91,21 @@ interface SpeedometerRevealProps {
   onComplete: () => void;
 }
 
-type Phase = "intro" | "revving" | "collapsing" | "done";
+// "gate" = tap-to-reveal screen (user gesture happens here → audio unlocks)
+type Phase = "gate" | "intro" | "revving" | "collapsing" | "done";
 
 export function SpeedometerReveal({ score, analysisId, onComplete }: SpeedometerRevealProps) {
-  const [phase, setPhase]               = useState<Phase>("intro");
+  const [phase, setPhase]               = useState<Phase>("gate");
   const needleRot                       = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const needleRef = useRef<SVGGElement>(null);
+  const needleRef  = useRef<SVGGElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
   const scoreLabel = score >= 75 ? "Excellent" : score >= 65 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
 
-  // ── Imperative needle: SVG rotate(angle cx cy) ───────────────────────────
+  // ── Imperative needle ─────────────────────────────────────────────────────
   useEffect(() => {
     const sync = (v: number) =>
       needleRef.current?.setAttribute("transform", `rotate(${v} ${CX} ${CY})`);
@@ -111,65 +113,54 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     return needleRot.on("change", sync);
   }, [needleRot]);
 
-  // ── Audio: fetch + schedule start() within user-gesture window ───────────
-  // Key insight: AudioContext.resume() + source.start(futureTime) must be
-  // called while the user-gesture is still "live" (i.e. synchronous with the
-  // navigation click that opened this page, captured in this useEffect).
-  // Calling .play() from setTimeout loses the gesture context — this doesn't.
-  useEffect(() => {
-    if (!isGood) return; // low scores use synthesised sputter
+  // ── Tap-to-reveal handler — THIS is the user gesture ─────────────────────
+  const handleReveal = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
+    if (AudioCtx && isGood) {
+      const ctx: AudioContext = new AudioCtx();
+      audioCtxRef.current = ctx;
+      // resume() called directly inside click handler = always unlocked
+      ctx.resume().then(() => {
+        fetch("/engine-rev.wav")
+          .then((r) => r.arrayBuffer())
+          .then((ab) => ctx.decodeAudioData(ab))
+          .then((buf) => {
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(ctx.destination);
+            // Play after the intro animation (900ms)
+            src.start(ctx.currentTime + 0.9);
+          })
+          .catch(() => {});
+      });
+    }
+    setPhase("intro");
+  };
 
-    const ctx: AudioContext = new AudioCtx();
-    ctx.resume(); // unlock Safari / Chrome in the gesture window
-
-    const INTRO_S  = 0.9;            // matches INTRO_DELAY ms below
-    const playAt   = ctx.currentTime + INTRO_S;
-
-    fetch("/engine-rev.wav")
-      .then((r) => r.arrayBuffer())
-      .then((ab) => ctx.decodeAudioData(ab))
-      .then((buf) => {
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(ctx.destination);
-        // Schedule at playAt; if decode took longer just start immediately
-        src.start(Math.max(ctx.currentTime + 0.05, playAt));
-      })
-      .catch(() => {});
-
-    return () => { ctx.close().catch(() => {}); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    return () => { audioCtxRef.current?.close().catch(() => {}); };
   }, []);
 
-  // ── Main animation sequence ───────────────────────────────────────────────
+  // ── Main animation sequence — fires once phase leaves "gate" ────────────
   useEffect(() => {
-    const INTRO_DELAY = 900;
+    if (phase !== "intro") return; // wait until gate is tapped
 
-    // Audio is 5.696 s → needle animation designed to fill it exactly
-    // Pattern: 0 → peak1 ↘ dip1 → peak2 ↘ dip2 → peak3(overshoot) → final
-    const ANIM_DUR = 5.4;   // slightly under audio so final score shows while audio fades
-    const animTimes = [0, 0.15, 0.32, 0.54, 0.70, 0.87, 1.0];
+    const INTRO_DELAY = 900;
+    const ANIM_DUR    = 5.4;
+    const animTimes   = [0, 0.15, 0.32, 0.54, 0.70, 0.87, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
-
-      // Good-score audio is pre-scheduled via Web Audio (see useEffect above).
-      // Only trigger synthesised sputter here for low scores.
       if (!isGood) playFailedStart();
 
       if (isGood) {
-        // 3-rev keyframes — dramatic peaks above / around final score
         const peak1 = Math.max(55, Math.min(score * 0.72, 84));
         const dip1  = Math.max(6,  score * 0.07);
         const peak2 = Math.max(74, Math.min(score * 0.92 + 6, 97));
         const dip2  = Math.max(10, score * 0.13);
         const peak3 = Math.min(score + 6, 100);
-
         const keyframes = [0, peak1, dip1, peak2, dip2, peak3, score].map(targetRot);
-
         animate(needleRot, keyframes, {
           duration: ANIM_DUR,
           times: animTimes,
@@ -177,7 +168,6 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
           onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))),
         });
       } else {
-        // Stutter for low / fair scores
         const rot = targetRot(score);
         animate(needleRot,
           [0, rot * 0.40, rot * 0.08, rot * 0.72, rot * 0.28, rot],
@@ -191,13 +181,11 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
       }
     }, INTRO_DELAY);
 
-    // Collapse after audio fully plays (5.696s audio + 900ms intro + 800ms show-time)
     const t2 = setTimeout(() => setPhase("collapsing"), INTRO_DELAY + 7000);
     const t3 = setTimeout(() => { setPhase("done"); onComplete(); }, INTRO_DELAY + 7800);
-
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phase]);
 
   if (phase === "done") return null;
 
@@ -214,18 +202,50 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
       }
       transition={{ duration: 0.75, ease: [0.25, 0.1, 0.25, 1] }}
     >
+      {/* ── Gate screen — tap here to get a fresh user gesture for audio ── */}
+      {phase === "gate" && (
+        <motion.div
+          className="flex flex-col items-center gap-8"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1,  scale: 1  }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="text-center space-y-2">
+            <div className="text-slate-400 text-sm tracking-widest uppercase">Analysis Complete</div>
+            <div className="text-white text-3xl font-bold">Your ATS Score is Ready</div>
+          </div>
+
+          <motion.button
+            onClick={handleReveal}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="relative px-12 py-5 rounded-2xl text-xl font-bold text-white
+                       bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-2xl
+                       shadow-emerald-500/30 cursor-pointer"
+          >
+            {/* pulse ring */}
+            <span className="absolute inset-0 rounded-2xl animate-ping bg-emerald-400 opacity-20" />
+            🏎️ &nbsp;Reveal My Score
+          </motion.button>
+
+          <div className="text-slate-600 text-xs">Tap to start the reveal</div>
+        </motion.div>
+      )}
+
       {/* Ambient colour glow */}
-      <div
-        className="absolute rounded-full blur-[90px] opacity-25 pointer-events-none"
-        style={{
-          width: 400, height: 220,
-          background: `radial-gradient(ellipse, ${scoreColor} 0%, transparent 70%)`,
-        }}
-      />
+      {phase !== "gate" && (
+        <div
+          className="absolute rounded-full blur-[90px] opacity-25 pointer-events-none"
+          style={{
+            width: 400, height: 220,
+            background: `radial-gradient(ellipse, ${scoreColor} 0%, transparent 70%)`,
+          }}
+        />
+      )}
 
       <motion.div
         initial={{ opacity: 0, scale: 0.88 }}
-        animate={{ opacity: 1,  scale: 1    }}
+        animate={{ opacity: phase !== "gate" ? 1 : 0, scale: 1 }}
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         className="flex flex-col items-center"
       >
