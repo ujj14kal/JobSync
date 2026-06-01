@@ -152,27 +152,28 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     if (phase !== "intro") return; // wait until gate is tapped
 
     const INTRO_DELAY = 900;
-    const ANIM_DUR    = 5.7; // exact audio length (5.696s)
+    const ANIM_DUR    = 5.7;
 
-    // Keyframe absolute times — spread so each rev/dip takes visible time:
-    //   t=0.70s → peak1  audio still loud at 0.7s (75%), gives 0.7s to rise
-    //   t=2.00s → dip1   audio minimum 24% at exactly 2.0s
-    //   t=2.70s → peak2  audio Rev2 sustained 81% at 2.7s, 0.7s rise from dip
-    //   t=3.90s → dip2   audio dip2 ~33% at 3.9s
-    //   t=4.55s → peak3  audio Rev3 94% at 4.55s, 0.65s rise from dip
-    //   t=5.70s → final  audio fade ~17% at 5.7s
+    // 2-rev design — each movement takes at least 1s so the needle travels visibly:
+    //   0.0s → 1.2s  rise to peak1   (1.2s climb — first rev)
+    //   1.2s → 2.3s  fall to dip1    (1.1s drop)
+    //   2.3s → 4.2s  rise to peak2   (1.9s big sustained rev — main dramatic moment)
+    //   4.2s → 4.9s  fall to dip2    (0.7s slight drop)
+    //   4.9s → 5.3s  rise to peak3   (0.4s small bounce)
+    //   5.3s → 5.7s  settle to final (0.4s land)
     const D = ANIM_DUR;
-    const animTimes = [0, 0.70/D, 2.00/D, 2.70/D, 3.90/D, 4.55/D, 1.0];
+    const animTimes = [0, 1.2/D, 2.3/D, 4.2/D, 4.9/D, 5.3/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
 
       if (isGood) {
-        const peak1 = Math.max(55, Math.min(score * 0.72, 84));
-        const dip1  = Math.max(6,  score * 0.07);
-        const peak2 = Math.max(74, Math.min(score * 0.92 + 6, 97));
-        const dip2  = Math.max(10, score * 0.13);
-        const peak3 = Math.min(score + 6, 100);
+        // 2-rev shape: moderate first rev → dip → big overshoot rev → gentle settle
+        const peak1 = Math.max(60, Math.min(score * 0.78, 88));  // first rev ~78% of score
+        const dip1  = Math.max(5,  score * 0.06);                // clear dip
+        const peak2 = Math.min(score + 8, 100);                  // overshoot above final
+        const dip2  = Math.max(score - 6, 0);                    // slight undershoot
+        const peak3 = Math.min(score + 2, 100);                  // tiny bounce
         const keyframes = [0, peak1, dip1, peak2, dip2, peak3, score].map(targetRot);
         animate(needleRot, keyframes, {
           duration: ANIM_DUR,
