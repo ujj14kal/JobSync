@@ -327,6 +327,9 @@ export default function HeroSection() {
               See Live Demo
             </motion.button>
           </Link>
+
+          {/* Sound test — direct click = guaranteed user gesture */}
+          <EngineTestButton />
         </motion.div>
 
         {/* Social proof */}
@@ -382,5 +385,57 @@ export default function HeroSection() {
         </motion.div>
       </motion.div>
     </section>
+  );
+}
+
+/* ── Engine sound test button ────────────────────────────────────────────── */
+function EngineTestButton() {
+  const [playing, setPlaying] = useState(false);
+
+  const handleClick = () => {
+    if (playing) return;
+    setPlaying(true);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) { setPlaying(false); return; }
+
+    const ctx: AudioContext = new AudioCtx();
+    ctx.resume().then(() => {
+      fetch("/engine-rev.wav")
+        .then((r) => r.arrayBuffer())
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.start(0);
+          src.onended = () => { setPlaying(false); ctx.close(); };
+        })
+        .catch(() => setPlaying(false));
+    });
+  };
+
+  return (
+    <motion.button
+      onClick={handleClick}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
+                 border border-white/10 bg-white/5 hover:bg-white/10
+                 text-white/70 hover:text-white transition-all"
+    >
+      {playing ? (
+        <>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+          </span>
+          Playing…
+        </>
+      ) : (
+        <>🔊 Test Engine Sound</>
+      )}
+    </motion.button>
   );
 }
