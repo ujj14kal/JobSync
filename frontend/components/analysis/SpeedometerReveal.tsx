@@ -97,29 +97,42 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
   const [phase, setPhase]               = useState<Phase>("intro");
   const needleRot                       = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const soundFired                      = useRef(false);
-  const audioRef                        = useRef<HTMLAudioElement | null>(null);
-  const needleRef                       = useRef<SVGGElement>(null);   // for imperative SVG rotate
+  const soundFired    = useRef(false);
+  const audioCtxRef   = useRef<AudioContext | null>(null);
+  const audioBufRef   = useRef<AudioBuffer  | null>(null);
+  const needleRef     = useRef<SVGGElement>(null);
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
   const scoreLabel = score >= 75 ? "Excellent" : score >= 65 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
 
-  // ── Imperative needle: SVG rotate(angle cx cy) — zero browser quirks ──────
+  // ── Imperative needle: SVG rotate(angle cx cy) ───────────────────────────
   useEffect(() => {
-    const sync = (v: number) => {
+    const sync = (v: number) =>
       needleRef.current?.setAttribute("transform", `rotate(${v} ${CX} ${CY})`);
-    };
     sync(0);
     return needleRot.on("change", sync);
   }, [needleRot]);
 
-  // ── Preload audio on mount ────────────────────────────────────────────────
+  // ── Create AudioContext + decode buffer on mount (within user-action window)
   useEffect(() => {
-    const audio = new Audio("/engine-rev.m4a");
-    audio.preload = "auto";
-    audioRef.current = audio;
-    return () => { audio.pause(); audioRef.current = null; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx: AudioContext = new AudioCtx();
+    audioCtxRef.current = ctx;
+
+    // Unlock immediately — this effect fires synchronously after the
+    // navigation click, so the user-gesture context is still active.
+    ctx.resume().catch(() => {});
+
+    fetch("/engine-rev.m4a")
+      .then((r) => r.arrayBuffer())
+      .then((ab) => ctx.decodeAudioData(ab))
+      .then((buf) => { audioBufRef.current = buf; })
+      .catch(() => {});
+
+    return () => { ctx.close().catch(() => {}); };
   }, []);
 
   // ── Main animation sequence ───────────────────────────────────────────────
@@ -137,8 +150,21 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
       if (!soundFired.current) {
         soundFired.current = true;
         if (isGood) {
-          const a = audioRef.current;
-          if (a) { a.currentTime = 0; a.play().catch(() => {}); }
+          const ctx = audioCtxRef.current;
+          const buf = audioBufRef.current;
+          if (ctx && buf) {
+            // Re-resume in case browser suspended between mount and here
+            ctx.resume().then(() => {
+              const gain = ctx.createGain();
+              gain.gain.value = 1.8;          // boost so it's clearly audible
+              gain.connect(ctx.destination);
+
+              const src = ctx.createBufferSource();
+              src.buffer = buf;
+              src.connect(gain);
+              src.start(0);
+            }).catch(() => {});
+          }
         } else {
           playFailedStart();
         }
