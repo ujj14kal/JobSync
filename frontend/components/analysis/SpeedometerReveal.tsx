@@ -9,7 +9,7 @@ const H = 260;
 const CX = 240;       // pivot x (center of needle base)
 const CY = 240;       // pivot y (near bottom so the arc has room above)
 const R  = 190;       // gauge arc radius
-const NEEDLE_LEN = 162;
+const NEEDLE_LEN = 182; // extends close to arc face for clean alignment
 const NEEDLE_BASE = 14; // small base indicator radius
 
 // Score 0 → angle 180° (pointing left)
@@ -42,63 +42,120 @@ const ALL_TICKS  = [0,10,20,30,40,50,60,70,80,90,100];
 const LABEL_TICKS = [0, 25, 50, 75, 100];
 
 // ── Engine Sounds ────────────────────────────────────────────────────────────
-function playFerrariRev(score: number) {
+
+
+function playSportsCar(score: number) {
   try {
     const ctx = new AudioContext();
-    const revs = score >= 80 ? 3 : 2;
+    const t0  = ctx.currentTime + 0.15;
 
-    for (let i = 0; i < revs; i++) {
-      const t0 = ctx.currentTime + 0.25 + i * 0.82;
-      const baseHz = 72 + i * 22;
-      const peakHz = 155 + (score / 100) * 130 + i * 45;
+    // Frequency ramp: idle → scream → settle
+    const idleHz  = 65;
+    const peakHz  = 95 + (score / 100) * 195;   // 95–290 Hz fundamental at peak
+    const rampDur = 1.9;
+    const holdDur = 0.55;
+    const fallDur = 0.45;
+    const total   = rampDur + holdDur + fallDur;
 
-      // Main sawtooth (engine fundamental)
-      const osc  = ctx.createOscillator();
-      const filt = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
-      osc.type  = "sawtooth";
-      filt.type = "lowpass";
-      filt.frequency.value = 900 + i * 180;
-      filt.Q.value = 1.2;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, t0);
+    master.gain.linearRampToValueAtTime(0.7, t0 + 0.06);
+    master.gain.setValueAtTime(0.7, t0 + rampDur + holdDur);
+    master.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+    master.connect(ctx.destination);
 
-      osc.frequency.setValueAtTime(baseHz, t0);
-      osc.frequency.exponentialRampToValueAtTime(peakHz, t0 + 0.42);
-      osc.frequency.exponentialRampToValueAtTime(baseHz * 1.15, t0 + 0.66);
+    // ── Layer 1: Deep bass rumble (fundamental) ──
+    const rumble = ctx.createOscillator();
+    const rumbleFilter = ctx.createBiquadFilter();
+    const rumbleGain   = ctx.createGain();
+    rumble.type = "sawtooth";
+    rumbleFilter.type = "lowpass";
+    rumbleFilter.frequency.setValueAtTime(600, t0);
+    rumbleFilter.frequency.linearRampToValueAtTime(2200, t0 + rampDur);
+    rumbleFilter.Q.value = 1.8;
 
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(0.30, t0 + 0.04);
-      gain.gain.linearRampToValueAtTime(0.34, t0 + 0.42);
-      gain.gain.linearRampToValueAtTime(0,    t0 + 0.70);
+    rumble.frequency.setValueAtTime(idleHz, t0);
+    rumble.frequency.exponentialRampToValueAtTime(peakHz, t0 + rampDur);
+    rumble.frequency.setValueAtTime(peakHz, t0 + rampDur + holdDur);
+    rumble.frequency.exponentialRampToValueAtTime(idleHz * 1.3, t0 + total);
 
-      osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0 + 0.75);
+    rumbleGain.gain.setValueAtTime(0.55, t0);
+    rumble.connect(rumbleFilter);
+    rumbleFilter.connect(rumbleGain);
+    rumbleGain.connect(master);
+    rumble.start(t0); rumble.stop(t0 + total + 0.1);
 
-      // Second harmonic for richness
-      const osc2  = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = "sawtooth";
-      osc2.frequency.setValueAtTime(baseHz * 2.4, t0);
-      osc2.frequency.exponentialRampToValueAtTime(peakHz * 2.4, t0 + 0.42);
-      osc2.frequency.exponentialRampToValueAtTime(baseHz * 2.4, t0 + 0.66);
-      gain2.gain.setValueAtTime(0, t0);
-      gain2.gain.linearRampToValueAtTime(0.08, t0 + 0.04);
-      gain2.gain.linearRampToValueAtTime(0,    t0 + 0.70);
-      osc2.connect(gain2); gain2.connect(ctx.destination);
-      osc2.start(t0); osc2.stop(t0 + 0.75);
-    }
-    setTimeout(() => ctx.close(), 6000);
+    // ── Layer 2: Mid growl — 2nd harmonic with slight detune for "bite" ──
+    const growl = ctx.createOscillator();
+    const growlFilter = ctx.createBiquadFilter();
+    const growlGain   = ctx.createGain();
+    growl.type = "sawtooth";
+    growl.detune.value = 8; // slight detune adds organic warmth
+    growlFilter.type = "bandpass";
+    growlFilter.frequency.setValueAtTime(1400, t0);
+    growlFilter.frequency.linearRampToValueAtTime(5800, t0 + rampDur);
+    growlFilter.Q.value = 0.7;
+
+    growl.frequency.setValueAtTime(idleHz * 2, t0);
+    growl.frequency.exponentialRampToValueAtTime(peakHz * 2, t0 + rampDur);
+    growl.frequency.setValueAtTime(peakHz * 2, t0 + rampDur + holdDur);
+    growl.frequency.exponentialRampToValueAtTime(idleHz * 2.6, t0 + total);
+
+    growlGain.gain.setValueAtTime(0.28, t0);
+    growlGain.gain.linearRampToValueAtTime(0.38, t0 + rampDur);
+    growl.connect(growlFilter);
+    growlFilter.connect(growlGain);
+    growlGain.connect(master);
+    growl.start(t0); growl.stop(t0 + total + 0.1);
+
+    // ── Layer 3: Exhaust "whine" — high-pitched sine (intake/exhaust resonance) ──
+    const whine = ctx.createOscillator();
+    const whineFilter = ctx.createBiquadFilter();
+    const whineGain   = ctx.createGain();
+    whine.type = "sine";
+    whineFilter.type = "highpass";
+    whineFilter.frequency.value = 800;
+
+    whine.frequency.setValueAtTime(idleHz * 3.2, t0);
+    whine.frequency.exponentialRampToValueAtTime(peakHz * 3.8, t0 + rampDur);
+    whine.frequency.setValueAtTime(peakHz * 3.8, t0 + rampDur + holdDur);
+    whine.frequency.exponentialRampToValueAtTime(idleHz * 4, t0 + total);
+
+    whineGain.gain.setValueAtTime(0, t0 + 0.4); // whine comes in as RPM rises
+    whineGain.gain.linearRampToValueAtTime(0.18, t0 + rampDur);
+    whineGain.gain.setValueAtTime(0.18, t0 + rampDur + holdDur);
+    whineGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+    whine.connect(whineFilter);
+    whineFilter.connect(whineGain);
+    whineGain.connect(master);
+    whine.start(t0); whine.stop(t0 + total + 0.1);
+
+    // ── Layer 4: Cylinder burst pulses (amplitude modulation for "brap" texture) ──
+    const pulse = ctx.createOscillator();
+    const pulseGain = ctx.createGain();
+    pulse.type = "square";
+    pulse.frequency.setValueAtTime(idleHz * 4, t0); // ~4 firing events per cycle
+    pulse.frequency.exponentialRampToValueAtTime(peakHz * 4, t0 + rampDur);
+
+    pulseGain.gain.setValueAtTime(0.06, t0);
+    pulseGain.gain.linearRampToValueAtTime(0.10, t0 + rampDur);
+    pulseGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
+    pulse.connect(pulseGain);
+    pulseGain.connect(master);
+    pulse.start(t0); pulse.stop(t0 + total + 0.1);
+
+    setTimeout(() => ctx.close(), (total + 1) * 1000);
   } catch { /* Safari / blocked — silent fallback */ }
 }
 
 function playFailedStart() {
   try {
     const ctx = new AudioContext();
-    // 4 attempts that sputter and die
     [
-      { delay: 0.10, dur: 0.20, peak: 68,  vol: 0.20 },
-      { delay: 0.48, dur: 0.18, peak: 64,  vol: 0.16 },
-      { delay: 0.84, dur: 0.26, peak: 74,  vol: 0.19 },
-      { delay: 1.28, dur: 0.42, peak: 88,  vol: 0.24 }, // almost catches
+      { delay: 0.10, dur: 0.22, peak: 62,  vol: 0.22 },
+      { delay: 0.50, dur: 0.18, peak: 58,  vol: 0.17 },
+      { delay: 0.88, dur: 0.28, peak: 70,  vol: 0.20 },
+      { delay: 1.34, dur: 0.48, peak: 84,  vol: 0.26 }, // almost catches
     ].forEach(({ delay, dur, peak, vol }) => {
       const t0 = ctx.currentTime + delay;
       const osc  = ctx.createOscillator();
@@ -106,18 +163,20 @@ function playFailedStart() {
       const gain = ctx.createGain();
       osc.type  = "sawtooth";
       filt.type = "lowpass";
-      filt.frequency.value = 380;
+      filt.frequency.setValueAtTime(350, t0);
+      filt.frequency.linearRampToValueAtTime(900, t0 + dur * 0.4);
+      filt.frequency.exponentialRampToValueAtTime(150, t0 + dur);
 
-      osc.frequency.setValueAtTime(50, t0);
+      osc.frequency.setValueAtTime(48, t0);
       osc.frequency.exponentialRampToValueAtTime(peak, t0 + dur * 0.4);
-      osc.frequency.exponentialRampToValueAtTime(36, t0 + dur); // engine dies
+      osc.frequency.exponentialRampToValueAtTime(32, t0 + dur);
 
       gain.gain.setValueAtTime(0, t0);
       gain.gain.linearRampToValueAtTime(vol, t0 + 0.03);
-      gain.gain.linearRampToValueAtTime(0,   t0 + dur);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
 
       osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0 + dur + 0.06);
+      osc.start(t0); osc.stop(t0 + dur + 0.08);
     });
     setTimeout(() => ctx.close(), 5000);
   } catch { /* silent fallback */ }
@@ -149,7 +208,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
 
       if (!soundFired.current) {
         soundFired.current = true;
-        if (isGood) playFerrariRev(score);
+        if (isGood) playSportsCar(score);
         else        playFailedStart();
       }
 
@@ -226,24 +285,35 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
           viewBox={`0 0 ${W} ${H}`}
           style={{ overflow: "visible" }}
         >
-          {/* Grey background track */}
+          {/* Dark background track */}
           <path
             d={fullArc}
             fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth={22}
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth={24}
           />
 
-          {/* Zone bands (dim) */}
+          {/* Zone bands — vivid red / yellow / green */}
           {ZONES.map((z) => (
-            <path
-              key={z.from}
-              d={arcPath(z.from, z.to)}
-              fill="none"
-              stroke={z.color}
-              strokeWidth={22}
-              opacity={0.18}
-            />
+            <g key={z.from}>
+              {/* Glow layer */}
+              <path
+                d={arcPath(z.from, z.to)}
+                fill="none"
+                stroke={z.color}
+                strokeWidth={28}
+                opacity={0.12}
+                style={{ filter: `blur(6px)` }}
+              />
+              {/* Solid colour band */}
+              <path
+                d={arcPath(z.from, z.to)}
+                fill="none"
+                stroke={z.color}
+                strokeWidth={20}
+                opacity={0.55}
+              />
+            </g>
           ))}
 
           {/* Active progress arc — animated via pathLength */}
@@ -251,9 +321,9 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
             d={fullArc}
             fill="none"
             stroke={scoreColor}
-            strokeWidth={22}
+            strokeWidth={20}
             strokeLinecap="round"
-            style={{ filter: `drop-shadow(0 0 10px ${scoreColor}aa)` }}
+            style={{ filter: `drop-shadow(0 0 14px ${scoreColor}cc)` }}
             initial={{ pathLength: 0 }}
             animate={phase !== "intro" ? { pathLength: score / 100 } : { pathLength: 0 }}
             transition={{ duration: isGood ? 2.3 : 2.6, ease: isGood ? [0.16, 1, 0.3, 1] : "easeInOut", delay: 0 }}
