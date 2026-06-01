@@ -154,15 +154,15 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     const INTRO_DELAY = 900;
     const ANIM_DUR    = 5.7; // exact audio length (5.696s)
 
-    // Keyframe absolute times → normalised against 5.7s duration
-    //   t=0.5s  → peak1  (audio Rev1   0.0–1.1s)
-    //   t=1.6s  → dip1   (audio Dip1   1.1–2.1s)
-    //   t=2.5s  → peak2  (audio Rev2   2.1–3.0s)
-    //   t=3.5s  → dip2   (audio Dip2   3.0–4.0s)
-    //   t=4.4s  → peak3  (audio Rev3   4.0–4.9s)
-    //   t=5.7s  → final  (audio Fade   4.9–5.7s)
+    // Keyframe absolute times matched to 25ms-resolution waveform analysis:
+    //   t=0.25s → peak1  audio attacks instantly at 0.025s (93%), peak at ~0.1s
+    //   t=1.90s → dip1   audio minimum 24% at t=2.0s
+    //   t=2.30s → peak2  audio Rev2 peak 98% at t=2.3s (sharp attack)
+    //   t=3.80s → dip2   audio dip2 minimum 29% at t=3.85s
+    //   t=4.25s → peak3  audio Rev3 strong 93% at t=4.175s
+    //   t=5.70s → final  audio fade complete
     const D = ANIM_DUR;
-    const animTimes = [0, 0.5/D, 1.6/D, 2.5/D, 3.5/D, 4.4/D, 1.0];
+    const animTimes = [0, 0.25/D, 1.90/D, 2.30/D, 3.80/D, 4.25/D, 1.0];
 
     const t1 = setTimeout(() => {
       setPhase("revving");
@@ -177,7 +177,8 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
         animate(needleRot, keyframes, {
           duration: ANIM_DUR,
           times: animTimes,
-          ease: ["easeOut", "easeIn", "easeOut", "easeIn", "easeOut", [0.16, 1, 0.3, 1]],
+          // up=easeOut (fast attack), down=easeOut (drops quickly, no lingering)
+          ease: ["easeOut", "easeOut", "easeOut", "easeOut", "easeOut", [0.16, 1, 0.3, 1]],
           onUpdate: (v) => setDisplayScore(Math.max(0, Math.min(100, Math.round((v / 180) * 100)))),
         });
       } else {
