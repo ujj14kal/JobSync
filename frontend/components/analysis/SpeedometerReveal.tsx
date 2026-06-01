@@ -1,20 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, animate } from "framer-motion";
+import { motion, useMotionValue, animate, useTransform } from "framer-motion";
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 const W = 480;
 const H = 260;
-const CX = 240;       // pivot x (center of needle base)
-const CY = 240;       // pivot y (near bottom so the arc has room above)
-const R  = 190;       // gauge arc radius
-const NEEDLE_LEN = 182; // extends close to arc face for clean alignment
-const NEEDLE_BASE = 14; // small base indicator radius
+const CX = 240;       // pivot x
+const CY = 240;       // pivot y (bottom of semicircle)
+const R  = 190;       // arc radius
+const NEEDLE_LEN  = 182;
+const NEEDLE_BASE = 14;
 
-// Score 0 → needle at rest (pointing left, 0° rotation)
-// Score 100 → needle rotated +180° (clockwise, pointing right through the top)
-// CSS positive rotation = clockwise; from LEFT, CW sweeps through UP then RIGHT
+// Score 0 → 0° (needle pointing LEFT, at 9 o'clock)
+// Score 100 → +180° CW (pointing RIGHT, at 3 o'clock, sweeping through 12)
 const targetRot = (score: number) => (score / 100) * 180;
 
 function polarPt(angleDeg: number, r: number = R) {
@@ -22,13 +21,12 @@ function polarPt(angleDeg: number, r: number = R) {
   return { x: CX + r * Math.cos(rad), y: CY - r * Math.sin(rad) };
 }
 
-// Arc from score `from` to score `to` (both going left→right through top)
 function arcPath(from: number, to: number, r: number = R) {
   const aFrom = 180 - (from / 100) * 180;
   const aTo   = 180 - (to   / 100) * 180;
-  const s = polarPt(aFrom, r);
-  const e = polarPt(aTo,   r);
-  const span = Math.abs(aFrom - aTo);
+  const s     = polarPt(aFrom, r);
+  const e     = polarPt(aTo,   r);
+  const span  = Math.abs(aFrom - aTo);
   return `M ${s.x} ${s.y} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${e.x} ${e.y}`;
 }
 
@@ -38,114 +36,15 @@ const ZONES = [
   { from: 65, to: 100, color: "#10b981", label: "Strong"     },
 ] as const;
 
-const ALL_TICKS  = [0,10,20,30,40,50,60,70,80,90,100];
+const ALL_TICKS   = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 const LABEL_TICKS = [0, 25, 50, 75, 100];
 
-// ── Engine Sounds ────────────────────────────────────────────────────────────
-
-
-function playSportsCar(score: number) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx: AudioContext = new Ctx();
-
-    // Safari suspends AudioContext created outside a direct user-gesture handler;
-    // resume() unlocks it before we schedule anything.
-    ctx.resume().then(() => {
-      const t0  = ctx.currentTime + 0.08;
-
-      const idleHz  = 65;
-      const peakHz  = 95 + (score / 100) * 195;
-      const rampDur = 1.9;
-      const holdDur = 0.55;
-      const fallDur = 0.45;
-      const total   = rampDur + holdDur + fallDur;
-
-      const master = ctx.createGain();
-      master.gain.setValueAtTime(0, t0);
-      master.gain.linearRampToValueAtTime(0.7, t0 + 0.06);
-      master.gain.setValueAtTime(0.7, t0 + rampDur + holdDur);
-      master.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-      master.connect(ctx.destination);
-
-      // Layer 1: deep bass rumble
-      const rumble       = ctx.createOscillator();
-      const rumbleFilt   = ctx.createBiquadFilter();
-      const rumbleGain   = ctx.createGain();
-      rumble.type        = "sawtooth";
-      rumbleFilt.type    = "lowpass";
-      rumbleFilt.frequency.setValueAtTime(600, t0);
-      rumbleFilt.frequency.linearRampToValueAtTime(2200, t0 + rampDur);
-      rumbleFilt.Q.value = 1.8;
-      rumble.frequency.setValueAtTime(idleHz, t0);
-      rumble.frequency.exponentialRampToValueAtTime(peakHz, t0 + rampDur);
-      rumble.frequency.setValueAtTime(peakHz, t0 + rampDur + holdDur);
-      rumble.frequency.exponentialRampToValueAtTime(idleHz * 1.3, t0 + total);
-      rumbleGain.gain.setValueAtTime(0.55, t0);
-      rumble.connect(rumbleFilt); rumbleFilt.connect(rumbleGain); rumbleGain.connect(master);
-      rumble.start(t0); rumble.stop(t0 + total + 0.1);
-
-      // Layer 2: mid growl (2nd harmonic + bandpass sweep)
-      const growl       = ctx.createOscillator();
-      const growlFilt   = ctx.createBiquadFilter();
-      const growlGain   = ctx.createGain();
-      growl.type        = "sawtooth";
-      growl.detune.value = 8;
-      growlFilt.type    = "bandpass";
-      growlFilt.frequency.setValueAtTime(1400, t0);
-      growlFilt.frequency.linearRampToValueAtTime(5800, t0 + rampDur);
-      growlFilt.Q.value = 0.7;
-      growl.frequency.setValueAtTime(idleHz * 2, t0);
-      growl.frequency.exponentialRampToValueAtTime(peakHz * 2, t0 + rampDur);
-      growl.frequency.setValueAtTime(peakHz * 2, t0 + rampDur + holdDur);
-      growl.frequency.exponentialRampToValueAtTime(idleHz * 2.6, t0 + total);
-      growlGain.gain.setValueAtTime(0.28, t0);
-      growlGain.gain.linearRampToValueAtTime(0.38, t0 + rampDur);
-      growl.connect(growlFilt); growlFilt.connect(growlGain); growlGain.connect(master);
-      growl.start(t0); growl.stop(t0 + total + 0.1);
-
-      // Layer 3: exhaust whine (delayed entry, high sine)
-      const whine       = ctx.createOscillator();
-      const whineFilt   = ctx.createBiquadFilter();
-      const whineGain   = ctx.createGain();
-      whine.type        = "sine";
-      whineFilt.type    = "highpass";
-      whineFilt.frequency.value = 800;
-      whine.frequency.setValueAtTime(idleHz * 3.2, t0);
-      whine.frequency.exponentialRampToValueAtTime(peakHz * 3.8, t0 + rampDur);
-      whine.frequency.setValueAtTime(peakHz * 3.8, t0 + rampDur + holdDur);
-      whine.frequency.exponentialRampToValueAtTime(idleHz * 4, t0 + total);
-      whineGain.gain.setValueAtTime(0, t0 + 0.4);
-      whineGain.gain.linearRampToValueAtTime(0.18, t0 + rampDur);
-      whineGain.gain.setValueAtTime(0.18, t0 + rampDur + holdDur);
-      whineGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-      whine.connect(whineFilt); whineFilt.connect(whineGain); whineGain.connect(master);
-      whine.start(t0); whine.stop(t0 + total + 0.1);
-
-      // Layer 4: cylinder burst texture (square AM)
-      const pulse     = ctx.createOscillator();
-      const pulseGain = ctx.createGain();
-      pulse.type      = "square";
-      pulse.frequency.setValueAtTime(idleHz * 4, t0);
-      pulse.frequency.exponentialRampToValueAtTime(peakHz * 4, t0 + rampDur);
-      pulseGain.gain.setValueAtTime(0.06, t0);
-      pulseGain.gain.linearRampToValueAtTime(0.10, t0 + rampDur);
-      pulseGain.gain.exponentialRampToValueAtTime(0.001, t0 + total);
-      pulse.connect(pulseGain); pulseGain.connect(master);
-      pulse.start(t0); pulse.stop(t0 + total + 0.1);
-
-      setTimeout(() => ctx.close(), (total + 1) * 1000);
-    });
-  } catch { /* silent fallback */ }
-}
-
+// ── Synthesised sputter for low scores ──────────────────────────────────────
 function playFailedStart() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    const Ctx  = window.AudioContext || (window as any).webkitAudioContext;
     const ctx: AudioContext = new Ctx();
-
     ctx.resume().then(() => {
       [
         { delay: 0.10, dur: 0.22, peak: 62, vol: 0.22 },
@@ -157,8 +56,8 @@ function playFailedStart() {
         const osc  = ctx.createOscillator();
         const filt = ctx.createBiquadFilter();
         const gain = ctx.createGain();
-        osc.type        = "sawtooth";
-        filt.type       = "lowpass";
+        osc.type       = "sawtooth";
+        filt.type      = "lowpass";
         filt.frequency.setValueAtTime(350, t0);
         filt.frequency.linearRampToValueAtTime(900, t0 + dur * 0.4);
         filt.frequency.exponentialRampToValueAtTime(150, t0 + dur);
@@ -173,7 +72,7 @@ function playFailedStart() {
       });
       setTimeout(() => ctx.close(), 5000);
     });
-  } catch { /* silent fallback */ }
+  } catch { /* silent */ }
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -186,24 +85,47 @@ interface SpeedometerRevealProps {
 type Phase = "intro" | "revving" | "collapsing" | "done";
 
 export function SpeedometerReveal({ score, analysisId, onComplete }: SpeedometerRevealProps) {
-  const [phase, setPhase] = useState<Phase>("intro");
-  const needleRot = useMotionValue(0);
+  const [phase, setPhase]           = useState<Phase>("intro");
+  const needleRot                   = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const soundFired = useRef(false);
+  const soundFired                  = useRef(false);
+  const audioRef                    = useRef<HTMLAudioElement | null>(null);
+
+  // ── SVG-native rotate so pivot is always exact ──
+  // rotate(angle, cx, cy) is unambiguous — no transform-origin quirks in SVG
+  const needleSvgTransform = useTransform(
+    needleRot,
+    (r) => `rotate(${r}, ${CX}, ${CY})`
+  );
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
   const scoreLabel = score >= 75 ? "Excellent" : score >= 65 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
 
+  // Preload audio as soon as the overlay mounts
   useEffect(() => {
-    // Phase 1 → 2: reveal the gauge face (0.9s), then rev
+    const audio = new Audio("/engine-rev.m4a");
+    audio.preload = "auto";
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     const t1 = setTimeout(() => {
       setPhase("revving");
 
       if (!soundFired.current) {
         soundFired.current = true;
-        if (isGood) playSportsCar(score);
-        else        playFailedStart();
+        if (isGood) {
+          // Play the real engine-rev audio
+          const a = audioRef.current;
+          if (a) { a.currentTime = 0; a.play().catch(() => {}); }
+        } else {
+          playFailedStart();
+        }
       }
 
       const rot = targetRot(score);
@@ -212,32 +134,23 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
         animate(needleRot, rot, {
           duration: 2.3,
           ease: [0.16, 1, 0.3, 1],
-          onUpdate: (v) => setDisplayScore(Math.round(Math.abs(v / 180) * 100)),
+          onUpdate: (v) => setDisplayScore(Math.round((v / 180) * 100)),
         });
       } else {
-        // Stutter animation
         animate(needleRot,
           [0, rot * 0.38, rot * 0.09, rot * 0.68, rot * 0.28, rot],
           {
             duration: 2.6,
             times: [0, 0.20, 0.35, 0.60, 0.73, 1],
             ease: "easeInOut",
-            onUpdate: (v) => setDisplayScore(Math.round(Math.abs(v / 180) * 100)),
+            onUpdate: (v) => setDisplayScore(Math.round((v / 180) * 100)),
           }
         );
       }
     }, 900);
 
-    // Phase 2 → 3: collapse after showing the score
-    const t2 = setTimeout(() => {
-      setPhase("collapsing");
-    }, 4200);
-
-    // Phase 3 → done: unmount
-    const t3 = setTimeout(() => {
-      setPhase("done");
-      onComplete();
-    }, 5000);
+    const t2 = setTimeout(() => setPhase("collapsing"), 4200);
+    const t3 = setTimeout(() => { setPhase("done"); onComplete(); }, 5000);
 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,7 +158,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
 
   if (phase === "done") return null;
 
-  const fullArc  = arcPath(0, 100);
+  const fullArc = arcPath(0, 100);
 
   return (
     <motion.div
@@ -254,11 +167,11 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
       animate={
         phase === "collapsing"
           ? { opacity: 0, scale: 0.25, y: -200 }
-          : { opacity: 1, scale: 1, y: 0 }
+          : { opacity: 1, scale: 1,   y: 0   }
       }
       transition={{ duration: 0.75, ease: [0.25, 0.1, 0.25, 1] }}
     >
-      {/* ── Ambient glow behind gauge ── */}
+      {/* Ambient glow */}
       <div
         className="absolute rounded-full blur-[80px] opacity-30"
         style={{
@@ -267,50 +180,32 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
         }}
       />
 
-      {/* ── Speedometer SVG ── */}
       <motion.div
         initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
+        animate={{ opacity: 1,  scale: 1    }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
-        <svg
-          width={W}
-          height={H}
-          viewBox={`0 0 ${W} ${H}`}
-          style={{ overflow: "visible" }}
-        >
-          {/* Dark background track */}
-          <path
-            d={fullArc}
-            fill="none"
-            stroke="rgba(255,255,255,0.05)"
-            strokeWidth={24}
-          />
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
 
-          {/* Zone bands — vivid red / yellow / green */}
+          {/* Dark track */}
+          <path d={fullArc} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={24} />
+
+          {/* Red / Yellow / Green zone bands */}
           {ZONES.map((z) => (
             <g key={z.from}>
-              {/* Glow layer */}
               <path
                 d={arcPath(z.from, z.to)}
-                fill="none"
-                stroke={z.color}
-                strokeWidth={28}
-                opacity={0.12}
-                style={{ filter: `blur(6px)` }}
+                fill="none" stroke={z.color} strokeWidth={28} opacity={0.12}
+                style={{ filter: "blur(6px)" }}
               />
-              {/* Solid colour band */}
               <path
                 d={arcPath(z.from, z.to)}
-                fill="none"
-                stroke={z.color}
-                strokeWidth={20}
-                opacity={0.55}
+                fill="none" stroke={z.color} strokeWidth={20} opacity={0.55}
               />
             </g>
           ))}
 
-          {/* Active progress arc — animated via pathLength */}
+          {/* Animated progress arc */}
           <motion.path
             d={fullArc}
             fill="none"
@@ -320,7 +215,10 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
             style={{ filter: `drop-shadow(0 0 14px ${scoreColor}cc)` }}
             initial={{ pathLength: 0 }}
             animate={phase !== "intro" ? { pathLength: score / 100 } : { pathLength: 0 }}
-            transition={{ duration: isGood ? 2.3 : 2.6, ease: isGood ? [0.16, 1, 0.3, 1] : "easeInOut", delay: 0 }}
+            transition={{
+              duration: isGood ? 2.3 : 2.6,
+              ease: isGood ? [0.16, 1, 0.3, 1] : "easeInOut",
+            }}
           />
 
           {/* Tick marks */}
@@ -332,15 +230,14 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
             return (
               <line
                 key={tick}
-                x1={inner.x} y1={inner.y}
-                x2={outer.x} y2={outer.y}
+                x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
                 stroke={major ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)"}
                 strokeWidth={major ? 2 : 1}
               />
             );
           })}
 
-          {/* Score labels */}
+          {/* Numeric labels */}
           {LABEL_TICKS.map((tick) => {
             const angle = 180 - (tick / 100) * 180;
             const pos   = polarPt(angle, R + 28);
@@ -348,10 +245,8 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
               <text
                 key={tick}
                 x={pos.x} y={pos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="rgba(148,163,184,0.7)"
-                fontSize={12}
+                textAnchor="middle" dominantBaseline="middle"
+                fill="rgba(148,163,184,0.7)" fontSize={12}
                 fontFamily="ui-monospace, monospace"
               >
                 {tick}
@@ -368,56 +263,47 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
               <text
                 key={z.from}
                 x={pos.x} y={pos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={z.color}
-                fontSize={9}
+                textAnchor="middle" dominantBaseline="middle"
+                fill={z.color} fontSize={9}
                 fontFamily="system-ui, sans-serif"
-                opacity={0.55}
-                fontWeight={600}
+                opacity={0.55} fontWeight={600}
               >
                 {z.label}
               </text>
             );
           })}
 
-          {/* ── Needle (rotates from pivot at CX, CY) ── */}
-          <motion.g
-            style={{
-              transformOrigin: `${CX}px ${CY}px`,
-              rotate: needleRot,
-            }}
-          >
-            {/* Needle stem */}
+          {/* ── Needle — uses SVG rotate(angle, cx, cy) for exact pivot ── */}
+          <motion.g transform={needleSvgTransform}>
+            {/* Main stem: starts pointing LEFT from pivot */}
             <line
               x1={CX} y1={CY}
               x2={CX - NEEDLE_LEN} y2={CY}
-              stroke={scoreColor}
-              strokeWidth={3.5}
+              stroke="white"
+              strokeWidth={3}
               strokeLinecap="round"
-              style={{ filter: `drop-shadow(0 0 6px ${scoreColor})` }}
+              style={{ filter: `drop-shadow(0 0 5px white)` }}
             />
-            {/* Counter-weight (small tail) */}
+            {/* Counter-weight tail */}
             <line
               x1={CX} y1={CY}
-              x2={CX + 22} y2={CY}
-              stroke={scoreColor}
+              x2={CX + 24} y2={CY}
+              stroke="white"
               strokeWidth={5}
               strokeLinecap="round"
-              opacity={0.6}
+              opacity={0.5}
             />
           </motion.g>
 
-          {/* Center hub */}
-          <circle
-            cx={CX} cy={CY} r={NEEDLE_BASE}
+          {/* Hub */}
+          <circle cx={CX} cy={CY} r={NEEDLE_BASE}
             fill={scoreColor}
             style={{ filter: `drop-shadow(0 0 10px ${scoreColor})` }}
           />
           <circle cx={CX} cy={CY} r={6} fill="#08080f" />
         </svg>
 
-        {/* ── Score number (below gauge) ── */}
+        {/* Score readout */}
         <motion.div
           className="flex flex-col items-center mt-[-24px] gap-2"
           initial={{ opacity: 0 }}
@@ -430,10 +316,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
           >
             {displayScore}
           </div>
-          <div
-            className="text-xl font-bold tracking-wide"
-            style={{ color: scoreColor }}
-          >
+          <div className="text-xl font-bold tracking-wide" style={{ color: scoreColor }}>
             {scoreLabel}
           </div>
           <div className="text-sm text-gray-500 tracking-widest uppercase font-medium">
@@ -442,7 +325,6 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
         </motion.div>
       </motion.div>
 
-      {/* Skip hint */}
       <motion.button
         className="absolute bottom-8 right-8 text-xs text-gray-600 hover:text-gray-400 transition-colors"
         initial={{ opacity: 0 }}
