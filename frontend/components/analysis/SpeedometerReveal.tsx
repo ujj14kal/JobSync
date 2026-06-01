@@ -97,9 +97,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
   const [phase, setPhase]               = useState<Phase>("intro");
   const needleRot                       = useMotionValue(0);
   const [displayScore, setDisplayScore] = useState(0);
-  const soundFired  = useRef(false);
-  const audioRef    = useRef<HTMLAudioElement | null>(null);
-  const needleRef   = useRef<SVGGElement>(null);
+  const needleRef = useRef<SVGGElement>(null);
 
   const isGood     = score >= 65;
   const scoreColor = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
@@ -113,16 +111,37 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     return needleRot.on("change", sync);
   }, [needleRot]);
 
-  // ── Pre-create & load audio element on mount ─────────────────────────────
-  // We create the element here (synchronous with the user navigation click)
-  // so the browser considers it user-initiated when we call .play() later.
+  // ── Audio: fetch + schedule start() within user-gesture window ───────────
+  // Key insight: AudioContext.resume() + source.start(futureTime) must be
+  // called while the user-gesture is still "live" (i.e. synchronous with the
+  // navigation click that opened this page, captured in this useEffect).
+  // Calling .play() from setTimeout loses the gesture context — this doesn't.
   useEffect(() => {
-    const audio = new Audio("/engine-rev.wav");
-    audio.preload = "auto";
-    audio.volume  = 1.0;
-    audio.load();
-    audioRef.current = audio;
-    return () => { audio.pause(); audio.src = ""; };
+    if (!isGood) return; // low scores use synthesised sputter
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx: AudioContext = new AudioCtx();
+    ctx.resume(); // unlock Safari / Chrome in the gesture window
+
+    const INTRO_S  = 0.9;            // matches INTRO_DELAY ms below
+    const playAt   = ctx.currentTime + INTRO_S;
+
+    fetch("/engine-rev.wav")
+      .then((r) => r.arrayBuffer())
+      .then((ab) => ctx.decodeAudioData(ab))
+      .then((buf) => {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        // Schedule at playAt; if decode took longer just start immediately
+        src.start(Math.max(ctx.currentTime + 0.05, playAt));
+      })
+      .catch(() => {});
+
+    return () => { ctx.close().catch(() => {}); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Main animation sequence ───────────────────────────────────────────────
@@ -137,23 +156,9 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
     const t1 = setTimeout(() => {
       setPhase("revving");
 
-      if (!soundFired.current) {
-        soundFired.current = true;
-        if (isGood) {
-          const a = audioRef.current;
-          if (a) {
-            a.currentTime = 0;
-            a.play().catch(() => {
-              // Autoplay blocked — create a fresh Audio and try once more
-              const retry = new Audio("/engine-rev.wav");
-              retry.volume = 1.0;
-              retry.play().catch(() => {});
-            });
-          }
-        } else {
-          playFailedStart();
-        }
-      }
+      // Good-score audio is pre-scheduled via Web Audio (see useEffect above).
+      // Only trigger synthesised sputter here for low scores.
+      if (!isGood) playFailedStart();
 
       if (isGood) {
         // 3-rev keyframes — dramatic peaks above / around final score
