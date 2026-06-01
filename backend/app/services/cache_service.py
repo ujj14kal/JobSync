@@ -85,7 +85,7 @@ async def get_cached_analysis(resume_id: str, job_id: str) -> Optional[str]:
 
 # ─── Per-user daily quota ─────────────────────────────────────────────────────
 
-MAX_ANALYSES_PER_DAY = 10  # generous but safe for free-tier
+MAX_ANALYSES_PER_DAY = 15  # generous but safe for free-tier
 
 
 async def get_user_analyses_today(user_id: str) -> int:
