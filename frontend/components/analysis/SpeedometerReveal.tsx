@@ -117,10 +117,10 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
   const handleReveal = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioCtx && isGood) {
+    if (AudioCtx) {
       const ctx: AudioContext = new AudioCtx();
       audioCtxRef.current = ctx;
-      // resume() called directly inside click handler = always unlocked
+      // resume() inside click handler = always unlocked regardless of score
       ctx.resume().then(() => {
         fetch("/engine-rev.wav")
           .then((r) => r.arrayBuffer())
@@ -129,8 +129,7 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.connect(ctx.destination);
-            // Play after the intro animation (900ms)
-            src.start(ctx.currentTime + 0.9);
+            src.start(0); // play immediately when decoded — no fragile timing
           })
           .catch(() => {});
       });
@@ -152,7 +151,6 @@ export function SpeedometerReveal({ score, analysisId, onComplete }: Speedometer
 
     const t1 = setTimeout(() => {
       setPhase("revving");
-      if (!isGood) playFailedStart();
 
       if (isGood) {
         const peak1 = Math.max(55, Math.min(score * 0.72, 84));
