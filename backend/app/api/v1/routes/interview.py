@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import random
 from typing import Optional
 
 import httpx
@@ -133,9 +134,23 @@ class FollowUpRequest(BaseModel):
 
 INTERVIEW_SYSTEM = (
     "You are an expert senior interviewer at a top-tier tech company. "
-    "Generate realistic, probing questions that test both hard skills and character. "
+    "Generate realistic, incisive questions that a seasoned interviewer would actually ask — "
+    "not the generic questions that every candidate has memorised answers for. "
+    "Dig into specifics: real projects, real decisions, real failures. "
     "Return ONLY valid JSON — no markdown, no extra text."
 )
+
+# Each session picks a different focus dimension to guarantee structural variety.
+_SESSION_DIMENSIONS = [
+    "This session: focus on failures, setbacks, and what the candidate learned. Probe the recovery, not just the fall.",
+    "This session: focus on peak technical decisions — architecture choices, tradeoffs made, things the candidate would change now.",
+    "This session: focus on influence and leadership without authority — times they changed minds, built consensus, or pushed back.",
+    "This session: focus on the candidate's unique perspective — what they believe that most engineers don't, contrarian choices they've made.",
+    "This session: focus on speed vs quality tradeoffs — when they cut corners, when they over-engineered, and whether they were right.",
+    "This session: focus on the candidate's biggest gaps — probe the skills they don't have yet and how they navigate working at the edge of their knowledge.",
+    "This session: focus on execution under ambiguity — moments of incomplete requirements, shifting priorities, or organisational chaos.",
+    "This session: focus on collaboration friction — disagreements with teammates, PMs, or managers, and how those played out.",
+]
 
 
 def _build_resume_summary(parsed_data: dict) -> str:
@@ -183,9 +198,14 @@ async def start_interview(
         "mixed":       "a mix of behavioral, technical, and situational questions",
     }.get(body.interview_type, "mixed questions")
 
+    session_dim = random.choice(_SESSION_DIMENSIONS)
+
     prompt = (
         f"Generate {body.num_questions} {type_hint} for a "
         f"{body.experience_level}-level {body.role} candidate.\n\n"
+        f"{session_dim}\n\n"
+        "Avoid the most commonly asked, predictable questions for this role. "
+        "Make each question specific enough that a prepared generic answer won't work.\n\n"
         "Return a JSON array of objects:\n"
         '[{"question": "...", "type": "behavioral|technical|situational", '
         '"follow_up_hint": "what to probe if answer is vague", '
@@ -248,10 +268,15 @@ async def start_hirevue_interview(
     company_context = ""
     if co_profile:
         company_context = (
-            f"\nCompany: {body.company}\n"
-            f"Interview style: {co_profile.get('style', '')}\n"
-            f"Key focus areas: {', '.join(co_profile.get('focus', []))}\n"
-            f"Example themes: {co_profile.get('lp_hint', '')}"
+            f"\nCompany context ({body.company}): {co_profile.get('style', '')} "
+            f"— known for probing: {', '.join(co_profile.get('focus', [])[:3])}. "
+            f"Use this as background context, not as a rigid template. "
+            f"Draw on your broader knowledge of {body.company}'s actual interview culture."
+        )
+    elif body.company and body.company != "General":
+        company_context = (
+            f"\nCompany: {body.company}. "
+            f"Use your knowledge of {body.company}'s engineering culture, values, and interview style."
         )
 
     type_hint = {
@@ -260,16 +285,20 @@ async def start_hirevue_interview(
         "mixed":       "a mix of behavioral, technical, and situational questions",
     }.get(body.interview_type, "mixed questions")
 
+    session_dim = random.choice(_SESSION_DIMENSIONS)
+
     prompt = (
         f"Generate {body.num_questions} {type_hint} for a "
         f"{body.experience_level}-level {body.role} candidate.\n\n"
         f"CANDIDATE PROFILE:\n{resume_summary}\n"
         f"{company_context}\n\n"
+        f"{session_dim}\n\n"
         "INSTRUCTIONS:\n"
-        "- Reference the candidate's actual projects, skills, and experience in the questions.\n"
-        "- Tailor question depth to company culture and level.\n"
-        "- For technical questions, mention specific technologies from the candidate's profile.\n"
-        "- Include at least one question probing a project or achievement from the resume.\n\n"
+        "- Reference the candidate's actual projects, skills, and experience by name.\n"
+        "- Avoid generic, predictable questions the candidate has rehearsed answers for.\n"
+        "- Each question should be specific enough that a canned answer won't work.\n"
+        "- For technical questions, reference specific technologies from their profile.\n"
+        "- Include at least one question that challenges a specific claim on their resume.\n\n"
         "Return a JSON array:\n"
         '[{"question": "...", "type": "behavioral|technical|situational", '
         '"follow_up_hint": "what to probe deeper", '

@@ -21,6 +21,7 @@ Model routing (for Groq/Ollama):
 from __future__ import annotations
 
 import json
+import random
 import structlog
 
 from app.services.template_feedback import generate_template_feedback, should_use_llm
@@ -32,6 +33,23 @@ from app.services.concurrency_manager import (
 )
 
 logger = structlog.get_logger()
+
+# Each call picks a different lens so the same resume+job always yields a fresh angle.
+_FEEDBACK_LENSES = [
+    "You are reviewing from a recruiter's 6-second scan perspective — what stands out immediately, what gets this resume binned?",
+    "You are reviewing from a technical hiring manager's perspective — does this candidate have the depth this role actually demands?",
+    "You are reviewing from a career coach's perspective — focus on narrative and progression, not just keywords.",
+    "You are reviewing from a competitive positioning angle — how does this candidate stack up against the 200 other applicants for this role?",
+    "You are reviewing from a 'quick wins' angle — identify the 3 highest-leverage changes the candidate can make in the next hour.",
+    "You are reviewing from an interview prep angle — what will interviewers probe on, and what gaps make the candidate vulnerable?",
+]
+
+_BULLET_LENSES = [
+    "Rewrite to emphasise measurable business impact — every bullet should answer 'so what?'",
+    "Rewrite to emphasise technical depth and engineering craft — show the how, not just the what.",
+    "Rewrite to emphasise leadership and scale — how many people, systems, or users were affected?",
+    "Rewrite to emphasise problem-solving — what was broken, what did you do, what changed?",
+]
 
 
 # ─── Recruiter Feedback ───────────────────────────────────────────────────────
@@ -81,8 +99,9 @@ async def generate_recruiter_feedback(
         f"Semantic {scores.get('semantic_match_score', 0)}"
     )
     missing_str = ", ".join(kw["keyword"] for kw in missing_keywords[:8])
+    lens = random.choice(_FEEDBACK_LENSES)
 
-    prompt = f"""Senior tech recruiter review. Be specific, honest, actionable.
+    prompt = f"""{lens}
 
 RESUME:
 {resume_ctx}
@@ -92,26 +111,27 @@ JOB: {job_ctx}
 SCORES: {score_line}
 MISSING KEYWORDS: {missing_str}
 
+Be specific and honest. Reference actual content from the resume, not generic advice.
+
 Return JSON:
 {{
-  "recruiter_summary": "2-3 sentence honest take on this application",
+  "recruiter_summary": "2-3 sentence honest take on this application through your specific lens",
   "strengths": [{{"title":"","description":"","impact":"high|medium|low"}}],
   "weaknesses": [{{"title":"","description":"","severity":"critical|major|minor","section":""}}],
   "skill_gaps": [{{"skill":"","importance":"critical|important|nice_to_have","how_to_acquire":"","time_to_learn":"","resources":[]}}],
   "improvement_suggestions": [{{"category":"","title":"","description":"","priority":"high|medium|low","action":""}}]
 }}
-3-5 items each. No fluff."""
+3-5 items each. No generic advice — every point must be grounded in this specific resume and job."""
 
     try:
         async with LLMSlot():
             raw = await llm_call(
                 prompt=prompt,
-                temperature=0.25,
+                temperature=0.6,
                 max_tokens=1800,
                 json_mode=True,
                 tier="quality",
-                use_cache=True,
-                cache_ttl=7200,
+                use_cache=False,
             )
         result = json.loads(raw)
         result.setdefault("_source", "llm")
@@ -168,6 +188,7 @@ async def generate_bullet_rewrites(
 
     job_title = parsed_job.get("title", "Software Engineer")
     req_skills = ", ".join(parsed_job.get("required_skills", [])[:6])
+    bullet_lens = random.choice(_BULLET_LENSES)
 
     bullets_str = "\n".join(
         f"{i+1}. [{bc['section']}] {bc['bullet']}"
@@ -176,7 +197,9 @@ async def generate_bullet_rewrites(
 
     prompt = f"""Rewrite these resume bullets for a "{job_title}" role. Skills needed: {req_skills}.
 
-Rules: strong verb, 1 metric, concise, relevant tech.
+Angle: {bullet_lens}
+
+Rules: strong action verb, specific outcome, concise, relevant to the role.
 
 {bullets_str}
 
@@ -187,12 +210,11 @@ Return JSON:
         async with LLMSlot(timeout=45.0):
             raw = await llm_call(
                 prompt=prompt,
-                temperature=0.35,
+                temperature=0.6,
                 max_tokens=1200,
                 json_mode=True,
                 tier="fast",
-                use_cache=True,
-                cache_ttl=7200,
+                use_cache=False,
             )
         result = json.loads(raw)
         return result.get("rewrites", [])
