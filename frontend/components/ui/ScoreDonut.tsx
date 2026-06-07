@@ -138,8 +138,8 @@ export default function ScoreDonut({
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: `radial-gradient(circle, ${scoreColor}18 0%, transparent 70%)`,
-            filter: "blur(20px)",
+            background: `radial-gradient(circle, ${scoreColor}28 0%, ${scoreColor}08 50%, transparent 70%)`,
+            filter: "blur(16px)",
           }}
         />
 
@@ -202,8 +202,8 @@ export default function ScoreDonut({
           {/* Inner ring */}
           <circle
             cx={cx} cy={cy} r={innerR}
-            fill="rgba(5,5,10,0.8)"
-            stroke="rgba(255,255,255,0.04)"
+            fill="rgba(12,12,20,0.55)"
+            stroke="rgba(255,255,255,0.07)"
             strokeWidth={1}
           />
 
@@ -231,20 +231,24 @@ export default function ScoreDonut({
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div
               className="text-5xl font-bold tabular-nums leading-none"
-              style={{ color: scoreColor }}
+              style={{
+                color: scoreColor,
+                textShadow: `0 0 20px ${scoreColor}80, 0 0 40px ${scoreColor}40`,
+              }}
             >
               {animated ? <AnimatedNumber value={overallScore} /> : 0}
             </div>
-            <div className="text-xs font-medium mt-1" style={{ color: "rgba(148,163,184,0.8)" }}>
+            <div className="text-xs font-semibold mt-1.5" style={{ color: "rgba(200,210,225,0.85)" }}>
               Overall Score
             </div>
             {/* Score label */}
             <div
-              className="mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              className="mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold"
               style={{
-                background: `${scoreColor}18`,
+                background: `${scoreColor}22`,
                 color: scoreColor,
-                border: `1px solid ${scoreColor}30`,
+                border: `1px solid ${scoreColor}50`,
+                textShadow: `0 0 8px ${scoreColor}60`,
               }}
             >
               {overallScore >= 75 ? "Excellent" : overallScore >= 55 ? "Good" : overallScore >= 35 ? "Fair" : "Needs Work"}
