@@ -989,14 +989,12 @@ export default function InterviewPage() {
                       >
                         Free ∞
                       </button>
-                      {ttsAvail && (
-                        <button
-                          onClick={() => setUseElevenLabs(true)}
-                          className={`px-3 py-1.5 transition-colors font-medium ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                        >
-                          ✨ ElevenLabs
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setUseElevenLabs(true)}
+                        className={`px-3 py-1.5 transition-colors font-medium ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                      >
+                        ✨ ElevenLabs
+                      </button>
                     </div>
                   </div>
 
@@ -1035,6 +1033,11 @@ export default function InterviewPage() {
                     </div>
                   )}
 
+                  {useElevenLabs && !ttsAvail && (
+                    <div className="p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] text-[var(--text-muted)]">
+                      ElevenLabs API key not configured. Add <code className="text-[var(--accent-primary)]">ELEVENLABS_API_KEY</code> to your backend environment to enable HD voices.
+                    </div>
+                  )}
                   {useElevenLabs && ttsAvail && (
                     <div>
                       <p className="text-[10px] text-[var(--text-muted)] mb-2">

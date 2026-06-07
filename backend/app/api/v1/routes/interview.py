@@ -11,7 +11,6 @@ from __future__ import annotations
 import io
 import json
 import logging
-import random
 from typing import Optional
 
 import httpx
@@ -27,71 +26,6 @@ from app.services.groq_limiter import groq_call
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/interview", tags=["interview"])
-
-# ── Company profiles ──────────────────────────────────────────────────────────
-
-COMPANY_PROFILES: dict[str, dict] = {
-    "Google": {
-        "style": "structured behavioral + algorithmic. Values: 'Googleyness', intellectual curiosity, collaboration.",
-        "focus": ["system design at scale", "data structures & algorithms", "leadership & influence", "ambiguity handling"],
-        "lp_hint": "Expect: 'Tell me about a time you disagreed with your manager', 'How did you handle a project with unclear requirements?'",
-    },
-    "Meta": {
-        "style": "data-driven decisions, ownership, move fast. Values: impact, growth mindset, cross-functional partnership.",
-        "focus": ["product sense", "execution under ambiguity", "cross-team influence", "metrics & analytics"],
-        "lp_hint": "Expect: 'Give an example of a decision where you had incomplete data', 'Describe something you built from 0→1'.",
-    },
-    "Amazon": {
-        "style": "Leadership Principles (LPs) based — every behavioral question maps to an LP.",
-        "focus": ["Customer Obsession", "Bias for Action", "Ownership", "Deliver Results", "Dive Deep", "Invent & Simplify"],
-        "lp_hint": "Expect: 'Tell me about a time you went above and beyond for a customer', 'Describe the most innovative thing you built'.",
-    },
-    "BlackRock": {
-        "style": "analytical, finance+tech hybrid. Values: fiduciary duty, risk management, quantitative rigor.",
-        "focus": ["risk thinking", "portfolio analytics", "technology in finance", "stakeholder communication"],
-        "lp_hint": "Expect: 'How do you approach risk in a system you own?', 'Explain a complex technical concept to a non-technical stakeholder'.",
-    },
-    "Microsoft": {
-        "style": "growth mindset culture. Values: learn-it-all, customer obsession, one Microsoft.",
-        "focus": ["collaboration & inclusion", "technical depth", "growth stories", "product impact"],
-        "lp_hint": "Expect: 'What's something you learned recently that changed how you work?', 'Describe a time you had to bring others along on a change'.",
-    },
-    "Apple": {
-        "style": "craft and quality obsession. Values: privacy, simplicity, excellence.",
-        "focus": ["attention to detail", "end-user empathy", "cross-functional execution", "saying no to good ideas"],
-        "lp_hint": "Expect: 'How do you ensure quality in your work?', 'Tell me about a feature you cut because it wasn't ready'.",
-    },
-    "Netflix": {
-        "style": "freedom & responsibility culture. No rules, only context. Values: candor, judgment, impact.",
-        "focus": ["independent decision-making", "high performance culture", "context over control", "radical honesty"],
-        "lp_hint": "Expect: 'Tell me about a time you made a significant call without waiting for permission', 'Describe a direct piece of feedback you gave'.",
-    },
-    "Goldman Sachs": {
-        "style": "rigorous, client-centric, intellectual. Values: excellence, integrity, partnership.",
-        "focus": ["technical rigor", "business acumen", "client service mindset", "pressure handling"],
-        "lp_hint": "Expect: 'How do you balance speed with accuracy?', 'Describe a high-stakes situation where you had to deliver under pressure'.",
-    },
-    "Stripe": {
-        "style": "builder culture. Values: user empathy, craft, global scale thinking.",
-        "focus": ["developer experience", "infrastructure thinking", "product intuition", "autonomy"],
-        "lp_hint": "Expect: 'What API or product have you built that you're most proud of?', 'How do you think about developer-first design?'",
-    },
-    "Uber": {
-        "style": "operator mindset. Values: customer obsession, ownership, hustle.",
-        "focus": ["marketplace thinking", "real-time systems", "cross-geo execution", "metrics-driven decisions"],
-        "lp_hint": "Expect: 'Tell me about optimizing something for scale', 'How did you handle a system failure affecting users?'",
-    },
-    "Airbnb": {
-        "style": "mission-driven, belong anywhere. Values: champion the mission, be a host, embrace adventure.",
-        "focus": ["community & trust", "product storytelling", "inclusive design", "cross-cultural thinking"],
-        "lp_hint": "Expect: 'How do you design for diverse global users?', 'Tell me about a time you advocated for the user over internal convenience'.",
-    },
-    "OpenAI": {
-        "style": "safety-aware, research-minded. Values: AGI for humanity, safety, capability.",
-        "focus": ["AI/ML depth", "safety considerations", "rapid experimentation", "first-principles thinking"],
-        "lp_hint": "Expect: 'How do you balance capability and safety in a system?', 'Tell me about your most ambitious technical project'.",
-    },
-}
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
@@ -133,24 +67,11 @@ class FollowUpRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 INTERVIEW_SYSTEM = (
-    "You are an expert senior interviewer at a top-tier tech company. "
-    "Generate realistic, incisive questions that a seasoned interviewer would actually ask — "
-    "not the generic questions that every candidate has memorised answers for. "
-    "Dig into specifics: real projects, real decisions, real failures. "
+    "You are a senior interviewer. Generate realistic, specific questions based only on what the candidate has actually done. "
+    "Reference their real projects, technologies, and experience by name. "
+    "Never generate generic questions that any candidate could answer without knowing their own background. "
     "Return ONLY valid JSON — no markdown, no extra text."
 )
-
-# Each session picks a different focus dimension to guarantee structural variety.
-_SESSION_DIMENSIONS = [
-    "This session: focus on failures, setbacks, and what the candidate learned. Probe the recovery, not just the fall.",
-    "This session: focus on peak technical decisions — architecture choices, tradeoffs made, things the candidate would change now.",
-    "This session: focus on influence and leadership without authority — times they changed minds, built consensus, or pushed back.",
-    "This session: focus on the candidate's unique perspective — what they believe that most engineers don't, contrarian choices they've made.",
-    "This session: focus on speed vs quality tradeoffs — when they cut corners, when they over-engineered, and whether they were right.",
-    "This session: focus on the candidate's biggest gaps — probe the skills they don't have yet and how they navigate working at the edge of their knowledge.",
-    "This session: focus on execution under ambiguity — moments of incomplete requirements, shifting priorities, or organisational chaos.",
-    "This session: focus on collaboration friction — disagreements with teammates, PMs, or managers, and how those played out.",
-]
 
 
 def _build_resume_summary(parsed_data: dict) -> str:
@@ -189,27 +110,44 @@ async def start_interview(
     body: InterviewStartRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Generate generic interview questions (no resume context)."""
+    """Generate questions using the user's active resume as context."""
     body.num_questions = max(3, min(10, body.num_questions))
 
-    type_hint = {
-        "behavioral":  "behavioral (STAR-format) questions",
-        "technical":   "technical / problem-solving questions",
-        "mixed":       "a mix of behavioral, technical, and situational questions",
-    }.get(body.interview_type, "mixed questions")
+    # Always fetch the user's actual resume
+    resume_text = ""
+    try:
+        result = (
+            get_supabase().table("resumes")
+            .select("raw_text, parsed_data")
+            .eq("user_id", user_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            resume_text = result.data[0].get("raw_text") or ""
+    except Exception as e:
+        logger.warning("Could not fetch resume for interview", error=str(e))
 
-    session_dim = random.choice(_SESSION_DIMENSIONS)
+    type_hint = {
+        "behavioral":  "behavioral (STAR-format)",
+        "technical":   "technical and system design",
+        "mixed":       "a mix of behavioral, technical, and situational",
+    }.get(body.interview_type, "mixed")
+
+    resume_section = f"\n=== CANDIDATE'S RESUME ===\n{resume_text[:3000]}\n" if resume_text else ""
 
     prompt = (
-        f"Generate {body.num_questions} {type_hint} for a "
-        f"{body.experience_level}-level {body.role} candidate.\n\n"
-        f"{session_dim}\n\n"
-        "Avoid the most commonly asked, predictable questions for this role. "
-        "Make each question specific enough that a prepared generic answer won't work.\n\n"
-        "Return a JSON array of objects:\n"
+        f"Generate {body.num_questions} {type_hint} interview questions for a "
+        f"{body.experience_level}-level {body.role} position.\n"
+        f"{resume_section}\n"
+        "Base every question on this candidate's actual background — reference their real projects, "
+        "companies, technologies, and experiences by name. "
+        "Questions should be impossible to answer without knowing this specific candidate's history.\n\n"
+        "Return a JSON array:\n"
         '[{"question": "...", "type": "behavioral|technical|situational", '
-        '"follow_up_hint": "what to probe if answer is vague", '
-        '"ideal_points": ["point1", "point2"]}]'
+        '"follow_up_hint": "specific follow-up based on their background", '
+        '"ideal_points": ["what a strong answer covers"]}]'
     )
 
     try:
@@ -240,69 +178,53 @@ async def start_hirevue_interview(
     body: HireVueStartRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """
-    Generate personalized questions using the candidate's active resume + company profile.
-    This is the HireVue-style endpoint: resume-aware, company-tailored questions.
-    """
+    """Generate deeply personalised questions from the candidate's actual resume + target company."""
     body.num_questions = max(3, min(10, body.num_questions))
 
-    # ── Fetch active resume ────────────────────────────────────────────────
-    resume_summary = "Resume not available — ask general questions."
+    # Fetch full resume text
+    resume_text = ""
     try:
-        sb = get_supabase()
         result = (
-            sb.table("resumes")
-            .select("parsed_data")
+            get_supabase().table("resumes")
+            .select("raw_text")
             .eq("user_id", user_id)
             .eq("is_active", True)
             .limit(1)
             .execute()
         )
         if result.data:
-            resume_summary = _build_resume_summary(result.data[0].get("parsed_data") or {})
+            resume_text = result.data[0].get("raw_text") or ""
     except Exception as e:
         logger.warning("Could not fetch resume for HireVue interview", error=str(e))
 
-    # ── Company context ────────────────────────────────────────────────────
-    co_profile = COMPANY_PROFILES.get(body.company, {})
-    company_context = ""
-    if co_profile:
-        company_context = (
-            f"\nCompany context ({body.company}): {co_profile.get('style', '')} "
-            f"— known for probing: {', '.join(co_profile.get('focus', [])[:3])}. "
-            f"Use this as background context, not as a rigid template. "
-            f"Draw on your broader knowledge of {body.company}'s actual interview culture."
-        )
-    elif body.company and body.company != "General":
-        company_context = (
-            f"\nCompany: {body.company}. "
-            f"Use your knowledge of {body.company}'s engineering culture, values, and interview style."
-        )
+    company_line = (
+        f"Target company: {body.company}. Use your knowledge of {body.company}'s "
+        f"actual interview process, culture, and what they probe for in {body.role} candidates."
+        if body.company and body.company != "General"
+        else ""
+    )
 
     type_hint = {
-        "behavioral":  "behavioral (STAR-format) questions",
-        "technical":   "technical / coding / system-design questions",
-        "mixed":       "a mix of behavioral, technical, and situational questions",
-    }.get(body.interview_type, "mixed questions")
+        "behavioral":  "behavioral (STAR-format)",
+        "technical":   "technical and system design",
+        "mixed":       "a mix of behavioral, technical, and situational",
+    }.get(body.interview_type, "mixed")
 
-    session_dim = random.choice(_SESSION_DIMENSIONS)
+    resume_section = f"\n=== CANDIDATE'S RESUME ===\n{resume_text[:3500]}\n" if resume_text else "\nNo resume provided — ask general questions for this role.\n"
 
     prompt = (
-        f"Generate {body.num_questions} {type_hint} for a "
-        f"{body.experience_level}-level {body.role} candidate.\n\n"
-        f"CANDIDATE PROFILE:\n{resume_summary}\n"
-        f"{company_context}\n\n"
-        f"{session_dim}\n\n"
-        "INSTRUCTIONS:\n"
-        "- Reference the candidate's actual projects, skills, and experience by name.\n"
-        "- Avoid generic, predictable questions the candidate has rehearsed answers for.\n"
-        "- Each question should be specific enough that a canned answer won't work.\n"
-        "- For technical questions, reference specific technologies from their profile.\n"
-        "- Include at least one question that challenges a specific claim on their resume.\n\n"
+        f"Generate {body.num_questions} {type_hint} interview questions.\n"
+        f"Role: {body.experience_level}-level {body.role}\n"
+        f"{company_line}\n"
+        f"{resume_section}\n"
+        "Every question must be grounded in this candidate's actual resume — "
+        "reference their real projects, companies, technologies, and specific experiences. "
+        "At least one question should directly challenge or probe a specific claim on their resume. "
+        "Questions must be impossible to answer well without knowing this person's actual background.\n\n"
         "Return a JSON array:\n"
         '[{"question": "...", "type": "behavioral|technical|situational", '
-        '"follow_up_hint": "what to probe deeper", '
-        '"ideal_points": ["point1", "point2"]}]'
+        '"follow_up_hint": "specific probe based on their background", '
+        '"ideal_points": ["what a strong answer covers"]}]'
     )
 
     try:
@@ -325,12 +247,7 @@ async def start_hirevue_interview(
             "questions": questions[:body.num_questions],
             "role": body.role,
             "company": body.company,
-            "resume_loaded": resume_summary != "Resume not available — ask general questions.",
-            "company_profile": {
-                "name": body.company,
-                "style": co_profile.get("style", ""),
-                "focus": co_profile.get("focus", []),
-            } if co_profile else None,
+            "resume_loaded": bool(resume_text),
         }
     except Exception as e:
         logger.error("HireVue question generation failed", exc_info=e)
@@ -501,12 +418,3 @@ async def list_voices(user_id: str = Depends(get_current_user_id)):
     }
 
 
-@router.get("/companies")
-async def list_companies(user_id: str = Depends(get_current_user_id)):
-    """Return the list of supported companies with their focus areas."""
-    return {
-        "companies": [
-            {"name": name, "focus": profile.get("focus", [])[:3]}
-            for name, profile in COMPANY_PROFILES.items()
-        ]
-    }

@@ -21,7 +21,6 @@ Model routing (for Groq/Ollama):
 from __future__ import annotations
 
 import json
-import random
 import structlog
 
 from app.services.template_feedback import generate_template_feedback, should_use_llm
@@ -33,24 +32,6 @@ from app.services.concurrency_manager import (
 )
 
 logger = structlog.get_logger()
-
-# Each call picks a different lens so the same resume+job always yields a fresh angle.
-_FEEDBACK_LENSES = [
-    "You are reviewing from a recruiter's 6-second scan perspective — what stands out immediately, what gets this resume binned?",
-    "You are reviewing from a technical hiring manager's perspective — does this candidate have the depth this role actually demands?",
-    "You are reviewing from a career coach's perspective — focus on narrative and progression, not just keywords.",
-    "You are reviewing from a competitive positioning angle — how does this candidate stack up against the 200 other applicants for this role?",
-    "You are reviewing from a 'quick wins' angle — identify the 3 highest-leverage changes the candidate can make in the next hour.",
-    "You are reviewing from an interview prep angle — what will interviewers probe on, and what gaps make the candidate vulnerable?",
-]
-
-_BULLET_LENSES = [
-    "Rewrite to emphasise measurable business impact — every bullet should answer 'so what?'",
-    "Rewrite to emphasise technical depth and engineering craft — show the how, not just the what.",
-    "Rewrite to emphasise leadership and scale — how many people, systems, or users were affected?",
-    "Rewrite to emphasise problem-solving — what was broken, what did you do, what changed?",
-]
-
 
 # ─── Recruiter Feedback ───────────────────────────────────────────────────────
 
@@ -65,70 +46,54 @@ async def generate_recruiter_feedback(
     force_template: bool = False,
 ) -> dict:
     """
-    Recruiter-grade feedback with automatic tier selection.
-
-    Returns dict with keys:
-      recruiter_summary, strengths, weaknesses, skill_gaps,
-      improvement_suggestions, _source ("template"|"ollama"|"groq")
+    Recruiter-grade feedback — always LLM, always full text, never templated.
     """
-    # Tier 1: Template feedback — try first
-    use_llm = (
-        not force_template
-        and should_use_llm(scores)
-        and should_use_llm_for_feedback()
-    )
-
-    if not use_llm:
+    if not should_use_llm_for_feedback():
         result = generate_template_feedback(
-            scores=scores,
-            parsed_resume=parsed_resume,
-            parsed_job=parsed_job,
-            missing_keywords=missing_keywords,
-            skill_gap_analysis=skill_gap_analysis,
+            scores=scores, parsed_resume=parsed_resume, parsed_job=parsed_job,
+            missing_keywords=missing_keywords, skill_gap_analysis=skill_gap_analysis,
         )
-        logger.debug("Using template feedback", overall=scores.get("overall_score"))
+        logger.debug("LLM slots full — template fallback", overall=scores.get("overall_score"))
         return result
 
-    # Tier 2/3: LLM feedback (Ollama or Groq)
-    resume_ctx = _compact_resume(parsed_resume)
-    job_ctx = _compact_job(parsed_job)
     score_line = (
-        f"Overall {scores.get('overall_score', 0)} | "
-        f"ATS {scores.get('ats_score', 0)} | "
-        f"Tech {scores.get('technical_fit_score', 0)} | "
-        f"Semantic {scores.get('semantic_match_score', 0)}"
+        f"Overall {scores.get('overall_score', 0)}/100 | "
+        f"ATS {scores.get('ats_score', 0)}/100 | "
+        f"Technical Fit {scores.get('technical_fit_score', 0)}/100 | "
+        f"Semantic Match {scores.get('semantic_match_score', 0)}/100"
     )
-    missing_str = ", ".join(kw["keyword"] for kw in missing_keywords[:8])
-    lens = random.choice(_FEEDBACK_LENSES)
+    missing_str = ", ".join(kw["keyword"] for kw in missing_keywords[:12])
 
-    prompt = f"""{lens}
+    prompt = f"""You are a senior technical recruiter. Analyze this specific resume against this specific job description.
 
-RESUME:
-{resume_ctx}
+Give brutally honest, highly specific feedback — reference actual content from the resume by name (specific projects, companies, technologies, bullet points). Do not give generic advice.
 
-JOB: {job_ctx}
+=== RESUME ===
+{resume_text[:3000]}
 
-SCORES: {score_line}
-MISSING KEYWORDS: {missing_str}
+=== JOB DESCRIPTION ===
+{job_text[:2000]}
 
-Be specific and honest. Reference actual content from the resume, not generic advice.
+=== ATS SCORES ===
+{score_line}
+Missing keywords: {missing_str}
 
-Return JSON:
+Return JSON with this exact structure:
 {{
-  "recruiter_summary": "2-3 sentence honest take on this application through your specific lens",
-  "strengths": [{{"title":"","description":"","impact":"high|medium|low"}}],
-  "weaknesses": [{{"title":"","description":"","severity":"critical|major|minor","section":""}}],
-  "skill_gaps": [{{"skill":"","importance":"critical|important|nice_to_have","how_to_acquire":"","time_to_learn":"","resources":[]}}],
-  "improvement_suggestions": [{{"category":"","title":"","description":"","priority":"high|medium|low","action":""}}]
+  "recruiter_summary": "3-4 sentences: honest assessment of this specific application — what makes this candidate stand out or fall short for THIS role",
+  "strengths": [{{"title":"","description":"reference specific resume content","impact":"high|medium|low"}}],
+  "weaknesses": [{{"title":"","description":"reference specific gaps vs the JD","severity":"critical|major|minor","section":""}}],
+  "skill_gaps": [{{"skill":"","importance":"critical|important|nice_to_have","how_to_acquire":"specific actionable path","time_to_learn":"","resources":[]}}],
+  "improvement_suggestions": [{{"category":"","title":"","description":"what specifically to change and why","priority":"high|medium|low","action":"exact next step"}}]
 }}
-3-5 items each. No generic advice — every point must be grounded in this specific resume and job."""
+3-5 items per section. Every point must reference specific content from this resume and this job. No generic advice."""
 
     try:
         async with LLMSlot():
             raw = await llm_call(
                 prompt=prompt,
-                temperature=0.6,
-                max_tokens=1800,
+                temperature=0.7,
+                max_tokens=2000,
                 json_mode=True,
                 tier="quality",
                 use_cache=False,
@@ -187,31 +152,34 @@ async def generate_bullet_rewrites(
         return _template_bullet_rewrites(bullets_ctx, parsed_job)
 
     job_title = parsed_job.get("title", "Software Engineer")
-    req_skills = ", ".join(parsed_job.get("required_skills", [])[:6])
-    bullet_lens = random.choice(_BULLET_LENSES)
+    req_skills = ", ".join(parsed_job.get("required_skills", [])[:8])
+    preferred = ", ".join(parsed_job.get("preferred_skills", [])[:5])
 
     bullets_str = "\n".join(
         f"{i+1}. [{bc['section']}] {bc['bullet']}"
         for i, bc in enumerate(bullets_ctx)
     )
 
-    prompt = f"""Rewrite these resume bullets for a "{job_title}" role. Skills needed: {req_skills}.
+    prompt = f"""Rewrite these resume bullets to be stronger for this specific role.
 
-Angle: {bullet_lens}
+Role: {job_title}
+Required skills: {req_skills}
+Preferred: {preferred}
 
-Rules: strong action verb, specific outcome, concise, relevant to the role.
-
+BULLETS TO REWRITE:
 {bullets_str}
 
+For each bullet: use a strong action verb, add a specific metric if possible, make it directly relevant to the role requirements above. Reference actual technologies and context from the original — don't invent new content.
+
 Return JSON:
-{{"rewrites":[{{"section":"","original":"","rewritten":"","improvement_reason":"","metrics_added":true}}]}}"""
+{{"rewrites":[{{"section":"","original":"","rewritten":"","improvement_reason":"why this specific change makes it stronger for this role","metrics_added":true|false}}]}}"""
 
     try:
         async with LLMSlot(timeout=45.0):
             raw = await llm_call(
                 prompt=prompt,
-                temperature=0.6,
-                max_tokens=1200,
+                temperature=0.7,
+                max_tokens=1400,
                 json_mode=True,
                 tier="fast",
                 use_cache=False,
