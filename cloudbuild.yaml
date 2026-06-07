@@ -1,25 +1,18 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Cloud Build — JobSync API
 #
-# Triggered on push to main branch via Cloud Run UI trigger.
-# Builds the Docker image, pushes to Artifact Registry, deploys to Cloud Run.
+# ALWAYS run via ./deploy.sh — never `gcloud run deploy --source`.
+# Using --source bypasses this file, disables layer caching, and causes a
+# full 550 MB cross-region push every time (~₹5-8 in network transfer alone).
 #
-# Sensitive values are stored in Secret Manager and mounted at Cloud Run runtime
-# via --set-secrets. Cloud Build itself does NOT need secretAccessor.
+# Layer caching strategy:
+#   Step 1: Pull :latest so BuildKit can reuse cached layers
+#   Step 2: Build with --cache-from=:latest (only changed layers rebuilt)
+#   Step 3: Push (only changed layers transferred — typically < 10 MB)
+#   Step 4: Deploy to Cloud Run
 #
-# Required IAM roles on the Cloud Build SA
-# (PROJECT_NUMBER@cloudbuild.gserviceaccount.com):
-#   roles/artifactregistry.writer
-#   roles/run.admin
-#   roles/iam.serviceAccountUser   ← lets it act-as the Cloud Run SA
-#
-# Trigger substitution vars (can be overridden in the Cloud Build trigger UI):
-#   _AR_HOSTNAME     — Artifact Registry hostname  (default: asia-south1-docker.pkg.dev)
-#   _AR_PROJECT_ID   — GCP project ID              (default: jobsync-497608)
-#   _AR_REPOSITORY   — Artifact Registry repo name (default: jobsync)
-#   _SERVICE_NAME    — Cloud Run service name       (default: jobsync-api)
-#   _DEPLOY_REGION   — Cloud Run region             (default: asia-south1)
-#   _CORS_ORIGINS    — JSON array of allowed CORS origins
+# With caching, incremental deploys push ~5-10 MB instead of 550 MB.
+# That cuts the per-deploy Artifact Registry charge from ~₹5 to < ₹0.10.
 # ─────────────────────────────────────────────────────────────────────────────
 
 substitutions:
@@ -31,9 +24,22 @@ substitutions:
   _CORS_ORIGINS: '["https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
 
 steps:
-  # ── Step 1: Build Docker image ─────────────────────────────────────────────
+  # ── Step 1: Pull latest image so Docker can reuse cached layers ────────────
+  # The `|| true` means the build continues even on first deploy (no image yet).
+  - name: gcr.io/cloud-builders/docker
+    id: pull-cache
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        docker pull $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest || true
+
+  # ── Step 2: Build with layer cache ────────────────────────────────────────
+  # BUILDKIT_INLINE_CACHE=1 embeds cache metadata in the pushed image so
+  # --cache-from works for multi-stage builds on subsequent runs.
   - name: gcr.io/cloud-builders/docker
     id: build
+    waitFor: [pull-cache]
     args:
       - build
       - --file=backend/Dockerfile
@@ -45,7 +51,8 @@ steps:
     env:
       - DOCKER_BUILDKIT=1
 
-  # ── Step 2: Push to Artifact Registry ─────────────────────────────────────
+  # ── Step 3: Push to Artifact Registry ─────────────────────────────────────
+  # With cache working, only changed layers are pushed (usually < 10 MB).
   - name: gcr.io/cloud-builders/docker
     id: push
     waitFor: [build]
@@ -54,7 +61,7 @@ steps:
       - --all-tags
       - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME
 
-  # ── Step 3: Deploy to Cloud Run ────────────────────────────────────────────
+  # ── Step 4: Deploy to Cloud Run ───────────────────────────────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     id: deploy
     waitFor: [push]
@@ -74,12 +81,7 @@ steps:
       - --max-instances=3
       - --timeout=300
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
-      # Use ^|^ custom delimiter so the JSON array in BACKEND_CORS_ORIGINS
-      # (which contains commas) doesn't break gcloud's dict-arg parser.
-      # --set-env-vars and --update-env-vars are mutually exclusive, so all
-      # vars must be in a single flag.
       - --set-env-vars=^|^APP_VERSION=$COMMIT_SHA|DEBUG=false|SECRET_KEY=b4a1e968e620500dd27b653d56ec565c78b14827516e1fbeec0384efa2609644|SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co|SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE|MAX_CONCURRENT_ANALYSES=8|MAX_CONCURRENT_LLM_CALLS=3|BACKEND_CORS_ORIGINS=$_CORS_ORIGINS|GOOGLE_CLIENT_ID=329097420297-1vkhlbuo9igbalo7mj30vik5652dm16h.apps.googleusercontent.com|GOOGLE_REDIRECT_URI=https://jobsync-329097420297.asia-south1.run.app/api/v1/gmail/callback|FRONTEND_URL=https://job-sync-gilt.vercel.app
-      # Secrets injected at Cloud Run runtime — Cloud Build SA does NOT need secretAccessor
       - --set-secrets=GROQ_API_KEY=groq-api-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,FIREBASE_SERVICE_ACCOUNT_JSON=firebase-service-account:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest
 
 images:
