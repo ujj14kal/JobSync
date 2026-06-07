@@ -11,7 +11,7 @@ import TiltCard from "@/components/ui/TiltCard";
 import { MagicCard } from "@/components/ui/magic-card";
 import {
   ArrowRight, BarChart2, FileText, Users,
-  TrendingUp, Upload, Plus, Clock, Zap, Briefcase,
+  TrendingUp, Upload, Plus, Clock, Briefcase,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
@@ -238,14 +238,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16,1,0.3,1] }}>
         <div className="flex items-center gap-2 mb-1">
-          <motion.div
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg,#C05800,#713600)", boxShadow: "0 0 14px rgba(192,88,0,0.5)" }}
-            animate={{ boxShadow: ["0 0 14px rgba(192,88,0,0.4)", "0 0 24px rgba(192,88,0,0.7)", "0 0 14px rgba(192,88,0,0.4)"] }}
-            transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-          >
-            <Zap className="w-3.5 h-3.5 text-white" fill="white" />
-          </motion.div>
+          <img src="/logo.png" alt="JobSynk" className="w-7 h-7 object-contain" />
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Good morning, {name} 👋</h1>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)] ml-9">

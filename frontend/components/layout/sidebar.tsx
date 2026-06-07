@@ -104,12 +104,7 @@ export function Sidebar() {
 
       {/* Logo */}
       <div className="relative flex items-center gap-3 px-4 h-14 border-b border-[rgba(255,255,255,0.06)]">
-        <div
-          className="w-7 h-7 flex-shrink-0"
-          style={{ boxShadow: "0 0 16px rgba(192,88,0,0.45), 0 2px 8px rgba(0,0,0,0.4)" }}
-        >
-          <img src="/logo.png" alt="JobSynk" className="w-full h-full object-contain" />
-        </div>
+        <img src="/logo.png" alt="JobSynk" className="w-7 h-7 flex-shrink-0 object-contain" />
         <AnimatePresence>
           {!sidebarCollapsed && (
             <motion.span
