@@ -23,13 +23,8 @@ from __future__ import annotations
 import json
 import structlog
 
-from app.services.template_feedback import generate_template_feedback, should_use_llm
 from app.services.local_inference import llm_call
-from app.services.concurrency_manager import (
-    LLMSlot,
-    LLMOverloadError,
-    should_use_llm_for_feedback,
-)
+from app.services.concurrency_manager import LLMSlot, LLMOverloadError
 
 logger = structlog.get_logger()
 
@@ -48,14 +43,6 @@ async def generate_recruiter_feedback(
     """
     Recruiter-grade feedback — always LLM, always full text, never templated.
     """
-    if not should_use_llm_for_feedback():
-        result = generate_template_feedback(
-            scores=scores, parsed_resume=parsed_resume, parsed_job=parsed_job,
-            missing_keywords=missing_keywords, skill_gap_analysis=skill_gap_analysis,
-        )
-        logger.debug("LLM slots full — template fallback", overall=scores.get("overall_score"))
-        return result
-
     score_line = (
         f"Overall {scores.get('overall_score', 0)}/100 | "
         f"ATS {scores.get('ats_score', 0)}/100 | "
@@ -103,34 +90,16 @@ Return JSON with this exact structure:
         return result
 
     except LLMOverloadError:
-        logger.info("LLM slots full — falling back to template feedback")
-        return generate_template_feedback(
-            scores=scores,
-            parsed_resume=parsed_resume,
-            parsed_job=parsed_job,
-            missing_keywords=missing_keywords,
-            skill_gap_analysis=skill_gap_analysis,
-        )
+        logger.warning("LLM slots busy — raising error instead of template fallback")
+        raise
 
     except json.JSONDecodeError as e:
-        logger.warning("LLM returned invalid JSON — using template", error=str(e))
-        return generate_template_feedback(
-            scores=scores,
-            parsed_resume=parsed_resume,
-            parsed_job=parsed_job,
-            missing_keywords=missing_keywords,
-            skill_gap_analysis=skill_gap_analysis,
-        )
+        logger.error("LLM returned invalid JSON for recruiter feedback", error=str(e))
+        raise ValueError("AI returned malformed feedback — please retry") from e
 
-    except Exception as e:
-        logger.error("LLM feedback failed completely", error=str(e))
-        return generate_template_feedback(
-            scores=scores,
-            parsed_resume=parsed_resume,
-            parsed_job=parsed_job,
-            missing_keywords=missing_keywords,
-            skill_gap_analysis=skill_gap_analysis,
-        )
+    except Exception:
+        logger.error("LLM recruiter feedback failed", exc_info=True)
+        raise
 
 
 # ─── Bullet Rewrites ──────────────────────────────────────────────────────────
@@ -146,10 +115,6 @@ async def generate_bullet_rewrites(
     bullets_ctx = _collect_bullets(parsed_resume, limit=8)
     if not bullets_ctx:
         return []
-
-    # Template mode: if no LLM available or load is high
-    if not should_use_llm_for_feedback():
-        return _template_bullet_rewrites(bullets_ctx, parsed_job)
 
     job_title = parsed_job.get("title", "Software Engineer")
     req_skills = ", ".join(parsed_job.get("required_skills", [])[:8])
@@ -188,8 +153,8 @@ Return JSON:
         return result.get("rewrites", [])
 
     except (LLMOverloadError, json.JSONDecodeError, Exception) as e:
-        logger.warning("Bullet rewrite LLM failed — using template", error=str(e))
-        return _template_bullet_rewrites(bullets_ctx, parsed_job)
+        logger.error("Bullet rewrite LLM failed", error=str(e))
+        raise
 
 
 # ─── Template bullet rewrites (zero LLM) ─────────────────────────────────────
