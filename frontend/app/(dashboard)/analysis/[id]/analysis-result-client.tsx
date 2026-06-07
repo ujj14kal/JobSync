@@ -39,7 +39,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
       await jobApplicationsApi.create({
         job_title: analysis.job?.parsed_data?.title || "Unknown Role",
         company: analysis.job?.company_name || "Unknown Company",
-        job_url: analysis.job?.job_url,
+        job_url: analysis.job?.source_url,
         analysis_id: id,
         ats_score: analysis.scores?.overall_score,
         status: "saved",

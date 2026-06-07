@@ -111,7 +111,7 @@ export default function AILabPage() {
   async function fetchStatus() {
     try {
       const data = await modelMgmtApi.getStatus();
-      setStatus(data);
+      setStatus(data.data);
     } catch {
       toast.error("Could not load model status");
     } finally {
