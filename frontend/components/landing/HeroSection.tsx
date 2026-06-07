@@ -406,33 +406,28 @@ export default function HeroSection() {
             ))}
           </motion.div>
 
-          {/* CTAs */}
+          {/* CTA */}
           <motion.div
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="flex items-center justify-center"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
             <Link href="/signup">
               <motion.button
-                className="btn-primary text-base px-8 py-4"
+                className="btn-primary text-base px-10 py-4 gap-3"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
                 Analyze My Resume Free
-                <ArrowRight size={18} />
+                <motion.span
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <ArrowRight size={18} />
+                </motion.span>
               </motion.button>
             </Link>
-            <Link href="/login">
-              <motion.button
-                className="btn-secondary text-base px-8 py-4"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                See Live Demo
-              </motion.button>
-            </Link>
-            <EngineTestButton />
           </motion.div>
 
           {/* Proof points */}
@@ -460,54 +455,3 @@ export default function HeroSection() {
   );
 }
 
-/* ── Engine sound test button ── */
-function EngineTestButton() {
-  const [playing, setPlaying] = useState(false);
-
-  const handleClick = () => {
-    if (playing) return;
-    setPlaying(true);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) { setPlaying(false); return; }
-
-    const ctx: AudioContext = new AudioCtx();
-    ctx.resume().then(() => {
-      fetch("/engine-rev.wav")
-        .then((r) => r.arrayBuffer())
-        .then((ab) => ctx.decodeAudioData(ab))
-        .then((buf) => {
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          src.connect(ctx.destination);
-          src.start(0);
-          src.onended = () => { setPlaying(false); ctx.close(); };
-        })
-        .catch(() => setPlaying(false));
-    });
-  };
-
-  return (
-    <motion.button
-      onClick={handleClick}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
-                 border border-white/10 bg-white/5 hover:bg-white/10
-                 text-white/70 hover:text-white transition-all"
-    >
-      {playing ? (
-        <>
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-          </span>
-          Playing…
-        </>
-      ) : (
-        <>🔊 Test Engine Sound</>
-      )}
-    </motion.button>
-  );
-}
