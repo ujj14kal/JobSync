@@ -46,6 +46,9 @@ export const metadata: Metadata = {
     description: "AI-powered resume optimizer and ATS scorer.",
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: "ZkGlTAx88yFhdenDpcqxAuaUCjaixDXSAj4kv0gR_Zc",
+  },
 };
 
 export const viewport: Viewport = {
