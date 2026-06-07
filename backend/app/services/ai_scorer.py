@@ -160,65 +160,76 @@ async def _try_neural_scoring(
     parsed_job: dict,
 ) -> dict | None:
     """
-    Attempt scoring with the custom JobSync AI (encoder + scorer).
-    Uses model_loader's in-memory instances — no disk I/O per request.
-    Returns None if models not loaded yet.
+    Attempt scoring with JobSync AI.
+    v2: MiniLM encoder (sentence-transformers) + trained scorer head.
+    v1: custom transformer encoder + scorer head (legacy).
+    Returns None if models not loaded.
     """
     try:
-        from app.services.model_loader import get_loaded_models, is_loaded
+        from app.services.model_loader import (
+            is_loaded, is_minilm, get_scorer, get_sentence_model, get_loaded_models
+        )
         import torch
-        import torch.nn.functional as F
         import re as _re
 
         if not is_loaded():
             return None
 
-        encoder, tokenizer, scorer = get_loaded_models()
-        if encoder is None or tokenizer is None or scorer is None:
+        scorer = get_scorer()
+        if scorer is None:
             return None
 
+        def _hc_features(r_np, j_np, res_txt, jd_txt):
+            import numpy as _np
+            SKILLS = {"python","java","javascript","typescript","react","sql","aws",
+                      "docker","kubernetes","tensorflow","pytorch","fastapi","django","golang","scala"}
+            res_w = set(res_txt.lower().split()); jd_w = set(jd_txt.lower().split())
+            res_s = res_w & SKILLS; jd_s = jd_w & SKILLS
+            cosine = float(_np.dot(r_np, j_np))
+            ov  = len(res_s & jd_s) / max(len(jd_s), 1) if jd_s else 0.5
+            kd  = len({w for w in jd_w if len(w)>4} & res_w) / max(len({w for w in jd_w if len(w)>4}), 1)
+            rl  = min(len(res_txt)/3000, 1.0)
+            jl  = min(len(jd_txt)/2000, 1.0)
+            he  = float(any(k in res_txt.lower() for k in ["year","years","yr"]))
+            edu = float(any(k in res_txt.lower() for k in ["bachelor","master","phd","degree"]))
+            ldr = float(any(k in res_txt.lower() for k in ["led","managed","director","head"]))
+            met = float(bool(_re.search(r'\b\d+[%x]\b|\$\d+', res_txt)))
+            fw  = [w for w in (res_txt.strip().split('\n')[0] if res_txt.strip() else "").lower().split() if len(w)>3]
+            ta  = sum(1 for w in fw if w in jd_txt.lower()) / max(len(fw), 1)
+            return _np.array([cosine,ov,kd,rl,jl,he,edu,ldr,met,ta], dtype=_np.float32)
+
         def _infer():
+            import numpy as _np
             with torch.no_grad():
-                # Tokenise
-                r_ids = torch.tensor([tokenizer.encode(resume_text[:3000])], dtype=torch.long)
-                j_ids = torch.tensor([tokenizer.encode(job_text[:2000])],    dtype=torch.long)
-                r_msk = torch.tensor([tokenizer.mask(r_ids[0].tolist())],    dtype=torch.long)
-                j_msk = torch.tensor([tokenizer.mask(j_ids[0].tolist())],    dtype=torch.long)
+                if is_minilm():
+                    # v2: MiniLM embeddings (384-dim, L2-normalised)
+                    sentence_model = get_sentence_model()
+                    embs = sentence_model.encode(
+                        [resume_text[:3000], job_text[:2000]],
+                        normalize_embeddings=True,
+                        show_progress_bar=False,
+                    )
+                    r_np = embs[0]; j_np = embs[1]
+                    r_t  = torch.tensor(r_np, dtype=torch.float32).unsqueeze(0)
+                    j_t  = torch.tensor(j_np, dtype=torch.float32).unsqueeze(0)
+                else:
+                    # v1: custom tokenizer + transformer encoder
+                    _, tokenizer, _ = get_loaded_models()
+                    encoder, _, _   = get_loaded_models()
+                    r_ids = torch.tensor([tokenizer.encode(resume_text[:3000])], dtype=torch.long)
+                    j_ids = torch.tensor([tokenizer.encode(job_text[:2000])],    dtype=torch.long)
+                    r_msk = torch.tensor([tokenizer.mask(r_ids[0].tolist())],    dtype=torch.long)
+                    j_msk = torch.tensor([tokenizer.mask(j_ids[0].tolist())],    dtype=torch.long)
+                    r_t   = encoder(r_ids, r_msk)
+                    j_t   = encoder(j_ids, j_msk)
+                    r_np  = r_t.squeeze(0).numpy()
+                    j_np  = j_t.squeeze(0).numpy()
 
-                # Encode
-                r_emb = encoder(r_ids, r_msk)   # (1, 256)
-                j_emb = encoder(j_ids, j_msk)   # (1, 256)
-
-                # Build interaction features
-                diff = (r_emb - j_emb).abs()
-                prod = r_emb * j_emb
-
-                # Handcrafted features
-                cosine = float((r_emb * j_emb).sum().item())
-                SKILLS = {"python","java","javascript","typescript","react","sql","aws",
-                          "docker","kubernetes","tensorflow","pytorch","fastapi","django"}
-                res_w = set(resume_text.lower().split())
-                jd_w  = set(job_text.lower().split())
-                res_s = res_w & SKILLS; jd_s = jd_w & SKILLS
-                ov  = len(res_s & jd_s)/max(len(jd_s),1) if jd_s else 0.5
-                kd  = len({w for w in jd_w if len(w)>4}&res_w)/max(len({w for w in jd_w if len(w)>4}),1)
-                rl  = min(len(resume_text)/3000,1.0)
-                jl  = min(len(job_text)/2000,1.0)
-                he  = float(any(k in resume_text.lower() for k in ["year","years","yr"]))
-                edu = float(any(k in resume_text.lower() for k in ["bachelor","master","phd","degree"]))
-                ldr = float(any(k in resume_text.lower() for k in ["led","managed","director","head"]))
-                met = float(bool(_re.search(r'\b\d+[%x]\b|\$\d+', resume_text)))
-                fw  = resume_text.strip().split('\n')[0].lower().split() if resume_text.strip() else []
-                fw  = [w for w in fw if len(w)>3]
-                ta  = sum(1 for w in fw if w in job_text.lower())/max(len(fw),1)
-                hc  = torch.tensor([[cosine,ov,kd,rl,jl,he,edu,ldr,met,ta]], dtype=torch.float32)
-
-                # Full interaction vector
-                x = torch.cat([r_emb, j_emb, diff, prod, hc], dim=1)
-
-                # Score
-                scores = scorer(x).squeeze(0).tolist()
-            return scores
+                diff = (r_t - j_t).abs()
+                prod = r_t * j_t
+                hc   = torch.tensor([_hc_features(r_np, j_np, resume_text, job_text)], dtype=torch.float32)
+                x    = torch.cat([r_t, j_t, diff, prod, hc], dim=1)
+                return scorer(x).squeeze(0).tolist()
 
         raw_scores = await asyncio.to_thread(_infer)
 
