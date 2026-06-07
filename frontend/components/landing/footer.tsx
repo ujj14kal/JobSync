@@ -35,7 +35,7 @@ export function Footer() {
           >
             Ujjwal Kalra
           </a>
-          {" "}· Powered by Next.js, FastAPI &amp; Groq Llama&nbsp;3
+          {" "}· Free for students &amp; job seekers
         </p>
 
         {/* Links */}
@@ -67,14 +67,15 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Bottom bar — honest disclosure */}
+      {/* Bottom bar */}
       <div
         className="border-t px-6 py-4"
         style={{ borderColor: "rgba(255,255,255,0.04)" }}
       >
         <p className="text-center text-[10px]" style={{ color: "rgba(100,116,139,0.5)" }}>
-          Resume scoring uses local AI models (sentence-transformers). AI feedback uses Groq&apos;s Llama 3 API — not OpenAI.
-          We never sell your data. &nbsp;·&nbsp; Gmail integration is read-only and optional.
+          We never sell your data or use it for advertising. &nbsp;·&nbsp;
+          Gmail connection is optional, read-only, and can be removed at any time. &nbsp;·&nbsp;
+          <a href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</a>
         </p>
       </div>
     </footer>

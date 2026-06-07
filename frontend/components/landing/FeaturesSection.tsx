@@ -16,24 +16,24 @@ const FEATURES = [
     color: "#C05800",
     rgb: "192,88,0",
     beamTo: "#d4aa30",
-    title: "Semantic Matching Engine",
+    title: "Deep Resume Matching",
     description:
-      "Multi-layer embedding system matches your experience against job requirements with section-level precision — not just keyword counting.",
-    badge: "Proprietary",
+      "Goes beyond keyword counting — understands context, seniority, and how your experience actually maps to what the job requires.",
+    badge: "AI-Powered",
     badgeColor: "#C05800",
-    detail: "384-dim vectors · Cross-section matrix · Transferable skill detection",
+    detail: "Section-level precision · Transferable skill detection · Context-aware",
   },
   {
     icon: Target,
     color: "#713600",
     rgb: "113,54,0",
     beamTo: "#C05800",
-    title: "Recruiter-Fit Prediction",
+    title: "Interview Likelihood Score",
     description:
-      "16-feature ML model predicts interview probability. Starts rule-based, evolves to XGBoost as outcome data accumulates.",
-    badge: "AI Model",
+      "Predicts how likely you are to get shortlisted for a specific role — based on what actually gets people interviews, not guesswork.",
+    badge: "Predictive AI",
     badgeColor: "#8c4a18",
-    detail: "Rule-based → ML as data grows · Confidence scoring · Tier classification",
+    detail: "Role-specific prediction · Confidence rating · Improves over time",
   },
   {
     icon: GitBranch,
@@ -42,46 +42,46 @@ const FEATURES = [
     beamTo: "#C05800",
     title: "Skill Gap Intelligence",
     description:
-      "300+ node skill ontology maps prerequisites, similar skills, and learning paths. Get transferable credit for what you already know.",
-    badge: "Knowledge Graph",
+      "Shows exactly which skills you're missing — and gives you credit for related skills you already have. Includes a week-by-week learning plan.",
+    badge: "Smart Roadmap",
     badgeColor: "#d4aa30",
-    detail: "Transferable skills · Learning roadmap · Time estimates",
+    detail: "Transferable skills credited · Ordered learning path · Time estimates",
   },
   {
     icon: TrendingUp,
     color: "#8c9a20",
     rgb: "140,154,32",
     beamTo: "#d4aa30",
-    title: "Feedback Learning Loop",
+    title: "Gets Smarter Over Time",
     description:
-      "Every interview outcome teaches the platform. Keyword performance, cohort benchmarks, and weight adjustments compound over time.",
-    badge: "Self-Learning",
+      "Every application outcome in the platform makes the scoring sharper for everyone. The more you use it, the better it gets.",
+    badge: "Adaptive",
     badgeColor: "#8c9a20",
-    detail: "Outcome tracking · Keyword analytics · Cohort benchmarks",
+    detail: "Improves with usage · Trend tracking · Keyword insights",
   },
   {
     icon: Zap,
     color: "#d97020",
     rgb: "217,112,32",
     beamTo: "#713600",
-    title: "Real-time ATS Scoring",
+    title: "Full Report in 30 Seconds",
     description:
-      "8-dimension scoring engine evaluates formatting, impact metrics, technical depth, and recruiter impression simultaneously.",
+      "Complete ATS analysis — formatting, keywords, impact, technical depth, recruiter impression — all scored in under half a minute.",
     badge: "Instant",
     badgeColor: "#d97020",
-    detail: "8 dimensions · Recruiter impression · Impact density",
+    detail: "No waiting · No queues · Results while you watch",
   },
   {
     icon: BarChart3,
     color: "#b86820",
     rgb: "184,104,32",
     beamTo: "#C05800",
-    title: "Career Analytics Dashboard",
+    title: "Career Progress Dashboard",
     description:
-      "Track your profile evolution, application funnel, cohort percentile, and skill improvement over time with rich visualizations.",
-    badge: "Analytics",
+      "Track every application, see how your scores improve over time, and understand where you stand compared to similar candidates.",
+    badge: "Dashboard",
     badgeColor: "#b86820",
-    detail: "Funnel tracking · Percentile rank · Progress over time",
+    detail: "Application timeline · Score trends · Progress at a glance",
   },
   {
     icon: Users,
@@ -90,22 +90,22 @@ const FEATURES = [
     beamTo: "#d4aa30",
     title: "Mentor Discovery",
     description:
-      "Semantic search connects you with mentors whose expertise matches your career gap. Ranked by relevance, not recency.",
-    badge: "Vector Search",
+      "Finds mentors whose career path matches your goal — not just by job title, but by the actual gap you're trying to close.",
+    badge: "Smart Match",
     badgeColor: "#e89848",
-    detail: "Semantic matching · Industry-specific · Multi-platform",
+    detail: "Relevance-ranked · ADPList · Unstop · LinkedIn",
   },
   {
     icon: Shield,
     color: "#7ab840",
     rgb: "122,184,64",
     beamTo: "#d4aa30",
-    title: "Privacy-First Local AI",
+    title: "Your Data Stays Private",
     description:
-      "Resume scoring and embeddings run locally via sentence-transformers. LLM feedback uses Groq (open-source Llama 3) — never OpenAI, never sold to advertisers.",
-    badge: "Privacy-First",
+      "Your resume is stored privately in your account. We never sell your data, never show it to other users, and never use it for advertising.",
+    badge: "Private",
     badgeColor: "#7ab840",
-    detail: "Local embeddings · Groq Llama 3 for feedback · No OpenAI · No data selling",
+    detail: "Private storage · No ads · No data selling · Your data, yours",
   },
 ];
 
@@ -186,8 +186,8 @@ export default function FeaturesSection() {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            Not an API wrapper.{" "}
-            <span className="gradient-blue">A proprietary platform.</span>
+            Everything you need.{" "}
+            <span className="gradient-blue">Nothing you don&apos;t.</span>
           </motion.h2>
           <motion.p
             className="text-secondary text-lg max-w-2xl mx-auto"
@@ -195,8 +195,8 @@ export default function FeaturesSection() {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.15, duration: 0.5 }}
           >
-            Built with custom ML models that become defensible over time.
-            Every feature is engineered for accuracy and scale.
+            Every feature is built around one goal: getting you more interviews.
+            No fluff, no bloat — just the tools that actually move the needle.
           </motion.p>
         </div>
 

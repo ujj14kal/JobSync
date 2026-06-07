@@ -15,7 +15,7 @@ const DEMO_SEGMENTS = [
 
 const FEATURE_BULLETS = [
   { icon: Target,     color: "#C05800", title: "5-Dimension Scoring",   desc: "ATS, technical fit, semantic match, recruiter impression, project relevance — all scored independently." },
-  { icon: TrendingUp, color: "#7ab840", title: "Interview Probability", desc: "ML model predicts your shortlist probability: 79% — strong candidate, top 10% tier." },
+  { icon: TrendingUp, color: "#7ab840", title: "Interview Probability", desc: "AI predicts how likely you are to get shortlisted: 79% — strong candidate for this role." },
   { icon: Zap,        color: "#d4aa30", title: "Instant Feedback",      desc: "Full analysis in under 10 seconds. No loading screens, no waiting for LLM queues." },
   { icon: BarChart3,  color: "#d97020", title: "Cohort Benchmarking",   desc: "You're in the top 23% of engineers applying to similar roles this month." },
 ];

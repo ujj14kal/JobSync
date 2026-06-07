@@ -387,7 +387,7 @@ export default function HeroSection() {
             transition={{ delay: 0.3, duration: 0.5 }}
           >
             {[
-              { icon: <Shield size={12} />, text: "Scoring is local — no OpenAI, no data selling" },
+              { icon: <Shield size={12} />, text: "Your data is never sold or shared with advertisers" },
               { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
               { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
             ].map((chip) => (
@@ -435,7 +435,7 @@ export default function HeroSection() {
             <EngineTestButton />
           </motion.div>
 
-          {/* Honest proof */}
+          {/* Proof points */}
           <motion.div
             className="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs text-muted"
             initial={{ opacity: 0 }}
@@ -443,9 +443,9 @@ export default function HeroSection() {
             transition={{ delay: 0.6, duration: 0.5 }}
           >
             {[
-              { dot: "#7ab840", text: "Open source · MIT licensed" },
-              { dot: "#C05800", text: "Scoring runs locally — no cloud AI for analysis" },
-              { dot: "#d4aa30", text: "LLM feedback via Groq (Llama 3) — not OpenAI" },
+              { dot: "#7ab840", text: "Free forever — no credit card required" },
+              { dot: "#C05800", text: "Your data is never sold or shared" },
+              { dot: "#d4aa30", text: "Open source · built in public" },
             ].map(({ dot, text }) => (
               <div key={text} className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: dot }} />
@@ -456,26 +456,6 @@ export default function HeroSection() {
         </motion.div>
       </motion.div>
 
-      {/* ── Scroll indicator ── */}
-      <motion.div
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
-      >
-        <div className="text-xs text-muted">Scroll to explore</div>
-        <motion.div
-          className="w-5 h-8 rounded-full border border-white/10 flex items-start justify-center pt-1.5"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <motion.div
-            className="w-1 h-1.5 rounded-full bg-white/40"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </motion.div>
-      </motion.div>
     </section>
   );
 }
