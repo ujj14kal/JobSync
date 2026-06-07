@@ -105,13 +105,10 @@ export function Sidebar() {
       {/* Logo */}
       <div className="relative flex items-center gap-3 px-4 h-14 border-b border-[rgba(255,255,255,0.06)]">
         <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{
-            background: "linear-gradient(135deg, #C05800 0%, #713600 100%)",
-            boxShadow: "0 0 16px rgba(192,88,0,0.45), 0 2px 8px rgba(0,0,0,0.4)",
-          }}
+          className="w-7 h-7 rounded-lg flex-shrink-0 overflow-hidden"
+          style={{ boxShadow: "0 0 16px rgba(192,88,0,0.45), 0 2px 8px rgba(0,0,0,0.4)" }}
         >
-          <Zap className="w-4 h-4 text-white" fill="white" />
+          <img src="/logo.png" alt="JobSynk" className="w-full h-full object-cover" />
         </div>
         <AnimatePresence>
           {!sidebarCollapsed && (

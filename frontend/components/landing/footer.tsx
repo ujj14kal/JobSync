@@ -13,12 +13,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center transition-opacity group-hover:opacity-80"
-            style={{ background: "#C05800" }}
-          >
-            <Zap className="w-3.5 h-3.5 text-white" fill="white" />
-          </div>
+          <img src="/logo.png" alt="JobSynk" className="w-6 h-6 rounded-md object-cover transition-opacity group-hover:opacity-80" />
           <span className="text-sm font-semibold" style={{ color: "rgba(148,163,184,0.8)" }}>
             JobSynk
           </span>

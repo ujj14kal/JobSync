@@ -30,9 +30,7 @@ export function LandingNav() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center group-hover:scale-105 transition-transform">
-            <Zap className="w-4 h-4 text-white" fill="white" />
-          </div>
+          <img src="/logo.png" alt="JobSynk" className="w-7 h-7 rounded-lg object-cover group-hover:scale-105 transition-transform" />
           <span className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
             JobSynk
           </span>
