@@ -115,8 +115,7 @@ if [[ "$OVER_FREE" == "yes" ]]; then
 else
   echo "       → ₹0.00 (within free tier)"
 fi
-echo "     • Network push   : ~₹0.10 if layer cache hits  /  ~₹5-7 if full push"
-echo "       (cache hits when only source code changed, not dependencies)"
+echo "     • Network push   : ₹0.00 (build runs in asia-south1 = same region as AR)"
 echo ""
 echo "  🔗 Exact rupee spend:"
 echo "     console.cloud.google.com/billing/017689-3C91A6-DD1903/reports?project=jobsync-497608"
@@ -148,6 +147,7 @@ echo ""
 echo "🚀  Submitting to Cloud Build..."
 run gcloud builds submit \
   --config cloudbuild.yaml \
+  --region=asia-south1 \
   --project="${PROJECT_ID}" \
   --substitutions=COMMIT_SHA="${TAG}"
 
