@@ -21,7 +21,7 @@ substitutions:
   _AR_REPOSITORY: jobsync
   _SERVICE_NAME: jobsync
   _DEPLOY_REGION: asia-south1
-  _CORS_ORIGINS: '["https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
+  _CORS_ORIGINS: '["https://jobsynk.in","https://www.jobsynk.in","https://job-sync-gilt.vercel.app","https://job-sync-ujj14kals-projects.vercel.app","http://localhost:3000"]'
 
 steps:
   # ── Step 1: Pull latest image so Docker can reuse cached layers ────────────
