@@ -49,7 +49,7 @@ export default function NavBar() {
           >
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5">
-              <img src="/logo.png" alt="JobSynk" className="w-8 h-8 object-contain" style={{ boxShadow: "0 0 20px rgba(192,88,0,0.4)" }} />
+              <img src="/logo.png" alt="JobSynk" className="w-8 h-8 object-contain" />
               <span className="font-bold text-primary text-base">JobSynk</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
