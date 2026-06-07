@@ -102,10 +102,10 @@ const FEATURES = [
     beamTo: "#d4aa30",
     title: "Privacy-First Local AI",
     description:
-      "Core intelligence runs on-device. No OpenAI API calls for analysis. Your resume never trains someone else's model.",
-    badge: "Local Models",
+      "Resume scoring and embeddings run locally via sentence-transformers. LLM feedback uses Groq (open-source Llama 3) — never OpenAI, never sold to advertisers.",
+    badge: "Privacy-First",
     badgeColor: "#7ab840",
-    detail: "Sentence-transformers · Offline capable · Zero data leakage",
+    detail: "Local embeddings · Groq Llama 3 for feedback · No OpenAI · No data selling",
   },
 ];
 

@@ -1,30 +1,81 @@
 import Link from "next/link";
-import { Zap } from "lucide-react";
+import { Zap, Github } from "lucide-react";
+
+const LINKS = [
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Service", href: "/terms" },
+  { label: "GitHub", href: "https://github.com/ujj14kal/JobSync", external: true },
+];
 
 export function Footer() {
   return (
-    <footer className="border-t border-[var(--border-subtle)] py-12 px-6">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[var(--accent-primary)] flex items-center justify-center">
+    <footer className="border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
+        {/* Brand */}
+        <Link href="/" className="flex items-center gap-2 group">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center transition-opacity group-hover:opacity-80"
+            style={{ background: "#C05800" }}
+          >
             <Zap className="w-3.5 h-3.5 text-white" fill="white" />
           </div>
-          <span className="text-[14px] font-semibold text-[var(--text-secondary)]">
+          <span className="text-sm font-semibold" style={{ color: "rgba(148,163,184,0.8)" }}>
             JobSync
           </span>
         </Link>
 
-        <p className="text-[12px] text-[var(--text-muted)]">
-          © 2025 JobSync. Built with Next.js, FastAPI, and Groq.
+        {/* Centre copy */}
+        <p className="text-xs text-center" style={{ color: "rgba(100,116,139,0.7)" }}>
+          © 2026 JobSync · Built by{" "}
+          <a
+            href="https://github.com/ujj14kal"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white transition-colors underline"
+          >
+            Ujjwal Kalra
+          </a>
+          {" "}· Powered by Next.js, FastAPI &amp; Groq Llama&nbsp;3
         </p>
 
-        <div className="flex items-center gap-6 text-[12px] text-[var(--text-muted)]">
-          {["Privacy", "Terms", "GitHub"].map((item) => (
-            <Link key={item} href="#" className="hover:text-[var(--text-secondary)] transition-colors">
-              {item}
-            </Link>
-          ))}
+        {/* Links */}
+        <div className="flex items-center gap-5">
+          {LINKS.map((item) =>
+            item.external ? (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs transition-colors hover:text-white"
+                style={{ color: "rgba(100,116,139,0.8)" }}
+              >
+                <Github size={12} />
+                {item.label}
+              </a>
+            ) : (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="text-xs transition-colors hover:text-white"
+                style={{ color: "rgba(100,116,139,0.8)" }}
+              >
+                {item.label}
+              </Link>
+            )
+          )}
         </div>
+      </div>
+
+      {/* Bottom bar — honest disclosure */}
+      <div
+        className="border-t px-6 py-4"
+        style={{ borderColor: "rgba(255,255,255,0.04)" }}
+      >
+        <p className="text-center text-[10px]" style={{ color: "rgba(100,116,139,0.5)" }}>
+          Resume scoring uses local AI models (sentence-transformers). AI feedback uses Groq&apos;s Llama 3 API — not OpenAI.
+          We never sell your data. &nbsp;·&nbsp; Gmail integration is read-only and optional.
+        </p>
       </div>
     </footer>
   );

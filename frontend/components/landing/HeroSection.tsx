@@ -387,7 +387,7 @@ export default function HeroSection() {
             transition={{ delay: 0.3, duration: 0.5 }}
           >
             {[
-              { icon: <Shield size={12} />, text: "Local AI — no data sent to OpenAI" },
+              { icon: <Shield size={12} />, text: "Scoring is local — no OpenAI, no data selling" },
               { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
               { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
             ].map((chip) => (
@@ -435,35 +435,23 @@ export default function HeroSection() {
             <EngineTestButton />
           </motion.div>
 
-          {/* Social proof */}
+          {/* Honest proof */}
           <motion.div
-            className="mt-12 flex items-center justify-center gap-8 text-sm text-muted"
+            className="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs text-muted"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.5 }}
           >
-            <div className="flex -space-x-2">
-              {["#C05800", "#713600", "#d4aa30", "#38240D"].map((color, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
-                  style={{
-                    background: `${color}20`,
-                    borderColor: `${color}40`,
-                    color: color,
-                  }}
-                >
-                  {String.fromCharCode(65 + i)}
-                </div>
-              ))}
-            </div>
-            <span>Trusted by 2,400+ job seekers</span>
-            <div className="flex gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <span key={i} style={{ color: "#d4aa30" }}>★</span>
-              ))}
-              <span className="ml-1">4.9/5</span>
-            </div>
+            {[
+              { dot: "#7ab840", text: "Open source · MIT licensed" },
+              { dot: "#C05800", text: "Scoring runs locally — no cloud AI for analysis" },
+              { dot: "#d4aa30", text: "LLM feedback via Groq (Llama 3) — not OpenAI" },
+            ].map(({ dot, text }) => (
+              <div key={text} className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: dot }} />
+                <span>{text}</span>
+              </div>
+            ))}
           </motion.div>
         </motion.div>
       </motion.div>

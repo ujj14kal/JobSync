@@ -16,7 +16,7 @@ const EVERYTHING_FREE = [
   { icon: TrendingUp, color: "#d4aa30", rgb: "212,170,48", text: "Career insights & salary data" },
   { icon: Users,      color: "#C05800", rgb: "192,88,0",   text: "Mentor discovery (ADPList, Unstop, LinkedIn)" },
   { icon: Zap,        color: "#d4aa30", rgb: "212,170,48", text: "Instant JD extraction from any URL" },
-  { icon: Shield,     color: "#7ab840", rgb: "122,184,64", text: "Local AI — resume never sent to OpenAI" },
+  { icon: Shield,     color: "#7ab840", rgb: "122,184,64", text: "Scoring is local — feedback via Groq Llama 3, never OpenAI" },
 ];
 
 const WHY_TRUST = [
@@ -30,7 +30,7 @@ const WHY_TRUST = [
     icon: Lock,
     color: "#d4aa30", rgb: "212,170,48",
     title: "Your data stays yours",
-    body: "Resumes are stored privately in your account. The AI runs on local models — nothing is shared with third-party LLM APIs.",
+    body: "Resumes are stored privately in your Supabase account. Scoring uses local models. AI feedback uses Groq (Llama 3 open-source) — we never sell or share your data.",
   },
   {
     icon: Brain,
