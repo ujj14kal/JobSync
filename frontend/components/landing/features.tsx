@@ -19,7 +19,7 @@ const features = [
     title: "Semantic ATS Scoring",
     description:
       "Goes beyond keyword matching. Understands context and meaning to score how well your experience aligns with what recruiters actually want.",
-    accent: "indigo",
+    accent: "orange",
     badge: "AI-Powered",
   },
   {
@@ -27,7 +27,7 @@ const features = [
     title: "Auto Job Scraping",
     description:
       "Enter a company name and role. JobSync finds the real job listing, scrapes requirements, extracts skills, and formats everything automatically.",
-    accent: "violet",
+    accent: "amber",
     badge: "Web Automation",
   },
   {
@@ -81,8 +81,8 @@ const features = [
 ];
 
 const accentMap: Record<string, string> = {
-  indigo: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
-  violet: "text-violet-400 bg-violet-400/10 border-violet-400/20",
+  indigo: "text-[#C05800] bg-[#C05800]/10 border-[#C05800]/20",
+  violet: "text-[#d4aa30] bg-[#d4aa30]/10 border-[#d4aa30]/20",
   blue: "text-blue-400 bg-blue-400/10 border-blue-400/20",
   cyan: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
   emerald: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -92,8 +92,8 @@ const accentMap: Record<string, string> = {
 };
 
 const iconColorMap: Record<string, string> = {
-  indigo: "text-indigo-400",
-  violet: "text-violet-400",
+  indigo: "text-[#C05800]",
+  violet: "text-[#d4aa30]",
   blue: "text-blue-400",
   cyan: "text-cyan-400",
   emerald: "text-emerald-400",

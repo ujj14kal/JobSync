@@ -26,7 +26,7 @@ async def rewrite_bullets(
         .select("parsed_data")
         .eq("id", request.resume_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not resume.data:
@@ -36,15 +36,18 @@ async def rewrite_bullets(
         supabase.table("job_descriptions")
         .select("parsed_data")
         .eq("id", request.job_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not job.data:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    rewrites = await generate_bullet_rewrites(
-        parsed_resume=resume.data["parsed_data"],
-        parsed_job=job.data["parsed_data"],
-    )
+    try:
+        rewrites = await generate_bullet_rewrites(
+            parsed_resume=resume.data[0]["parsed_data"],
+            parsed_job=job.data[0]["parsed_data"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="AI rewrite service temporarily unavailable. Please try again.")
 
     return rewrites

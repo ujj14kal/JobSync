@@ -16,9 +16,11 @@ sentence-transformers==3.0.1
 numpy==1.26.4
 scikit-learn==1.5.1
 joblib==1.4.2              # model serialisation
-xgboost==2.1.1             # Phase 3 recruiter-fit model (optional, graceful fallback)
-torch>=2.6.0
-transformers>=4.43.3
+# torch — installed by Dockerfile via CPU-only wheel index (pytorch.org/whl/cpu)
+#         Do NOT add torch here; pip would upgrade it from PyPI pulling in CUDA (+1.5 GB)
+#         Local dev: pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
+# transformers — pulled automatically as a sentence-transformers dependency
+# xgboost — optional; model_trainer.py has graceful fallback to LogReg
 
 # ─── Resume Parsing ───────────────────────────────────────────
 pdfplumber==0.11.2
@@ -39,5 +41,4 @@ firebase-admin==6.5.0
 python-dotenv==1.0.1
 tenacity==8.4.1
 structlog==24.4.0
-rich==13.7.1
 cachetools==5.4.0

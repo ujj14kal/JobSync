@@ -62,7 +62,7 @@ async def submit_outcome(
         .select("id, user_id, ats_score, technical_fit_score, semantic_match_score, recruiter_impression_score, project_relevance_score, overall_score")
         .eq("id", body.analysis_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not analysis.data:

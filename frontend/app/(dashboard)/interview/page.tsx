@@ -7,7 +7,7 @@ import {
   Mic, MicOff, ChevronRight, CheckCircle2, AlertCircle,
   RotateCcw, Sparkles, Brain, Loader2, ArrowRight,
   Building2, FileText, User, Clock, ChevronDown, TrendingUp,
-  Maximize2, X,
+  Maximize2, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +31,138 @@ interface Feedback {
 type Phase = "setup" | "analyzing" | "session" | "results";
 type SessionMode = "thinking" | "recording" | "evaluating" | "feedback";
 
+// ── Brand SVG Logos ───────────────────────────────────────────────────────────
+
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+function MetaLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5">
+      <defs>
+        <linearGradient id="meta-g1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#0064E1"/>
+          <stop offset="100%" stopColor="#0080FF"/>
+        </linearGradient>
+      </defs>
+      <path d="M6.5 24c0-4.2 1.5-7.8 3.8-10.2C12.6 11.4 15.1 10 18 10c2.1 0 3.9.8 5.5 2.3C25.1 13.8 26.5 16 28 19c1.5-3 2.9-5.2 4.5-6.7C34.1 10.8 35.9 10 38 10c2.9 0 5.4 1.4 7.7 3.8 2.3 2.4 3.8 6 3.8 10.2 0 4.5-1.7 8.8-5.2 11.8-2 1.7-4.1 2.5-6 2.5-1.7 0-3.2-.6-4.8-1.8-1.3-1-2.5-2.4-3.5-4-1 1.6-2.2 3-3.5 4-1.6 1.2-3.1 1.8-4.8 1.8-1.9 0-4-.8-6-2.5C8.2 32.8 6.5 28.5 6.5 24zm11.5-9.8c-1.9 0-3.8.9-5.4 2.8-1.6 1.9-2.6 4.5-2.6 7 0 3.5 1.2 7.1 3.6 9.2 1.4 1.2 2.8 1.8 4.1 1.8 1 0 2.1-.4 3.3-1.3 1.5-1.1 2.8-3 4-5.5-1.5-3.3-2.8-5.8-3.8-7.4-1.2-1.9-2.1-2.8-3.2-2.8zm20 0c-1.1 0-2 .9-3.2 2.8-1 1.6-2.3 4.1-3.8 7.4 1.2 2.5 2.5 4.4 4 5.5 1.2.9 2.3 1.3 3.3 1.3 1.3 0 2.7-.6 4.1-1.8 2.4-2.1 3.6-5.7 3.6-9.2 0-2.5-1-5.1-2.6-7-1.6-1.9-3.5-2.8-5.4-2.8z" fill="url(#meta-g1)"/>
+    </svg>
+  );
+}
+
+function AmazonLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5">
+      <path d="M28.5 19.2c0 1.1.1 2 .3 2.6.2.6.5 1.3 1 1.9.2.2.2.5 0 .7L28 25.6c-.2.1-.4.2-.6 0-1-.8-1.7-1.7-2.2-2.8-.1-.2-.1-.2-.3 0-1.4 2-3.4 3-6 3-1.8 0-3.2-.5-4.3-1.5-1.1-1-1.6-2.4-1.6-4.2 0-1.9.7-3.4 2-4.5 1.3-1.1 3.1-1.6 5.3-1.6.7 0 1.5.1 2.4.2V13c0-1.3-.3-2.3-.8-2.8-.5-.5-1.4-.8-2.7-.8-1.2 0-2.3.2-3.3.7-1 .5-1.9 1-2.6 1.6-.3.2-.6.1-.7-.2L11 9.8c-.1-.3 0-.6.2-.8 1-.8 2.3-1.5 3.7-2 1.4-.5 2.9-.7 4.3-.7 2.8 0 4.8.7 6.1 2 1.3 1.4 2 3.4 2 6.1l-.8 4.8zM24 23.1V21c-.7-.1-1.3-.2-1.9-.2-1.2 0-2.1.3-2.7.8-.6.5-.9 1.2-.9 2.1 0 1.9.9 2.8 2.7 2.8.9 0 1.6-.2 2.2-.6.6-.3.6-1.3.6-2.8z" fill="#FF9900"/>
+      <path d="M37 32.8c-4.3 3.2-10.6 4.9-15.9 4.9-7.5 0-14.3-2.8-19.4-7.4-.4-.4 0-.9.5-.6 5.5 3.2 12.3 5.1 19.4 5.1 4.7 0 10-1 14.7-3 .7-.3 1.3.5.7.9v.1z" fill="#FF9900"/>
+      <path d="M38.8 30.8c-.6-.7-3.7-.4-5.1-.2-.4.1-.5-.3-.1-.6 2.5-1.7 6.6-1.2 7.1-.7.5.6-.1 4.7-2.5 6.7-.4.3-.7.1-.6-.3.5-1.3 1.7-4.2 1.2-4.9z" fill="#FF9900"/>
+    </svg>
+  );
+}
+
+function MicrosoftLogo() {
+  return (
+    <svg viewBox="0 0 21 21" className="w-5 h-5">
+      <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+      <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+      <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    </svg>
+  );
+}
+
+function AppleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+    </svg>
+  );
+}
+
+function NetflixLogo() {
+  return (
+    <svg viewBox="0 0 111 30" className="h-4 w-auto" fill="#E50914">
+      <path d="M105.06 29l-8.35-21.6V29h-5.54V1h7.75l8.35 21.6V1H113v28h-7.94zM87.65 1v5.4H78.9v5.4h8.75v5.4H78.9V29h-5.54V1h14.3zM67.25 1v22.6H75v5.4H61.71V1h5.54zM50.85 29V6.4H44.3V1H63v5.4h-6.6V29h-5.54zM37.5 29V16.4L29.75 1h6.35l4.6 9.6 4.6-9.6h6.35L43.9 16.4V29H37.5zM0 1h5.54v12.6L15.13 1h6.93L11.1 14.9 22.75 29h-7.07L5.54 17.5V29H0V1z"/>
+    </svg>
+  );
+}
+
+function NetflixLogoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5">
+      <path d="M5.398 0v.006c3.028 8.556 5.37 15.175 8.348 23.596 2.344.058 4.85.398 4.854.398-2.8-7.924-5.923-16.747-8.487-24zm8.489 0v9.63L18.6 22.951c-.043-7.86-.004-15.913.002-22.95zM5.398 1.05V24c1.873-.225 2.81-.312 4.715-.398v-9.22z" fill="#E50914"/>
+    </svg>
+  );
+}
+
+function BlackRockLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5">
+      <rect width="48" height="48" rx="4" fill="#1C1C1C"/>
+      <text x="24" y="31" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold" fontFamily="serif">BR</text>
+    </svg>
+  );
+}
+
+function GoldmanSachsLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5">
+      <rect width="48" height="48" rx="4" fill="#003087"/>
+      <text x="24" y="31" textAnchor="middle" fill="#C8A84B" fontSize="13" fontWeight="bold" fontFamily="serif">GS</text>
+    </svg>
+  );
+}
+
+function StripeLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5">
+      <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" fill="#635BFF"/>
+    </svg>
+  );
+}
+
+function UberLogo() {
+  return (
+    <svg viewBox="0 0 48 48" className="w-5 h-5">
+      <rect width="48" height="48" rx="24" fill="#000"/>
+      <text x="24" y="31" textAnchor="middle" fill="white" fontSize="14" fontWeight="900" fontFamily="sans-serif">U</text>
+    </svg>
+  );
+}
+
+function AirbnbLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5">
+      <path d="M12 .005C5.383.005 0 5.388 0 12.005c0 6.617 5.383 12 12 12s12-5.383 12-12S18.617.005 12 .005zm0 3.09c2.646 0 4.796 2.15 4.796 4.796S14.646 12.687 12 12.687s-4.796-2.15-4.796-4.796S9.354 3.095 12 3.095zM12 20.92c-2.945 0-5.546-1.437-7.153-3.638.12-1.29.948-2.413 2.17-2.93.896-.378 1.923-.397 2.86-.066.637.227 1.313.34 2.008.34.696 0 1.372-.113 2.01-.34.936-.331 1.963-.312 2.859.066 1.22.517 2.05 1.64 2.17 2.93-1.607 2.2-4.208 3.638-7.153 3.638h.029z" fill="#FF5A5F"/>
+    </svg>
+  );
+}
+
+function OpenAILogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+      <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+    </svg>
+  );
+}
+
+function GeneralLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  );
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ROLES = [
@@ -41,32 +173,32 @@ const ROLES = [
 ];
 
 const COMPANIES = [
-  { name: "Google",        emoji: "🔵" },
-  { name: "Meta",          emoji: "🟣" },
-  { name: "Amazon",        emoji: "🟠" },
-  { name: "BlackRock",     emoji: "⚫" },
-  { name: "Microsoft",     emoji: "🟢" },
-  { name: "Apple",         emoji: "⚪" },
-  { name: "Netflix",       emoji: "🔴" },
-  { name: "Goldman Sachs", emoji: "🟡" },
-  { name: "Stripe",        emoji: "🔷" },
-  { name: "Uber",          emoji: "⬛" },
-  { name: "Airbnb",        emoji: "🩷" },
-  { name: "OpenAI",        emoji: "🤍" },
-  { name: "General",       emoji: "🌐" },
+  { name: "Google",        Logo: GoogleLogo,       bg: "bg-white",           border: "border-gray-200/60" },
+  { name: "Meta",          Logo: MetaLogo,         bg: "bg-white",           border: "border-blue-200/60" },
+  { name: "Amazon",        Logo: AmazonLogo,       bg: "bg-[#232F3E]",       border: "border-orange-400/40" },
+  { name: "Microsoft",     Logo: MicrosoftLogo,    bg: "bg-white",           border: "border-gray-200/60" },
+  { name: "Apple",         Logo: AppleLogo,        bg: "bg-gray-900",        border: "border-gray-700/60",   logoColor: "text-white" },
+  { name: "Netflix",       Logo: NetflixLogoIcon,  bg: "bg-black",           border: "border-red-800/60" },
+  { name: "BlackRock",     Logo: BlackRockLogo,    bg: "bg-[#1C1C1C]",       border: "border-gray-700/60" },
+  { name: "Goldman Sachs", Logo: GoldmanSachsLogo, bg: "bg-[#003087]",       border: "border-blue-900/60" },
+  { name: "Stripe",        Logo: StripeLogo,       bg: "bg-[#0A2540]",       border: "border-[#713600]/40" },
+  { name: "Uber",          Logo: UberLogo,         bg: "bg-black",           border: "border-gray-700/60" },
+  { name: "Airbnb",        Logo: AirbnbLogo,       bg: "bg-white",           border: "border-red-200/60" },
+  { name: "OpenAI",        Logo: OpenAILogo,       bg: "bg-[#0F0F0F]",       border: "border-gray-700/60",   logoColor: "text-white" },
+  { name: "General",       Logo: GeneralLogo,      bg: "bg-[var(--bg-elevated)]", border: "border-[var(--border-subtle)]", logoColor: "text-[var(--text-secondary)]" },
 ];
 
 const EXPERIENCE_LEVELS = [
-  { value: "student", label: "Student / Intern" },
-  { value: "entry",   label: "Entry (0–2 yrs)" },
-  { value: "mid",     label: "Mid (2–5 yrs)" },
-  { value: "senior",  label: "Senior (5+ yrs)" },
+  { value: "student", label: "Student / Intern", icon: "🎓" },
+  { value: "entry",   label: "Entry (0–2 yrs)",  icon: "🌱" },
+  { value: "mid",     label: "Mid (2–5 yrs)",    icon: "⚡" },
+  { value: "senior",  label: "Senior (5+ yrs)",  icon: "🚀" },
 ];
 
 const INTERVIEW_TYPES = [
-  { value: "behavioral", label: "Behavioural", desc: "STAR-format past experience" },
-  { value: "technical",  label: "Technical",   desc: "Problem-solving & depth" },
-  { value: "mixed",      label: "Mixed",       desc: "Both behavioural & technical" },
+  { value: "behavioral", label: "Behavioural", desc: "STAR-format past experience", icon: "💬" },
+  { value: "technical",  label: "Technical",   desc: "Problem-solving & depth",     icon: "⚙️" },
+  { value: "mixed",      label: "Mixed",       desc: "Both behavioural & technical", icon: "✨" },
 ];
 
 const ANALYSIS_STEPS = [
@@ -76,10 +208,10 @@ const ANALYSIS_STEPS = [
   { label: "Generating personalised questions", icon: Sparkles },
 ];
 
-const THINK_SECONDS  = 60;   // thinking time before mic opens
-const SILENCE_MS     = 2500; // ms of silence before auto-submit
-const SILENCE_RMS    = 0.013; // RMS threshold for "silence"
-const FEEDBACK_AUTO_ADVANCE = 7; // seconds before auto-next
+const THINK_SECONDS  = 60;
+const SILENCE_MS     = 2500;
+const SILENCE_RMS    = 0.013;
+const FEEDBACK_AUTO_ADVANCE = 7;
 
 // ── Frequency Visualizer ─────────────────────────────────────────────────────
 
@@ -107,13 +239,12 @@ function FrequencyBars({
     if (!analyser || !active) {
       cancelAnimationFrame(rafRef.current);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // flat idle line
       ctx.fillStyle = color + "30";
       ctx.fillRect(0, canvas.height / 2 - 1, canvas.width, 2);
       return;
     }
 
-    analyser.fftSize = 256;  // must be power of 2
+    analyser.fftSize = 256;
     const bufLen = analyser.frequencyBinCount;
     const data   = new Uint8Array(bufLen);
     const cw     = canvas.width;
@@ -124,7 +255,6 @@ function FrequencyBars({
       rafRef.current = requestAnimationFrame(draw);
       analyser!.getByteFrequencyData(data);
       ctx.clearRect(0, 0, cw, ch);
-
       for (let i = 0; i < bars; i++) {
         const sliceStart = Math.floor(i * bufLen / bars);
         const sliceEnd   = Math.floor((i + 1) * bufLen / bars);
@@ -133,7 +263,6 @@ function FrequencyBars({
         const avg  = sum / (sliceEnd - sliceStart);
         const barH = Math.max(2, (avg / 255) * ch);
         const x    = i * bw;
-
         const grad = ctx.createLinearGradient(0, ch - barH, 0, ch);
         grad.addColorStop(0, color + "ff");
         grad.addColorStop(1, color + "20");
@@ -158,14 +287,39 @@ function FrequencyBars({
   );
 }
 
-// ── Analysis loading ──────────────────────────────────────────────────────────
+// ── Analysis Screen ───────────────────────────────────────────────────────────
 
-function AnalysisScreen({ company }: { company: string }) {
+function AnalysisScreen({
+  company,
+  Logo,
+  apiReady,
+  onDone,
+}: {
+  company: string;
+  Logo?: React.ComponentType;
+  apiReady: boolean;
+  onDone: () => void;
+}) {
   const [step, setStep] = useState(0);
+
   useEffect(() => {
-    const ts = ANALYSIS_STEPS.map((_, i) => setTimeout(() => setStep(i + 1), (i + 1) * 900));
+    // Steps 1–3 are fast backend ops; advance them quickly
+    const ts = [
+      setTimeout(() => setStep(1), 500),
+      setTimeout(() => setStep(2), 1100),
+      setTimeout(() => setStep(3), 1700),
+    ];
     return () => ts.forEach(clearTimeout);
   }, []);
+
+  // Step 4 only completes once the real API call resolves
+  useEffect(() => {
+    if (apiReady && step >= 3) {
+      setStep(4);
+      setTimeout(onDone, 500);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiReady, step]);
 
   return (
     <motion.div
@@ -176,12 +330,15 @@ function AnalysisScreen({ company }: { company: string }) {
       className="flex flex-col items-center justify-center py-16 space-y-8"
     >
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center mx-auto mb-4">
-          <Brain className="w-8 h-8 text-[var(--accent-primary)]" />
+        <div className="relative w-20 h-20 mx-auto mb-5">
+          <div className="absolute inset-0 rounded-2xl bg-[var(--accent-primary)]/20 animate-pulse" />
+          <div className="w-20 h-20 rounded-2xl bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center relative">
+            <Brain className="w-9 h-9 text-[var(--accent-primary)]" />
+          </div>
         </div>
-        <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-1">Preparing Your Interview</h2>
+        <h2 className="text-[20px] font-bold text-[var(--text-primary)] mb-1">Preparing Your Interview</h2>
         <p className="text-[13px] text-[var(--text-secondary)]">
-          Tailoring questions for <span className="font-medium text-[var(--text-primary)]">{company}</span>
+          Tailoring questions for <span className="font-semibold text-[var(--accent-hover)]">{company}</span>
         </p>
       </div>
       <div className="w-full max-w-sm space-y-3">
@@ -194,7 +351,7 @@ function AnalysisScreen({ company }: { company: string }) {
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: step >= i ? 1 : 0.3, x: 0 }}
               transition={{ delay: i * 0.1 }}
-              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+              className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all ${
                 done ? "border-emerald-400/30 bg-emerald-400/5"
                   : cur ? "border-[var(--accent-primary)]/30 bg-[var(--accent-subtle)]"
                   : "border-[var(--border-subtle)] bg-[var(--bg-surface)]"
@@ -221,23 +378,18 @@ function AnalysisScreen({ company }: { company: string }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InterviewPage() {
-  // Phase
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
 
-  // TTS engine
   const [ttsAvail,      setTtsAvail]      = useState(false);
   const [aiSpeaking,    setAiSpeaking]    = useState(false);
-  const [useElevenLabs, setUseElevenLabs] = useState(false); // false = free browser TTS
+  const [useElevenLabs, setUseElevenLabs] = useState(false);
   const [previewing,    setPreviewing]    = useState<string | null>(null);
-  // ElevenLabs voices
   const [elVoices, setElVoices] = useState<{ id: string; name: string; desc: string; gender: string }[]>([]);
   const [selectedElVoice, setSelectedElVoice] = useState("EXAVITQu4vr4xnSDxMaL");
-  // Browser voices
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedBrowserVoice, setSelectedBrowserVoice] = useState("");
 
-  // Setup fields
   const [role,      setRole]      = useState("Software Engineer");
   const [company,   setCompany]   = useState("General");
   const [expLevel,  setExpLevel]  = useState("entry");
@@ -245,7 +397,6 @@ export default function InterviewPage() {
   const [numQ,      setNumQ]      = useState(5);
   const [showAllCo, setShowAllCo] = useState(false);
 
-  // Session
   const [questions,    setQuestions]    = useState<Question[]>([]);
   const [qIndex,       setQIndex]       = useState(0);
   const [answer,       setAnswer]       = useState("");
@@ -255,15 +406,12 @@ export default function InterviewPage() {
   const [resumeLoaded, setResumeLoaded] = useState(false);
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null);
 
-  // Think time
   const [thinkSecs,  setThinkSecs]  = useState(THINK_SECONDS);
   const thinkIntRef  = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-  // Feedback auto-advance
   const [advanceSecs, setAdvanceSecs] = useState(FEEDBACK_AUTO_ADVANCE);
   const advanceIntRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-  // Audio refs
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const aiAnalyserRef = useRef<AnalyserNode | null>(null);
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -275,14 +423,17 @@ export default function InterviewPage() {
   const silenceStartRef = useRef<number | null>(null);
 
   const [micActive, setMicActive] = useState(false);
+  const [analysisReady, setAnalysisReady] = useState(false);
+  const pendingSessionData = useRef<any>(null);
 
-  // Fullscreen ref
   const sessionRef = useRef<HTMLDivElement>(null);
+
+  const selectedCompany = COMPANIES.find(c => c.name === company) ?? COMPANIES[COMPANIES.length - 1];
+  const displayedCos = showAllCo ? COMPANIES : COMPANIES.slice(0, 8);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // ElevenLabs check
     apiClient.get("/interview/tts/status")
       .then(({ data }) => setTtsAvail(data.available))
       .catch(() => setTtsAvail(false));
@@ -290,11 +441,9 @@ export default function InterviewPage() {
       .then(({ data }) => { setElVoices(data.voices); setSelectedElVoice(data.default); })
       .catch(() => {});
 
-    // Browser voices — load async (some browsers fire voiceschanged)
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const load = () => {
       const all = window.speechSynthesis.getVoices();
-      // Prefer high-quality English voices; keep up to 8
       const PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Alex", "Tom", "Daniel", "Karen"];
       const sorted = [
         ...PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[],
@@ -322,7 +471,6 @@ export default function InterviewPage() {
     stopAudio();
     setAiSpeaking(true);
 
-    // ── ElevenLabs (premium, uses credits) ───────────────────────────────
     if (useElevenLabs && ttsAvail) {
       try {
         const { createClient } = await import("@/lib/supabase/client");
@@ -353,28 +501,57 @@ export default function InterviewPage() {
         await audio.play();
         return;
       } catch {
-        // fallthrough to browser
+        // fallthrough to browser TTS
       }
     }
 
-    // ── Browser Web Speech API (free, unlimited) ──────────────────────────
-    if ("speechSynthesis" in window) {
+    if (!("speechSynthesis" in window)) {
+      setAiSpeaking(false);
+      startThinkTime();
+      return;
+    }
+
+    // Chrome bug: speechSynthesis gets paused after fullscreen / focus changes
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+
+    const speak = () => {
       const utt = new SpeechSynthesisUtterance(text);
-      utt.rate  = 0.9;
-      utt.pitch = 1.0;
+      utt.rate   = 0.9;
+      utt.pitch  = 1.0;
       utt.volume = 1;
+
       const allVoices = window.speechSynthesis.getVoices();
       const pick = allVoices.find(v => v.name === selectedBrowserVoice)
         ?? allVoices.find(v => v.name === "Samantha")
-        ?? allVoices.find(v => v.lang.startsWith("en") && !v.name.includes("Google"))
+        ?? allVoices.find(v => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("google"))
+        ?? allVoices.find(v => v.lang.startsWith("en"))
         ?? null;
       if (pick) utt.voice = pick;
+
       utt.onend   = () => { setAiSpeaking(false); startThinkTime(); };
-      utt.onerror = () => { setAiSpeaking(false); startThinkTime(); };
+      utt.onerror = (e) => {
+        // "interrupted" fires when we cancel() a previous utterance — not a real error
+        if ((e as SpeechSynthesisErrorEvent).error === "interrupted") return;
+        setAiSpeaking(false);
+        startThinkTime();
+      };
       window.speechSynthesis.speak(utt);
+
+      // Chrome sometimes silently drops the utterance; kick it after 200ms if still queued
+      setTimeout(() => {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      }, 200);
+    };
+
+    // If voices haven't loaded yet, wait for them
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        speak();
+      };
     } else {
-      setAiSpeaking(false);
-      startThinkTime();
+      speak();
     }
   }
 
@@ -403,7 +580,6 @@ export default function InterviewPage() {
       return;
     }
 
-    // ElevenLabs preview
     if (!ttsAvail) { toast.error("ElevenLabs not configured"); setPreviewing(null); return; }
     try {
       const { createClient } = await import("@/lib/supabase/client");
@@ -454,7 +630,7 @@ export default function InterviewPage() {
     beginRecording();
   }
 
-  // ── Recording + silence detection ────────────────────────────────────────
+  // ── Recording ────────────────────────────────────────────────────────────
 
   const beginRecording = useCallback(async () => {
     setSessionMode("recording");
@@ -467,7 +643,6 @@ export default function InterviewPage() {
       micStreamRef.current = stream;
       setMicActive(true);
 
-      // Frequency analyser for visualizer
       const ctx      = getAudioCtx();
       const src      = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
@@ -475,7 +650,6 @@ export default function InterviewPage() {
       src.connect(analyser);
       micAnalyserRef.current = analyser;
 
-      // Speech recognition for transcript
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SR) {
         const recog = new SR();
@@ -491,13 +665,11 @@ export default function InterviewPage() {
         recognitionRef.current = recog;
       }
 
-      // Silence detection loop
       const silenceBuffer = new Float32Array(analyser.fftSize);
       function detectSilence() {
         silenceRafRef.current = requestAnimationFrame(detectSilence);
         analyser.getFloatTimeDomainData(silenceBuffer);
         const rms = Math.sqrt(silenceBuffer.reduce((s, v) => s + v * v, 0) / silenceBuffer.length);
-
         if (rms > SILENCE_RMS) {
           hasSpeechRef.current    = true;
           silenceStartRef.current = null;
@@ -559,8 +731,6 @@ export default function InterviewPage() {
     }
   }
 
-  // ── Feedback auto-advance ─────────────────────────────────────────────────
-
   function startAutoAdvance(fb: Feedback) {
     if (advanceIntRef.current) clearInterval(advanceIntRef.current);
     setAdvanceSecs(FEEDBACK_AUTO_ADVANCE);
@@ -579,7 +749,6 @@ export default function InterviewPage() {
     if (advanceIntRef.current) clearInterval(advanceIntRef.current);
     stopAudio();
 
-    // If we were on a follow-up, clear it and don't advance index
     if (pendingFollowUp) {
       setPendingFollowUp(null);
       setAnswer("");
@@ -588,7 +757,6 @@ export default function InterviewPage() {
       return;
     }
 
-    // Optionally show follow-up
     if (fb?.follow_up && answer.length > 80) {
       setPendingFollowUp(fb.follow_up);
       setAnswer("");
@@ -617,34 +785,45 @@ export default function InterviewPage() {
     else startThinkTime();
   }
 
-  // ── Interview start ───────────────────────────────────────────────────────
-
   async function startInterview() {
     setPhase("analyzing");
-    await new Promise(r => setTimeout(r, 4200));
+    setAnalysisReady(false);
+    pendingSessionData.current = null;
+
     try {
       const { data } = await apiClient.post("/interview/hirevue/start", {
         role, company, experience_level: expLevel, interview_type: iType, num_questions: numQ,
       });
-      setQuestions(data.questions);
-      setCompanyInfo(data.company_profile);
-      setResumeLoaded(data.resume_loaded ?? false);
-      setQIndex(0);
-      setAllFeedback([]);
-      setFeedback(null);
-      setAnswer("");
-      setPendingFollowUp(null);
-      setPhase("session");
-
-      // Fullscreen
-      try { await document.documentElement.requestFullscreen(); } catch {}
-
-      // Speak first question after a short delay
-      setTimeout(() => speakText(data.questions[0].question), 800);
+      // Store result; the AnalysisScreen's onDone callback will apply it
+      pendingSessionData.current = data;
+      setAnalysisReady(true);
     } catch {
       toast.error("Failed to generate questions. Try again.");
       setPhase("setup");
     }
+  }
+
+  function applySessionData() {
+    const data = pendingSessionData.current;
+    if (!data) return;
+    setQuestions(data.questions);
+    setCompanyInfo(data.company_profile);
+    setResumeLoaded(data.resume_loaded ?? false);
+    setQIndex(0);
+    setAllFeedback([]);
+    setFeedback(null);
+    setAnswer("");
+    setPendingFollowUp(null);
+    setPhase("session");
+
+    // Speak first — Chrome cancels speech when fullscreen is requested
+    const firstQ = data.questions[0]?.question;
+    if (firstQ) speakText(firstQ);
+
+    // Request fullscreen after a tick so speech is already queued
+    setTimeout(() => {
+      try { document.documentElement.requestFullscreen(); } catch {}
+    }, 100);
   }
 
   function exitSession() {
@@ -669,23 +848,22 @@ export default function InterviewPage() {
 
   const currentQuestion = pendingFollowUp ?? questions[qIndex]?.question ?? "";
   const currentType     = pendingFollowUp ? "situational" : questions[qIndex]?.type;
-  const displayedCos    = showAllCo ? COMPANIES : COMPANIES.slice(0, 8);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-3xl mx-auto">
 
-      {/* Header — hidden in fullscreen */}
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3 mb-1 flex-wrap">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview</h1>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-            <Brain className="w-2.5 h-2.5" /> HireVue-style
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
+            <Zap className="w-2.5 h-2.5" /> HireVue-style
           </span>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Personalised interview · voice-driven · auto-advances after your answer.
+          Personalised · voice-driven · auto-advances after your answer
         </p>
       </motion.div>
 
@@ -693,208 +871,253 @@ export default function InterviewPage() {
 
         {/* ── Setup ── */}
         {phase === "setup" && (
-          <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} className="space-y-5">
-            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] space-y-5">
+          <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} className="space-y-4">
 
-              {/* Company */}
-              <div>
-                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Target Company</label>
-                <div className="flex flex-wrap gap-2">
-                  {displayedCos.map(co => (
-                    <button
-                      key={co.name}
-                      onClick={() => setCompany(co.name)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium border transition-colors ${
-                        company === co.name
-                          ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/40 text-[var(--accent-hover)]"
-                          : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      <span>{co.emoji}</span> {co.name}
+            {/* Main config card */}
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
+
+              {/* Gradient banner */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-[#C05800] via-[#d4aa30] to-[#7ab840]" />
+
+              <div className="p-6 space-y-6">
+
+                {/* Company selector */}
+                <div>
+                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
+                    Target Company
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {displayedCos.map(co => {
+                      const Logo = co.Logo;
+                      const isSelected = company === co.name;
+                      return (
+                        <button
+                          key={co.name}
+                          onClick={() => setCompany(co.name)}
+                          className={`group flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-150 ${
+                            isSelected
+                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/50 text-[var(--accent-hover)] shadow-sm shadow-[var(--accent-primary)]/10"
+                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+                          }`}
+                        >
+                          <span className={`flex items-center justify-center w-6 h-6 rounded-lg overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""}`}>
+                            <Logo />
+                          </span>
+                          <span>{co.name}</span>
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => setShowAllCo(v => !v)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
+                      {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
                     </button>
-                  ))}
-                  <button onClick={() => setShowAllCo(v => !v)}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-[12px] text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] transition-colors">
-                    {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Target Role</label>
-                <input list="roles-list" value={role} onChange={e => setRole(e.target.value)}
-                  placeholder="e.g. Software Engineer"
-                  className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
-                <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
-              </div>
-
-              {/* Experience */}
-              <div>
-                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Experience Level</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {EXPERIENCE_LEVELS.map(l => (
-                    <button key={l.value} onClick={() => setExpLevel(l.value)}
-                      className={`px-3 py-2.5 rounded-xl text-[12px] font-medium border transition-colors text-left ${
-                        expLevel === l.value ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)]"
-                      }`}>{l.label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Interview Type</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {INTERVIEW_TYPES.map(t => (
-                    <button key={t.value} onClick={() => setIType(t.value)}
-                      className={`p-3 rounded-xl text-left border transition-colors ${
-                        iType === t.value ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
-                      }`}>
-                      <div className={`text-[13px] font-medium mb-0.5 ${iType === t.value ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
-                      <div className="text-[11px] text-[var(--text-muted)]">{t.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Num questions */}
-              <div>
-                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">
-                  Questions: <span className="text-[var(--accent-hover)] font-bold">{numQ}</span>
-                </label>
-                <input type="range" min={3} max={10} step={1} value={numQ}
-                  onChange={e => setNumQ(Number(e.target.value))}
-                  className="w-full accent-[var(--accent-primary)]" />
-                <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1"><span>3</span><span>10</span></div>
-              </div>
-
-              {/* Voice picker */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[12px] font-medium text-[var(--text-secondary)]">Interviewer Voice</label>
-                  <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
-                    <button
-                      onClick={() => setUseElevenLabs(false)}
-                      className={`px-3 py-1 transition-colors ${!useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                    >
-                      🆓 Free (Unlimited)
-                    </button>
-                    {ttsAvail && (
-                      <button
-                        onClick={() => setUseElevenLabs(true)}
-                        className={`px-3 py-1 transition-colors ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                      >
-                        ✨ ElevenLabs
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                {/* Free browser voices */}
-                {!useElevenLabs && (
+                {/* Role */}
+                <div>
+                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Target Role</label>
+                  <input list="roles-list" value={role} onChange={e => setRole(e.target.value)}
+                    placeholder="e.g. Software Engineer"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
+                  <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+                </div>
+
+                {/* Experience + Type row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                      Uses your device's built-in voices — 100% free, no limits, no API calls.
-                    </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {browserVoices.map(v => (
-                        <div key={v.name}
-                          onClick={() => setSelectedBrowserVoice(v.name)}
-                          className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
-                            selectedBrowserVoice === v.name
-                              ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                              : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
-                          }`}
-                        >
-                          <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                            {v.name.split(" ")[0]}
-                          </div>
-                          <div className="text-[10px] text-[var(--text-muted)] truncate">{v.lang}</div>
-                          <button
-                            onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                            className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                              previewing === v.name
-                                ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                                : "border-[var(--border-subtle)] text-[var(--text-muted)]"
-                            }`}
-                          >
-                            {previewing === v.name ? "■" : "▶"}
-                          </button>
-                        </div>
+                    <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Experience</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {EXPERIENCE_LEVELS.map(l => (
+                        <button key={l.value} onClick={() => setExpLevel(l.value)}
+                          className={`px-3 py-2 rounded-xl text-[12px] font-medium border transition-colors text-left flex items-center gap-1.5 ${
+                            expLevel === l.value
+                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
+                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                          }`}>
+                          <span className="text-[11px]">{l.icon}</span>
+                          <span className="truncate">{l.label}</span>
+                        </button>
                       ))}
                     </div>
                   </div>
-                )}
 
-                {/* ElevenLabs premium voices */}
-                {useElevenLabs && ttsAvail && (
                   <div>
-                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                      Uses ElevenLabs API credits (~32 chars per preview, ~200 per question).
-                    </p>
-                    {(["F", "M"] as const).map(gender => (
-                      <div key={gender} className="mb-2">
-                        <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
-                          {gender === "F" ? "♀ Female" : "♂ Male"}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {elVoices.filter(v => v.gender === gender).map(v => (
-                            <div key={v.id}
-                              onClick={() => setSelectedElVoice(v.id)}
-                              className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                                selectedElVoice === v.id
-                                  ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                                  : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                    <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Interview Type</label>
+                    <div className="space-y-1.5">
+                      {INTERVIEW_TYPES.map(t => (
+                        <button key={t.value} onClick={() => setIType(t.value)}
+                          className={`w-full p-2.5 rounded-xl text-left border transition-colors flex items-center gap-2.5 ${
+                            iType === t.value
+                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30"
+                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]"
+                          }`}>
+                          <span className="text-base">{t.icon}</span>
+                          <div>
+                            <div className={`text-[12px] font-semibold ${iType === t.value ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">{t.desc}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Question count */}
+                <div>
+                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+                    Questions: <span className="text-[var(--accent-hover)] font-bold normal-case">{numQ}</span>
+                  </label>
+                  <div className="relative">
+                    <input type="range" min={3} max={10} step={1} value={numQ}
+                      onChange={e => setNumQ(Number(e.target.value))}
+                      className="w-full accent-[var(--accent-primary)]" />
+                    <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1">
+                      <span>3 (quick)</span><span>10 (thorough)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voice picker */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Interviewer Voice</label>
+                    <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
+                      <button
+                        onClick={() => setUseElevenLabs(false)}
+                        className={`px-3 py-1.5 transition-colors font-medium ${!useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                      >
+                        Free ∞
+                      </button>
+                      {ttsAvail && (
+                        <button
+                          onClick={() => setUseElevenLabs(true)}
+                          className={`px-3 py-1.5 transition-colors font-medium ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                        >
+                          ✨ ElevenLabs
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!useElevenLabs && (
+                    <div>
+                      <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                        Built-in device voices — 100% free, no API calls.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {browserVoices.map(v => (
+                          <div key={v.name}
+                            onClick={() => setSelectedBrowserVoice(v.name)}
+                            className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                              selectedBrowserVoice === v.name
+                                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
+                            }`}
+                          >
+                            <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                              {v.name.split(" ")[0]}
+                            </div>
+                            <div className="text-[10px] text-[var(--text-muted)] truncate">{v.lang}</div>
+                            <button
+                              onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                              className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                previewing === v.name
+                                  ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
                               }`}
                             >
-                              <div className={`text-[13px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                                {v.name}
-                              </div>
-                              <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
-                              <button
-                                onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                                className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                                  previewing === v.id
-                                    ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                                    : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+                              {previewing === v.name ? "■" : "▶"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {useElevenLabs && ttsAvail && (
+                    <div>
+                      <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                        ElevenLabs API credits (~200 per question).
+                      </p>
+                      {(["F", "M"] as const).map(gender => (
+                        <div key={gender} className="mb-2">
+                          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+                            {gender === "F" ? "♀ Female" : "♂ Male"}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {elVoices.filter(v => v.gender === gender).map(v => (
+                              <div key={v.id}
+                                onClick={() => setSelectedElVoice(v.id)}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                                  selectedElVoice === v.id
+                                    ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                                    : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
                                 }`}
                               >
-                                {previewing === v.id ? "■ Stop" : "▶ Hear"}
-                              </button>
-                            </div>
-                          ))}
+                                <div className={`text-[13px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
+                                  {v.name}
+                                </div>
+                                <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
+                                <button
+                                  onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                                  className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                    previewing === v.id
+                                      ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
+                                      : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+                                  }`}
+                                >
+                                  {previewing === v.id ? "■ Stop" : "▶ Hear"}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              <button onClick={startInterview} disabled={!role.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-medium text-[14px] transition-colors disabled:opacity-50">
-                <Maximize2 className="w-4 h-4" />
-                Start Interview (Fullscreen)
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                {/* CTA */}
+                <button onClick={startInterview} disabled={!role.trim()}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white font-semibold text-[14px] transition-all shadow-lg shadow-[#C05800]/20 hover:shadow-[#C05800]/30 disabled:opacity-50 disabled:shadow-none">
+                  <Maximize2 className="w-4 h-4" />
+                  Start Interview — Fullscreen
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-              <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-2">How it works</div>
-              <ul className="space-y-1 text-[12px] text-[var(--text-muted)]">
-                <li>· Interview opens fullscreen — AI reads each question aloud</li>
-                <li>· You get 60 seconds to think, then the mic opens automatically</li>
-                <li>· Stop speaking for 2.5s → answer auto-submits, next question loads</li>
-                <li>· Upload your active resume first for personalised questions</li>
-              </ul>
+            {/* How it works */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: "🎯", title: "Personalised", desc: "Questions matched to your role & company" },
+                { icon: "🎙️", title: "Voice-driven", desc: "AI reads questions, mic opens automatically" },
+                { icon: "⏱️", title: "60s think time", desc: "Plan your STAR answer before speaking" },
+                { icon: "📊", title: "Live scoring", desc: "Instant feedback after every answer" },
+              ].map(item => (
+                <div key={item.title} className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                  <div className="text-xl mb-1.5">{item.icon}</div>
+                  <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{item.title}</div>
+                  <div className="text-[11px] text-[var(--text-muted)] leading-tight">{item.desc}</div>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
 
         {/* ── Analyzing ── */}
-        {phase === "analyzing" && <AnalysisScreen key="analyzing" company={company} />}
+        {phase === "analyzing" && (
+          <AnalysisScreen
+            key="analyzing"
+            company={company}
+            Logo={selectedCompany.Logo}
+            apiReady={analysisReady}
+            onDone={applySessionData}
+          />
+        )}
 
-        {/* ── Session (fullscreen UI) ── */}
+        {/* ── Session ── */}
         {phase === "session" && questions.length > 0 && (
           <motion.div
             ref={sessionRef}
@@ -905,11 +1128,23 @@ export default function InterviewPage() {
             className="fixed inset-0 z-[100] bg-[var(--bg-base)] flex flex-col overflow-hidden"
           >
             {/* Top bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)] flex-shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)] flex-shrink-0 bg-[var(--bg-surface)]/80 backdrop-blur-sm">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center">
-                  <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-                </div>
+                {/* Company logo in session bar */}
+                {(() => {
+                  const co = COMPANIES.find(c => c.name === (companyInfo?.name ?? company));
+                  if (!co) return (
+                    <div className="w-9 h-9 rounded-xl bg-[var(--accent-muted)] border border-[var(--accent-primary)]/30 flex items-center justify-center">
+                      <Brain className="w-5 h-5 text-[var(--accent-primary)]" />
+                    </div>
+                  );
+                  const Logo = co.Logo;
+                  return (
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center border overflow-hidden ${co.bg} ${co.border} ${co.logoColor ?? ""}`}>
+                      <Logo />
+                    </div>
+                  );
+                })()}
                 <div>
                   <div className="text-[13px] font-semibold text-[var(--text-primary)]">
                     {companyInfo?.name ?? "AI"} Interview
@@ -923,10 +1158,10 @@ export default function InterviewPage() {
               {/* Progress dots */}
               <div className="flex items-center gap-1.5">
                 {questions.map((_, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-full transition-colors ${
-                    i < qIndex ? "bg-emerald-400"
-                      : i === qIndex ? "bg-[var(--accent-primary)]"
-                      : "bg-[var(--border-default)]"
+                  <div key={i} className={`h-1.5 rounded-full transition-all ${
+                    i < qIndex ? "w-4 bg-emerald-400"
+                      : i === qIndex ? "w-4 bg-[var(--accent-primary)]"
+                      : "w-1.5 bg-[var(--border-default)]"
                   }`} />
                 ))}
               </div>
@@ -947,17 +1182,17 @@ export default function InterviewPage() {
             {/* Main content */}
             <div className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
 
-              {/* ── AI side (top / left) ── */}
+              {/* AI side */}
               <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10 gap-5 border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)]">
                 {/* AI avatar */}
-                <div className={`relative w-20 h-20 rounded-full border-2 flex items-center justify-center transition-all ${
+                <div className={`relative w-20 h-20 rounded-2xl border-2 flex items-center justify-center transition-all ${
                   aiSpeaking
-                    ? "border-[var(--accent-primary)] bg-[var(--accent-muted)] shadow-[0_0_30px_var(--accent-primary)33]"
+                    ? "border-[var(--accent-primary)] bg-[var(--accent-muted)] shadow-[0_0_40px_var(--accent-primary)33]"
                     : "border-[var(--border-default)] bg-[var(--bg-elevated)]"
                 }`}>
                   <Brain className="w-9 h-9 text-[var(--accent-primary)]" />
                   {aiSpeaking && (
-                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[var(--accent-primary)] flex items-center justify-center">
+                    <span className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--accent-primary)] flex items-center justify-center shadow">
                       <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                     </span>
                   )}
@@ -972,24 +1207,16 @@ export default function InterviewPage() {
                   </div>
                 </div>
 
-                {/* AI frequency visualizer */}
                 <div className="w-full max-w-xs">
-                  <FrequencyBars
-                    analyser={aiAnalyserRef.current}
-                    active={aiSpeaking}
-                    color="#6366f1"
-                    bars={40}
-                    height={56}
-                  />
+                  <FrequencyBars analyser={aiAnalyserRef.current} active={aiSpeaking} color="#6366f1" bars={40} height={56} />
                 </div>
 
-                {/* Question text */}
                 <div className="w-full max-w-lg bg-[var(--bg-elevated)] rounded-2xl p-5 border border-[var(--border-default)]">
                   <div className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border mb-3 ${
                     currentType === "technical"
                       ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
                       : currentType === "situational"
-                        ? "text-purple-400 bg-purple-400/10 border-purple-400/20"
+                        ? "text-[#d4aa30] bg-[#d4aa30]/10 border-[#d4aa30]/20"
                         : "text-amber-400 bg-amber-400/10 border-amber-400/20"
                   }`}>
                     {pendingFollowUp ? "↳ Follow-up" : currentType}
@@ -1000,12 +1227,10 @@ export default function InterviewPage() {
                 </div>
               </div>
 
-              {/* ── User side (bottom / right) ── */}
+              {/* User side */}
               <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10 gap-5">
-
                 <AnimatePresence mode="wait">
 
-                  {/* THINKING */}
                   {sessionMode === "thinking" && (
                     <motion.div key="thinking" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       className="flex flex-col items-center gap-5 w-full max-w-xs text-center">
@@ -1036,41 +1261,27 @@ export default function InterviewPage() {
                     </motion.div>
                   )}
 
-                  {/* RECORDING */}
                   {sessionMode === "recording" && (
                     <motion.div key="recording" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       className="flex flex-col items-center gap-5 w-full">
-
-                      {/* Mic pulse */}
                       <div className="relative">
                         <div className="absolute inset-0 rounded-full bg-red-400/20 animate-ping scale-150" />
                         <div className="w-16 h-16 rounded-full bg-red-400/15 border-2 border-red-400/60 flex items-center justify-center relative">
                           <Mic className="w-7 h-7 text-red-400" />
                         </div>
                       </div>
-
-                      {/* User frequency visualizer */}
                       <div className="w-full max-w-xs">
-                        <FrequencyBars
-                          analyser={micAnalyserRef.current}
-                          active={micActive}
-                          color="#f43f5e"
-                          bars={40}
-                          height={64}
-                        />
+                        <FrequencyBars analyser={micAnalyserRef.current} active={micActive} color="#f43f5e" bars={40} height={64} />
                       </div>
-
                       <div className="text-center">
                         <div className="text-[14px] font-semibold text-[var(--text-primary)]">Recording…</div>
                         <div className="text-[11px] text-[var(--text-muted)] mt-0.5">Auto-submits after 2.5s of silence</div>
                       </div>
-
                       {answer && (
                         <div className="w-full max-w-sm bg-[var(--bg-elevated)] rounded-xl p-3 border border-[var(--border-subtle)]">
                           <p className="text-[12px] text-[var(--text-secondary)] italic leading-relaxed">{answer}</p>
                         </div>
                       )}
-
                       <button onClick={stopRecordingAndSubmit}
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors">
                         <ChevronRight className="w-4 h-4" /> Submit Answer
@@ -1078,7 +1289,6 @@ export default function InterviewPage() {
                     </motion.div>
                   )}
 
-                  {/* EVALUATING */}
                   {sessionMode === "evaluating" && (
                     <motion.div key="evaluating" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="flex flex-col items-center gap-4">
@@ -1087,12 +1297,9 @@ export default function InterviewPage() {
                     </motion.div>
                   )}
 
-                  {/* FEEDBACK */}
                   {sessionMode === "feedback" && feedback && (
                     <motion.div key="feedback" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       className="w-full max-w-sm space-y-3">
-
-                      {/* Score */}
                       <div className="flex items-center gap-3">
                         <div className="text-3xl font-black tabular-nums"
                           style={{ color: feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444" }}>
@@ -1108,9 +1315,7 @@ export default function InterviewPage() {
                         </div>
                         <TrendingUp className="w-4 h-4 text-[var(--text-muted)]" />
                       </div>
-
                       <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{feedback.overall_feedback}</p>
-
                       <div className="grid grid-cols-2 gap-2">
                         {feedback.strengths.length > 0 && (
                           <div>
@@ -1133,8 +1338,6 @@ export default function InterviewPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Auto-advance countdown */}
                       <button onClick={() => advanceQuestion(feedback)}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors">
                         {qIndex + 1 >= questions.length ? "See Results" : "Next Question"}
@@ -1153,8 +1356,9 @@ export default function InterviewPage() {
         {/* ── Results ── */}
         {phase === "results" && (
           <motion.div key="results" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-center">
-              <div className="text-[11px] font-medium text-[var(--text-muted)] mb-2 uppercase tracking-widest">
+            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-center overflow-hidden relative">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C05800] via-[#d4aa30] to-[#7ab840]" />
+              <div className="text-[11px] font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-widest">
                 Interview Complete{companyInfo && ` · ${companyInfo.name}`}
               </div>
               <div className="text-6xl font-black mb-2 tabular-nums"
@@ -1194,9 +1398,9 @@ export default function InterviewPage() {
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
                 <RotateCcw className="w-3.5 h-3.5" /> New Interview
               </button>
-              <button onClick={() => { setQIndex(0); setAllFeedback([]); setFeedback(null); setAnswer(""); setPendingFollowUp(null); setPhase("session"); setTimeout(() => speakText(questions[0]?.question), 400); }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors">
-                <RotateCcw className="w-3.5 h-3.5" /> Retry
+              <button onClick={() => { setQIndex(0); setAllFeedback([]); setFeedback(null); setAnswer(""); setPendingFollowUp(null); setPhase("session"); if (questions[0]?.question) speakText(questions[0].question); setTimeout(() => { try { document.documentElement.requestFullscreen(); } catch {} }, 100); }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white text-[13px] font-semibold transition-all">
+                <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
               </button>
             </div>
           </motion.div>

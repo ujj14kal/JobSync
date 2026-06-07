@@ -9,32 +9,32 @@ import {
 import Link from "next/link";
 
 const EVERYTHING_FREE = [
-  { icon: Brain,      color: "#3b82f6", text: "Full 5-dimension ATS score" },
-  { icon: Target,     color: "#8b5cf6", text: "Skill gap analysis with learning paths" },
-  { icon: GitBranch,  color: "#06b6d4", text: "Missing keyword detection" },
-  { icon: FileText,   color: "#10b981", text: "AI resume bullet rewriter" },
-  { icon: TrendingUp, color: "#f59e0b", text: "Career insights & salary data" },
-  { icon: Users,      color: "#ec4899", text: "Mentor discovery (ADPList, Unstop, LinkedIn)" },
-  { icon: Zap,        color: "#06b6d4", text: "Instant JD extraction from any URL" },
-  { icon: Shield,     color: "#10b981", text: "Local AI — resume never sent to OpenAI" },
+  { icon: Brain,      color: "#C05800", rgb: "192,88,0",   text: "Full 5-dimension ATS score" },
+  { icon: Target,     color: "#d4aa30", rgb: "212,170,48", text: "Skill gap analysis with learning paths" },
+  { icon: GitBranch,  color: "#C05800", rgb: "192,88,0",   text: "Missing keyword detection" },
+  { icon: FileText,   color: "#7ab840", rgb: "122,184,64", text: "AI resume bullet rewriter" },
+  { icon: TrendingUp, color: "#d4aa30", rgb: "212,170,48", text: "Career insights & salary data" },
+  { icon: Users,      color: "#C05800", rgb: "192,88,0",   text: "Mentor discovery (ADPList, Unstop, LinkedIn)" },
+  { icon: Zap,        color: "#d4aa30", rgb: "212,170,48", text: "Instant JD extraction from any URL" },
+  { icon: Shield,     color: "#7ab840", rgb: "122,184,64", text: "Local AI — resume never sent to OpenAI" },
 ];
 
 const WHY_TRUST = [
   {
     icon: Heart,
-    color: "#ec4899",
+    color: "#C05800", rgb: "192,88,0",
     title: "Built for students & job seekers",
     body: "We're job seekers who built the tool we wished existed. No VC-backed paywalls, no upsells.",
   },
   {
     icon: Lock,
-    color: "#8b5cf6",
+    color: "#d4aa30", rgb: "212,170,48",
     title: "Your data stays yours",
     body: "Resumes are stored privately in your account. The AI runs on local models — nothing is shared with third-party LLM APIs.",
   },
   {
     icon: Brain,
-    color: "#3b82f6",
+    color: "#7ab840", rgb: "122,184,64",
     title: "Honest AI, no magic numbers",
     body: "We show you what the model actually computed — every score has a dimension breakdown and reasoning behind it.",
   },
@@ -46,11 +46,11 @@ export default function PricingSection() {
 
   return (
     <section ref={ref} className="section relative overflow-hidden">
-      {/* Ambient glow */}
+      {/* Ambient glow — brand colour */}
       <div
         className="absolute top-1/2 left-1/2 w-[800px] h-[400px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse, rgba(59,130,246,0.05) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, rgba(192,88,0,0.05) 0%, transparent 70%)",
           filter: "blur(60px)",
         }}
       />
@@ -90,8 +90,8 @@ export default function PricingSection() {
           <motion.div
             className="p-8 rounded-3xl"
             style={{
-              background: "rgba(59,130,246,0.04)",
-              border: "1px solid rgba(59,130,246,0.15)",
+              background: "rgba(192,88,0,0.04)",
+              border: "1px solid rgba(192,88,0,0.15)",
             }}
             initial={{ opacity: 0, y: 24 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -99,12 +99,14 @@ export default function PricingSection() {
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <div className="text-sm font-semibold mb-0.5" style={{ color: "#3b82f6" }}>Full Access</div>
-                <div className="text-4xl font-bold text-primary">$0 <span className="text-lg font-normal text-muted">/ forever</span></div>
+                <div className="text-sm font-semibold mb-0.5" style={{ color: "#C05800" }}>Full Access</div>
+                <div className="text-4xl font-bold text-primary">
+                  $0 <span className="text-lg font-normal text-muted">/ forever</span>
+                </div>
               </div>
               <div
                 className="px-3 py-1.5 rounded-full text-xs font-bold"
-                style={{ background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}
+                style={{ background: "rgba(122,184,64,0.12)", color: "#7ab840", border: "1px solid rgba(122,184,64,0.22)" }}
               >
                 No credit card
               </div>
@@ -121,7 +123,7 @@ export default function PricingSection() {
                 >
                   <div
                     className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${feat.color}18`, border: `1px solid ${feat.color}30` }}
+                    style={{ background: `rgba(${feat.rgb},0.12)`, border: `1px solid rgba(${feat.rgb},0.20)` }}
                   >
                     <feat.icon size={13} style={{ color: feat.color }} />
                   </div>
@@ -159,8 +161,8 @@ export default function PricingSection() {
                 key={i}
                 className="flex gap-4 p-5 rounded-2xl"
                 style={{
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  background: `linear-gradient(135deg, rgba(${item.rgb},0.05) 0%, rgba(255,255,255,0.02) 100%)`,
+                  border: `1px solid rgba(${item.rgb},0.10)`,
                 }}
                 initial={{ opacity: 0, y: 16 }}
                 animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -168,7 +170,7 @@ export default function PricingSection() {
               >
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${item.color}15`, border: `1px solid ${item.color}25` }}
+                  style={{ background: `rgba(${item.rgb},0.12)`, border: `1px solid rgba(${item.rgb},0.20)` }}
                 >
                   <item.icon size={16} style={{ color: item.color }} />
                 </div>

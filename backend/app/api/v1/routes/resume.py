@@ -57,15 +57,28 @@ async def upload_resume(
         file_url = None
 
     # Parse resume
-    raw_text = extract_text(content, file.filename)
+    try:
+        raw_text = extract_text(content, file.filename)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Failed to read the file. It may be corrupted or password-protected.",
+        )
     if not raw_text or len(raw_text.strip()) < 50:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not extract text from the resume. Please ensure it's not scanned/image-only.",
         )
 
-    parsed_data = parse_resume(raw_text)
-    embedding = embed_text(raw_text[:3000])
+    try:
+        parsed_data = parse_resume(raw_text)
+    except Exception:
+        parsed_data = {}
+
+    try:
+        embedding = embed_text(raw_text[:3000])
+    except Exception:
+        embedding = None
 
     # Deactivate previous resumes
     supabase.table("resumes").update({"is_active": False}).eq("user_id", user_id).execute()
@@ -117,12 +130,12 @@ async def get_resume(
         .select("*")
         .eq("id", resume_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Resume not found")
-    return result.data
+    return result.data[0]
 
 
 @router.patch("/{resume_id}/activate")

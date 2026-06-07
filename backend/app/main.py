@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import time
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -101,6 +101,15 @@ app.include_router(api_router)
 
 
 # ─── Health & root ────────────────────────────────────────────────────────────
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception", path=str(request.url.path), error=str(exc), exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again."},
+    )
+
 
 @app.get("/health", include_in_schema=False)
 async def health_check():

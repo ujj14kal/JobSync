@@ -14,10 +14,10 @@ const DEMO_SEGMENTS = [
 ];
 
 const FEATURE_BULLETS = [
-  { icon: Target,    color: "#3b82f6", title: "5-Dimension Scoring",    desc: "ATS, technical fit, semantic match, recruiter impression, project relevance — all scored independently." },
-  { icon: TrendingUp,color: "#10b981", title: "Interview Probability",  desc: "ML model predicts your shortlist probability: 79% — strong candidate, top 10% tier." },
-  { icon: Zap,       color: "#8b5cf6", title: "Instant Feedback",       desc: "Full analysis in under 10 seconds. No loading screens, no waiting for LLM queues." },
-  { icon: BarChart3, color: "#06b6d4", title: "Cohort Benchmarking",    desc: "You're in the top 23% of engineers applying to similar roles this month." },
+  { icon: Target,    color: "#C05800", title: "5-Dimension Scoring",    desc: "ATS, technical fit, semantic match, recruiter impression, project relevance — all scored independently." },
+  { icon: TrendingUp,color: "#7ab840", title: "Interview Probability",  desc: "ML model predicts your shortlist probability: 79% — strong candidate, top 10% tier." },
+  { icon: Zap,       color: "#d4aa30", title: "Instant Feedback",       desc: "Full analysis in under 10 seconds. No loading screens, no waiting for LLM queues." },
+  { icon: BarChart3, color: "#d97020", title: "Cohort Benchmarking",    desc: "You're in the top 23% of engineers applying to similar roles this month." },
 ];
 
 export default function ScoreDemoSection() {
@@ -30,7 +30,7 @@ export default function ScoreDemoSection() {
       <div
         className="absolute right-0 top-1/2 w-[600px] h-[600px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3"
         style={{
-          background: "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(192,88,0,0.08) 0%, transparent 70%)",
           filter: "blur(60px)",
         }}
       />
@@ -87,7 +87,7 @@ export default function ScoreDemoSection() {
                 <motion.div
                   className="absolute left-0 right-0 h-px"
                   style={{
-                    background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)",
+                    background: "linear-gradient(90deg, transparent, rgba(192,88,0,0.5), transparent)",
                   }}
                   animate={{ y: [-10, 500] }}
                   transition={{ duration: 3, repeat: Infinity, ease: "linear", delay: 2 }}
@@ -139,7 +139,7 @@ export default function ScoreDemoSection() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="mb-6">
-              <div className="chip-purple mb-4 inline-flex">
+              <div className="chip-blue mb-4 inline-flex">
                 <BarChart3 size={12} />
                 ATS Intelligence
               </div>

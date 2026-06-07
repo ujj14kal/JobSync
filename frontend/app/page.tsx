@@ -8,10 +8,9 @@ import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import PricingSection from "@/components/landing/PricingSection";
 import CTASection from "@/components/landing/CTASection";
 import { Footer } from "@/components/landing/footer";
-
 export default function LandingPage() {
   return (
-    <div className="min-h-screen noise" style={{ background: "var(--bg-base)" }}>
+    <div className="relative min-h-screen noise" style={{ background: "var(--bg-base)" }}>
       <NavBar />
 
       <main>

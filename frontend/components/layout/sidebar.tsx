@@ -86,11 +86,31 @@ export function Sidebar() {
     <motion.aside
       animate={{ width: sidebarCollapsed ? 64 : 220 }}
       transition={{ duration: 0.2, ease: [0.25, 0.4, 0.25, 1] }}
-      className="flex flex-col h-screen bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex-shrink-0 overflow-hidden"
+      className="relative flex flex-col h-screen flex-shrink-0 overflow-hidden z-20"
+      style={{
+        background: "linear-gradient(180deg, rgba(20,19,18,0.97) 0%, rgba(15,14,13,0.99) 100%)",
+        borderRight: "1px solid rgba(255,255,255,0.07)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+      }}
     >
+      {/* Sidebar ambient glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse 100% 60% at 50% -10%, rgba(192,88,0,0.10) 0%, transparent 70%)",
+        }}
+      />
+
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-14 border-b border-[var(--border-subtle)]">
-        <div className="w-7 h-7 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center flex-shrink-0">
+      <div className="relative flex items-center gap-3 px-4 h-14 border-b border-[rgba(255,255,255,0.06)]">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "linear-gradient(135deg, #C05800 0%, #713600 100%)",
+            boxShadow: "0 0 16px rgba(192,88,0,0.45), 0 2px 8px rgba(0,0,0,0.4)",
+          }}
+        >
           <Zap className="w-4 h-4 text-white" fill="white" />
         </div>
         <AnimatePresence>
@@ -130,7 +150,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+      <nav className="relative flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive =
             item.href === "/dashboard"
@@ -142,14 +162,30 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all group",
+                "relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all group",
                 isActive
-                  ? "bg-[var(--accent-muted)] text-[var(--accent-hover)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+                  ? "text-white"
+                  : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]"
               )}
+              style={isActive ? {
+                background: "linear-gradient(135deg, rgba(192,88,0,0.22) 0%, rgba(113,54,0,0.12) 100%)",
+                border: "1px solid rgba(192,88,0,0.28)",
+                boxShadow: "0 0 16px rgba(192,88,0,0.12), inset 0 1px 0 rgba(253,251,212,0.06)",
+              } : undefined}
               title={sidebarCollapsed ? item.label : undefined}
             >
-              <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive && "text-[var(--accent-primary)]")} />
+              {isActive && (
+                <div
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full"
+                  style={{ background: "linear-gradient(180deg, #C05800, #713600)" }}
+                />
+              )}
+              <item.icon className={cn(
+                "w-4 h-4 flex-shrink-0",
+                isActive
+                  ? "text-[#e89848]"
+                  : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
+              )} />
               <AnimatePresence>
                 {!sidebarCollapsed && (
                   <motion.span

@@ -15,12 +15,12 @@ interface Node {
 }
 
 const COLORS: Array<[number, number, number]> = [
-  [59, 130, 246],   // blue-500
-  [96, 165, 250],   // blue-400
-  [139, 92, 246],   // purple-500
-  [167, 139, 250],  // purple-400
-  [6, 182, 212],    // cyan-500
-  [34, 211, 238],   // cyan-400
+  [192, 88, 0],    // caramel #C05800
+  [217, 112, 32],  // warm orange #D97020
+  [113, 54, 0],    // dark brown #713600
+  [212, 170, 48],  // warm gold #D4AA30
+  [184, 144, 32],  // olive gold #B89020
+  [232, 152, 72],  // light caramel #E89848
 ];
 
 export default function NeuralNetworkCanvas({
@@ -164,7 +164,7 @@ export default function NeuralNetworkCanvas({
             const py = a.y + (b.y - a.y) * progress;
             ctx.beginPath();
             ctx.arc(px, py, 2, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(96,165,250,0.8)`;
+            ctx.fillStyle = `rgba(232,152,72,0.85)`;
             ctx.fill();
           }
         }

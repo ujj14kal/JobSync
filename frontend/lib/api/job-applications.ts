@@ -2,6 +2,12 @@ import { apiClient } from "./client";
 
 export type AppStatus = "saved" | "applied" | "screening" | "interviewing" | "offer" | "rejected" | "withdrawn";
 
+export interface StatusHistoryEntry {
+  status: AppStatus;
+  timestamp: string;
+  note?: string;
+}
+
 export interface JobApplication {
   id: string;
   user_id: string;
@@ -24,6 +30,7 @@ export interface JobApplication {
   follow_up_date?: string;
   rejection_reason?: string;
   offer_amount?: number;
+  status_history?: StatusHistoryEntry[];
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +42,7 @@ export interface ApplicationStats {
   response_rate: number;
   offers: number;
   rejections: number;
+  weekly_activity?: { week: string; count: number }[];
 }
 
 export const jobApplicationsApi = {
@@ -61,5 +69,47 @@ export const jobApplicationsApi = {
   stats: async (): Promise<ApplicationStats> => {
     const { data } = await apiClient.get("/jobs/applications/stats");
     return data;
+  },
+};
+
+// ── Gmail sync API ─────────────────────────────────────────────────────────────
+
+export interface GmailStatus {
+  connected: boolean;
+  gmail_email?: string;
+  last_synced_at?: string;
+}
+
+export interface GmailSyncUpdate {
+  company: string;
+  old_status: AppStatus;
+  new_status: AppStatus;
+  subject: string;
+}
+
+export interface GmailSyncResult {
+  updates: GmailSyncUpdate[];
+  emails_checked: number;
+  message: string;
+}
+
+export const gmailApi = {
+  status: async (): Promise<GmailStatus> => {
+    const { data } = await apiClient.get("/gmail/status");
+    return data;
+  },
+
+  getAuthUrl: async (): Promise<{ url: string }> => {
+    const { data } = await apiClient.get("/gmail/auth-url");
+    return data;
+  },
+
+  sync: async (): Promise<GmailSyncResult> => {
+    const { data } = await apiClient.post("/gmail/sync");
+    return data;
+  },
+
+  disconnect: async (): Promise<void> => {
+    await apiClient.delete("/gmail/disconnect");
   },
 };

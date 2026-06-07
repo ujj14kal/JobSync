@@ -61,12 +61,13 @@ function AnimatedNumber({ value, duration = 1.4 }: { value: number; duration?: n
 }
 
 const SEGMENT_COLORS: Record<string, { stroke: string; glow: string; bg: string }> = {
-  blue:   { stroke: "#3b82f6", glow: "rgba(59,130,246,0.5)",  bg: "rgba(59,130,246,0.1)" },
-  purple: { stroke: "#8b5cf6", glow: "rgba(139,92,246,0.5)", bg: "rgba(139,92,246,0.1)" },
-  cyan:   { stroke: "#06b6d4", glow: "rgba(6,182,212,0.5)",  bg: "rgba(6,182,212,0.1)" },
-  green:  { stroke: "#10b981", glow: "rgba(16,185,129,0.5)", bg: "rgba(16,185,129,0.1)" },
-  amber:  { stroke: "#f59e0b", glow: "rgba(245,158,11,0.5)", bg: "rgba(245,158,11,0.1)" },
-  rose:   { stroke: "#f43f5e", glow: "rgba(244,63,94,0.5)",  bg: "rgba(244,63,94,0.1)" },
+  // Brand palette — no blue / purple / cyan
+  blue:   { stroke: "#C05800", glow: "rgba(192,88,0,0.5)",   bg: "rgba(192,88,0,0.1)"   }, // brand orange
+  purple: { stroke: "#d4aa30", glow: "rgba(212,170,48,0.5)", bg: "rgba(212,170,48,0.1)" }, // brand gold
+  cyan:   { stroke: "#d97020", glow: "rgba(217,112,32,0.5)", bg: "rgba(217,112,32,0.1)" }, // brand mid-orange
+  green:  { stroke: "#7ab840", glow: "rgba(122,184,64,0.5)", bg: "rgba(122,184,64,0.1)" }, // brand green
+  amber:  { stroke: "#b86820", glow: "rgba(184,104,32,0.5)", bg: "rgba(184,104,32,0.1)" }, // brand dark-amber
+  rose:   { stroke: "#c84020", glow: "rgba(200,64,32,0.5)",  bg: "rgba(200,64,32,0.1)"  }, // brand error-red
 };
 
 const COLOR_SEQUENCE = ["blue", "purple", "cyan", "green", "amber"] as const;

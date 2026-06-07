@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # HuggingFace (optional)
     HUGGINGFACE_API_KEY: str = ""
 
+    # Google OAuth (Gmail sync — free)
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/callback"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # ElevenLabs (free tier TTS for AI interviews)
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_VOICE_ID: str = "9BWtsMINqrJLrRacOk9x"  # Aria — conversational, natural American female
@@ -49,7 +55,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"  # set to "" to disable Ollama
 
     # Rate limiting & concurrency
-    MAX_ANALYSES_PER_DAY: int = 9999        # effectively unlimited for now
+    MAX_ANALYSES_PER_DAY: int = 10
     MAX_CONCURRENT_ANALYSES: int = 8        # global slot cap across all users
     MAX_CONCURRENT_LLM_CALLS: int = 3       # LLM sub-slot cap
     MAX_QUEUE_DEPTH: int = 50               # reject at this queue depth

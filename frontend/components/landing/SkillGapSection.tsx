@@ -5,14 +5,14 @@ import { motion, useInView } from "framer-motion";
 import { GitBranch, Clock, ArrowRight, CheckCircle2, Circle, Zap } from "lucide-react";
 
 const SKILL_NODES = [
-  { skill: "Python",       have: true,  color: "#3b82f6",  x: 10, y: 40 },
-  { skill: "Docker",       have: true,  color: "#3b82f6",  x: 10, y: 70 },
-  { skill: "React",        have: true,  color: "#3b82f6",  x: 10, y: 55 },
-  { skill: "Kubernetes",   have: false, color: "#8b5cf6",  x: 50, y: 30 },
-  { skill: "PyTorch",      have: false, color: "#8b5cf6",  x: 50, y: 55 },
-  { skill: "LangChain",    have: false, color: "#06b6d4",  x: 50, y: 80 },
-  { skill: "MLflow",       have: false, color: "#06b6d4",  x: 85, y: 42 },
-  { skill: "AWS EKS",      have: false, color: "#06b6d4",  x: 85, y: 68 },
+  { skill: "Python",       have: true,  color: "#C05800",  x: 10, y: 40 },
+  { skill: "Docker",       have: true,  color: "#C05800",  x: 10, y: 70 },
+  { skill: "React",        have: true,  color: "#C05800",  x: 10, y: 55 },
+  { skill: "Kubernetes",   have: false, color: "#d4aa30",  x: 50, y: 30 },
+  { skill: "PyTorch",      have: false, color: "#d4aa30",  x: 50, y: 55 },
+  { skill: "LangChain",    have: false, color: "#d97020",  x: 50, y: 80 },
+  { skill: "MLflow",       have: false, color: "#d97020",  x: 85, y: 42 },
+  { skill: "AWS EKS",      have: false, color: "#d97020",  x: 85, y: 68 },
 ];
 
 const CONNECTIONS = [
@@ -25,11 +25,11 @@ const CONNECTIONS = [
 ];
 
 const ROADMAP_STEPS = [
-  { step: 1, skill: "PyTorch",    hours: 10, category: "AI/ML",    color: "#8b5cf6", quick: true,  desc: "You know Python + NumPy → fast ramp" },
-  { step: 2, skill: "Kubernetes", hours: 20, category: "DevOps",   color: "#3b82f6", quick: false, desc: "You have Docker → K8s is the next step" },
-  { step: 3, skill: "LangChain",  hours: 12, category: "LLM/AI",   color: "#06b6d4", quick: true,  desc: "Python + PyTorch prereqs already met" },
-  { step: 4, skill: "MLflow",     hours: 8,  category: "ML Ops",   color: "#10b981", quick: true,  desc: "PyTorch knowledge transfers directly" },
-  { step: 5, skill: "AWS EKS",    hours: 15, category: "Cloud",    color: "#f59e0b", quick: false, desc: "Kubernetes + AWS basics required first" },
+  { step: 1, skill: "PyTorch",    hours: 10, category: "AI/ML",    color: "#d4aa30", quick: true,  desc: "You know Python + NumPy → fast ramp" },
+  { step: 2, skill: "Kubernetes", hours: 20, category: "DevOps",   color: "#C05800", quick: false, desc: "You have Docker → K8s is the next step" },
+  { step: 3, skill: "LangChain",  hours: 12, category: "LLM/AI",   color: "#d97020", quick: true,  desc: "Python + PyTorch prereqs already met" },
+  { step: 4, skill: "MLflow",     hours: 8,  category: "ML Ops",   color: "#7ab840", quick: true,  desc: "PyTorch knowledge transfers directly" },
+  { step: 5, skill: "AWS EKS",    hours: 15, category: "Cloud",    color: "#b86820", quick: false, desc: "Kubernetes + AWS basics required first" },
 ];
 
 export default function SkillGapSection() {
@@ -157,9 +157,9 @@ export default function SkillGapSection() {
 
                 {/* Legend */}
                 <g>
-                  <circle cx={8} cy={85} r={2} fill="#3b82f6" />
+                  <circle cx={8} cy={85} r={2} fill="#C05800" />
                   <text x={12} y={86.5} fontSize={2.5} fill="rgba(148,163,184,0.8)">You have this</text>
-                  <circle cx={35} cy={85} r={2} fill="transparent" stroke="#8b5cf6" strokeWidth={0.8} />
+                  <circle cx={35} cy={85} r={2} fill="transparent" stroke="#d4aa30" strokeWidth={0.8} />
                   <text x={39} y={86.5} fontSize={2.5} fill="rgba(148,163,184,0.8)">Gap to fill</text>
                 </g>
               </svg>
@@ -172,11 +172,11 @@ export default function SkillGapSection() {
                 </div>
                 <div className="text-xs">
                   <div className="text-secondary">Transferable</div>
-                  <div className="font-bold" style={{ color: "#3b82f6" }}>4 skills</div>
+                  <div className="font-bold" style={{ color: "#C05800" }}>4 skills</div>
                 </div>
                 <div className="text-xs">
                   <div className="text-secondary">Gap score</div>
-                  <div className="font-bold" style={{ color: "#f59e0b" }}>54.9</div>
+                  <div className="font-bold" style={{ color: "#d4aa30" }}>54.9</div>
                 </div>
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function SkillGapSection() {
                 <h3 className="text-xl font-bold text-primary">Learning Roadmap</h3>
                 <div
                   className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                  style={{ background: "rgba(99,102,241,0.15)", color: "#a78bfa", border: "1px solid rgba(99,102,241,0.25)" }}
+                  style={{ background: "rgba(212,170,48,0.15)", color: "#d4aa30", border: "1px solid rgba(212,170,48,0.25)" }}
                 >
                   12 weeks total
                 </div>
@@ -261,19 +261,19 @@ export default function SkillGapSection() {
             <motion.div
               className="mt-4 p-4 rounded-xl flex items-center gap-3"
               style={{
-                background: "rgba(99,102,241,0.06)",
-                border: "1px solid rgba(99,102,241,0.15)",
+                background: "rgba(192,88,0,0.06)",
+                border: "1px solid rgba(192,88,0,0.15)",
               }}
               initial={{ opacity: 0 }}
               animate={isInView ? { opacity: 1 } : {}}
               transition={{ delay: 0.8, duration: 0.5 }}
             >
-              <CheckCircle2 size={18} className="text-purple-400 flex-shrink-0" />
+              <CheckCircle2 size={18} className="text-[#C05800] flex-shrink-0" />
               <div>
                 <div className="text-sm font-semibold text-primary">65 total hours · ready in 12 weeks</div>
                 <div className="text-xs text-muted">at 10hrs/week focused learning</div>
               </div>
-              <ArrowRight size={14} className="text-purple-400 ml-auto flex-shrink-0" />
+              <ArrowRight size={14} className="text-[#C05800] ml-auto flex-shrink-0" />
             </motion.div>
           </motion.div>
         </div>

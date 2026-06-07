@@ -144,7 +144,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
           <button
             onClick={async () => {
               try { await analysisApi.retry(id); refetch(); setPollingActive(true); }
-              catch (e: any) { /* show nothing, retry UI handles it */ }
+              catch (e: any) { toast.error(e?.message || "Failed to retry analysis"); }
             }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
           >
@@ -283,7 +283,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
         <span className={cn(
           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
           analysis.scored_by === "jobsync-custom-ai"
-            ? "bg-purple-400/10 border-purple-400/20 text-purple-400"
+            ? "bg-[#d4aa30]/10 border-[#d4aa30]/20 text-[#d4aa30]"
             : "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
         )}>
           <Brain className="w-3 h-3" />

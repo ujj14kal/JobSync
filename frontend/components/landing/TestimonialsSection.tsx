@@ -7,42 +7,42 @@ import { GraduationCap, RefreshCw, Briefcase, Globe, Code2, BarChart3 } from "lu
 const USE_CASES = [
   {
     icon: GraduationCap,
-    color: "#3b82f6",
+    color: "#C05800", rgb: "192,88,0",
     who: "Final-year students",
     headline: "Know exactly what to fix before you apply",
     body: "See which skills are missing for your target role, get AI-rewritten bullets that match recruiter expectations, and understand why your resume may be getting filtered out.",
   },
   {
     icon: RefreshCw,
-    color: "#8b5cf6",
+    color: "#d4aa30", rgb: "212,170,48",
     who: "Career switchers",
     headline: "Understand what transfers and what doesn't",
     body: "JobSync's semantic matching maps your existing experience to new role requirements — so you know which skills carry over and exactly what gap you need to close.",
   },
   {
     icon: Briefcase,
-    color: "#10b981",
+    color: "#7ab840", rgb: "122,184,64",
     who: "First-time job seekers",
     headline: "Stop guessing, start knowing",
     body: "Get a plain-English breakdown of your ATS score across 5 dimensions. No jargon, no vague advice — just specific, actionable improvements you can make today.",
   },
   {
     icon: Globe,
-    color: "#f59e0b",
+    color: "#C05800", rgb: "192,88,0",
     who: "International applicants",
     headline: "Level the playing field",
     body: "Understand exactly which keywords and phrasing ATS systems in your target country expect. Get mentor recommendations from your own region, free.",
   },
   {
     icon: Code2,
-    color: "#06b6d4",
+    color: "#d4aa30", rgb: "212,170,48",
     who: "Self-taught developers",
     headline: "Show your skills, not just your degree",
     body: "Projects and open-source work are scored on their own dimension. JobSync evaluates your actual technical depth — not just credentials.",
   },
   {
     icon: BarChart3,
-    color: "#ec4899",
+    color: "#7ab840", rgb: "122,184,64",
     who: "Anyone applying to multiple roles",
     headline: "One resume rarely fits all",
     body: "Paste a job URL and get a tailored analysis in seconds. See precisely how your resume reads for that specific role, not a generic score.",
@@ -84,18 +84,18 @@ export default function TestimonialsSection() {
               key={i}
               className="relative p-6 rounded-2xl flex flex-col gap-4 group"
               style={{
-                background: "rgba(255,255,255,0.025)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: `linear-gradient(135deg, rgba(${item.rgb},0.06) 0%, rgba(255,255,255,0.02) 100%)`,
+                border: `1px solid rgba(${item.rgb},0.12)`,
               }}
               initial={{ opacity: 0, y: 24 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: i * 0.07, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ backgroundColor: "rgba(255,255,255,0.04)", y: -2 }}
+              whileHover={{ y: -2 }}
             >
               {/* Icon */}
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `${item.color}18`, border: `1px solid ${item.color}30` }}
+                style={{ background: `rgba(${item.rgb},0.12)`, border: `1px solid rgba(${item.rgb},0.20)` }}
               >
                 <item.icon size={18} style={{ color: item.color }} />
               </div>
@@ -114,10 +114,10 @@ export default function TestimonialsSection() {
                 <p className="text-xs text-secondary leading-relaxed">{item.body}</p>
               </div>
 
-              {/* Accent bottom border on hover */}
+              {/* Bottom accent */}
               <div
-                className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ background: `linear-gradient(90deg, transparent, ${item.color}50, transparent)` }}
+                className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                style={{ background: `linear-gradient(90deg, transparent, rgba(${item.rgb},0.5), transparent)` }}
               />
             </motion.div>
           ))}

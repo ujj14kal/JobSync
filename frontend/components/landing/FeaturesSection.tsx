@@ -7,86 +7,104 @@ import {
   Zap, BarChart3, Users, Shield,
 } from "lucide-react";
 import TiltCard from "@/components/ui/TiltCard";
+import { MagicCard } from "@/components/ui/magic-card";
+import { BorderBeam } from "@/components/ui/border-beam";
 
 const FEATURES = [
   {
     icon: Brain,
-    color: "#3b82f6",
+    color: "#C05800",
+    rgb: "192,88,0",
+    beamTo: "#d4aa30",
     title: "Semantic Matching Engine",
     description:
       "Multi-layer embedding system matches your experience against job requirements with section-level precision — not just keyword counting.",
     badge: "Proprietary",
-    badgeColor: "#3b82f6",
+    badgeColor: "#C05800",
     detail: "384-dim vectors · Cross-section matrix · Transferable skill detection",
   },
   {
     icon: Target,
-    color: "#8b5cf6",
+    color: "#713600",
+    rgb: "113,54,0",
+    beamTo: "#C05800",
     title: "Recruiter-Fit Prediction",
     description:
       "16-feature ML model predicts interview probability. Starts rule-based, evolves to XGBoost as outcome data accumulates.",
     badge: "AI Model",
-    badgeColor: "#8b5cf6",
+    badgeColor: "#8c4a18",
     detail: "Rule-based → ML as data grows · Confidence scoring · Tier classification",
   },
   {
     icon: GitBranch,
-    color: "#06b6d4",
+    color: "#d4aa30",
+    rgb: "212,170,48",
+    beamTo: "#C05800",
     title: "Skill Gap Intelligence",
     description:
       "300+ node skill ontology maps prerequisites, similar skills, and learning paths. Get transferable credit for what you already know.",
     badge: "Knowledge Graph",
-    badgeColor: "#06b6d4",
+    badgeColor: "#d4aa30",
     detail: "Transferable skills · Learning roadmap · Time estimates",
   },
   {
     icon: TrendingUp,
-    color: "#10b981",
+    color: "#8c9a20",
+    rgb: "140,154,32",
+    beamTo: "#d4aa30",
     title: "Feedback Learning Loop",
     description:
       "Every interview outcome teaches the platform. Keyword performance, cohort benchmarks, and weight adjustments compound over time.",
     badge: "Self-Learning",
-    badgeColor: "#10b981",
+    badgeColor: "#8c9a20",
     detail: "Outcome tracking · Keyword analytics · Cohort benchmarks",
   },
   {
     icon: Zap,
-    color: "#f59e0b",
+    color: "#d97020",
+    rgb: "217,112,32",
+    beamTo: "#713600",
     title: "Real-time ATS Scoring",
     description:
       "8-dimension scoring engine evaluates formatting, impact metrics, technical depth, and recruiter impression simultaneously.",
     badge: "Instant",
-    badgeColor: "#f59e0b",
+    badgeColor: "#d97020",
     detail: "8 dimensions · Recruiter impression · Impact density",
   },
   {
     icon: BarChart3,
-    color: "#ec4899",
+    color: "#b86820",
+    rgb: "184,104,32",
+    beamTo: "#C05800",
     title: "Career Analytics Dashboard",
     description:
       "Track your profile evolution, application funnel, cohort percentile, and skill improvement over time with rich visualizations.",
     badge: "Analytics",
-    badgeColor: "#ec4899",
+    badgeColor: "#b86820",
     detail: "Funnel tracking · Percentile rank · Progress over time",
   },
   {
     icon: Users,
-    color: "#a78bfa",
+    color: "#e89848",
+    rgb: "232,152,72",
+    beamTo: "#d4aa30",
     title: "Mentor Discovery",
     description:
       "Semantic search connects you with mentors whose expertise matches your career gap. Ranked by relevance, not recency.",
     badge: "Vector Search",
-    badgeColor: "#a78bfa",
+    badgeColor: "#e89848",
     detail: "Semantic matching · Industry-specific · Multi-platform",
   },
   {
     icon: Shield,
-    color: "#34d399",
+    color: "#7ab840",
+    rgb: "122,184,64",
+    beamTo: "#d4aa30",
     title: "Privacy-First Local AI",
     description:
       "Core intelligence runs on-device. No OpenAI API calls for analysis. Your resume never trains someone else's model.",
     badge: "Local Models",
-    badgeColor: "#34d399",
+    badgeColor: "#7ab840",
     detail: "Sentence-transformers · Offline capable · Zero data leakage",
   },
 ];
@@ -136,30 +154,47 @@ export default function FeaturesSection() {
             return (
               <TiltCard
                 key={i}
-                intensity={6}
+                intensity={8}
+                scale={1.03}
                 className="group"
               >
+                <MagicCard
+                  gradientRgb={feat.rgb}
+                  gradientOpacity={0.09}
+                  gradientSize={260}
+                  className="h-full"
+                >
                 <motion.div
                   className="relative h-full p-6 rounded-2xl overflow-hidden cursor-pointer"
                   style={{
-                    background: "rgba(255,255,255,0.025)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    transition: "border-color 0.3s",
-                  }}
+                    background: `linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)`,
+                    border: `1px solid ${feat.color}28`,
+                    transition: "border-color 0.3s, box-shadow 0.3s",
+                    "--card-bg": "var(--bg-surface)",
+                  } as React.CSSProperties}
                   initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-30px" }}
                   transition={{ delay: (i % 4) * 0.06, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                   whileHover={{
-                    borderColor: `${feat.color}30`,
-                    backgroundColor: "rgba(255,255,255,0.04)",
+                    borderColor: `${feat.color}40`,
+                    boxShadow: `0 0 0 1px ${feat.color}20, 0 8px 40px ${feat.color}14, 0 24px 48px rgba(0,0,0,0.3)`,
                   }}
                 >
+                  {/* Border beam on hover */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                    <BorderBeam
+                      colorFrom={feat.color}
+                      colorTo={feat.beamTo}
+                      duration={4 + (i % 3)}
+                    />
+                  </div>
+
                   {/* Background glow on hover */}
                   <div
                     className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                     style={{
-                      background: `radial-gradient(circle at 30% 20%, ${feat.color}0a 0%, transparent 60%)`,
+                      background: `radial-gradient(circle at 30% 20%, ${feat.color}10 0%, transparent 60%)`,
                     }}
                   />
 
@@ -199,7 +234,7 @@ export default function FeaturesSection() {
                   {/* Tech detail */}
                   <div
                     className="text-[10px] leading-relaxed"
-                    style={{ color: `${feat.color}aa` }}
+                    style={{ color: "var(--text-muted)" }}
                   >
                     {feat.detail}
                   </div>
@@ -212,6 +247,7 @@ export default function FeaturesSection() {
                     }}
                   />
                 </motion.div>
+                </MagicCard>
               </TiltCard>
             );
           })}

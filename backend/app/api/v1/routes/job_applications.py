@@ -1,8 +1,11 @@
-"""Job Applications Tracker — CRUD endpoints."""
+"""Job Applications Tracker — CRUD endpoints with status history."""
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from app.core.security import get_current_user_id
@@ -55,6 +58,10 @@ class ApplicationUpdate(BaseModel):
 VALID_STATUSES = {"saved", "applied", "screening", "interviewing", "offer", "rejected", "withdrawn"}
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -82,7 +89,7 @@ async def create_application(
     body: ApplicationCreate,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Add a job to the application tracker."""
+    """Add a job to the application tracker, initialising status history."""
     if body.status not in VALID_STATUSES:
         raise HTTPException(400, detail=f"Invalid status. Valid: {VALID_STATUSES}")
 
@@ -90,6 +97,7 @@ async def create_application(
     record = {
         "id": str(uuid.uuid4()),
         "user_id": user_id,
+        "status_history": [{"status": body.status, "timestamp": _now_iso(), "note": "Initial"}],
         **body.model_dump(exclude_none=True),
     }
     result = supabase.table("job_applications").insert(record).execute()
@@ -104,7 +112,7 @@ async def update_application(
     body: ApplicationUpdate,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Update a job application (status, notes, etc.)."""
+    """Update a job application. Appends to status_history when status changes."""
     supabase = get_supabase()
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -112,6 +120,21 @@ async def update_application(
 
     if "status" in updates and updates["status"] not in VALID_STATUSES:
         raise HTTPException(400, detail=f"Invalid status. Valid: {VALID_STATUSES}")
+
+    # Append to status history when status changes
+    if "status" in updates:
+        current = (
+            supabase.table("job_applications")
+            .select("status, status_history")
+            .eq("id", application_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        if current.data and current.data.get("status") != updates["status"]:
+            history = current.data.get("status_history") or []
+            history.append({"status": updates["status"], "timestamp": _now_iso()})
+            updates["status_history"] = history
 
     result = (
         supabase.table("job_applications")
@@ -137,7 +160,7 @@ async def delete_application(
 
 @router.get("/stats")
 async def get_application_stats(user_id: str = Depends(get_current_user_id)):
-    """Get summary stats for the user's job tracker."""
+    """Summary stats + weekly activity for the user's job tracker."""
     supabase = get_supabase()
     result = (
         supabase.table("job_applications")
@@ -156,8 +179,33 @@ async def get_application_stats(user_id: str = Depends(get_current_user_id)):
     avg_score = round(sum(scores) / len(scores), 1) if scores else None
 
     total = len(apps)
-    applied = status_counts.get("applied", 0) + status_counts.get("screening", 0) + status_counts.get("interviewing", 0)
-    response_rate = round((applied / total * 100), 1) if total > 0 else 0
+    active = (
+        status_counts.get("applied", 0)
+        + status_counts.get("screening", 0)
+        + status_counts.get("interviewing", 0)
+    )
+    response_rate = round((active / total * 100), 1) if total > 0 else 0
+
+    # Weekly activity — last 8 weeks (index 0 = oldest, 7 = this week)
+    now = datetime.now(timezone.utc)
+    weekly_counts: dict[int, int] = defaultdict(int)
+    for app in apps:
+        try:
+            created = datetime.fromisoformat(app["created_at"].replace("Z", "+00:00"))
+            days_ago = (now - created).days
+            week_idx = days_ago // 7
+            if 0 <= week_idx < 8:
+                weekly_counts[7 - week_idx] += 1
+        except (ValueError, TypeError, KeyError):
+            pass
+
+    weekly_activity = [
+        {
+            "week": f"{(now - timedelta(weeks=(7 - w))).month}/{(now - timedelta(weeks=(7 - w))).day}",
+            "count": weekly_counts.get(w, 0),
+        }
+        for w in range(8)
+    ]
 
     return {
         "total": total,
@@ -166,4 +214,5 @@ async def get_application_stats(user_id: str = Depends(get_current_user_id)):
         "response_rate": response_rate,
         "offers": status_counts.get("offer", 0),
         "rejections": status_counts.get("rejected", 0),
+        "weekly_activity": weekly_activity,
     }

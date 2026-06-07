@@ -21,7 +21,7 @@ export default function ResumePage() {
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const { data: resumes, isLoading } = useQuery({
+  const { data: resumes, isLoading, isError: resumesError } = useQuery({
     queryKey: ["resumes"],
     queryFn: resumeApi.list,
   });
@@ -53,6 +53,16 @@ export default function ResumePage() {
   function handleUploadSuccess(resume: Resume) {
     queryClient.invalidateQueries({ queryKey: ["resumes"] });
     setSelectedResume(resume);
+  }
+
+  if (resumesError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+        <AlertTriangle className="w-8 h-8 text-red-400 mb-3" />
+        <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">Could not load resumes</p>
+        <p className="text-[13px] text-[var(--text-muted)]">Check your connection and refresh the page.</p>
+      </div>
+    );
   }
 
   return (

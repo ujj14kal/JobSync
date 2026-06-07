@@ -15,7 +15,7 @@ export function AnalysisClient() {
   const router = useRouter();
   const [showHistory, setShowHistory] = useState(false);
 
-  const { data: analyses } = useQuery({
+  const { data: analyses, isError: analysesError } = useQuery({
     queryKey: ["analyses"],
     queryFn: analysisApi.list,
   });
@@ -117,6 +117,11 @@ export function AnalysisClient() {
       </div>
 
       {/* Recent analyses */}
+      {analysesError && (
+        <div className="text-center py-6 text-[13px] text-[var(--text-muted)]">
+          Could not load analysis history. Your new analyses will still work.
+        </div>
+      )}
       {analyses && analyses.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">

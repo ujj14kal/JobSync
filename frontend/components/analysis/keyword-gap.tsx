@@ -82,7 +82,7 @@ export function KeywordGapPanel({ keywords, skillGaps }: KeywordGapProps) {
       {/* Skill Gaps */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <BookOpen className="w-4 h-4 text-violet-400" />
+          <BookOpen className="w-4 h-4 text-[#d4aa30]" />
           <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">
             Skill Gaps ({skillGaps.length})
           </h3>

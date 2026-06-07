@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.routes import (
     resume, jobs, analysis, mentors, insights, improve, intelligence, auth,
     job_applications, settings, feedback, model_mgmt, interview, resume_builder,
+    gmail_sync,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -20,3 +21,4 @@ api_router.include_router(feedback.router)
 api_router.include_router(model_mgmt.router)
 api_router.include_router(interview.router)
 api_router.include_router(resume_builder.router)
+api_router.include_router(gmail_sync.router)

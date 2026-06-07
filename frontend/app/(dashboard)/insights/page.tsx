@@ -206,7 +206,7 @@ export default function InsightsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
               <div className="flex items-center gap-2 mb-4">
-                <BarChart2 className="w-4 h-4 text-violet-400" />
+                <BarChart2 className="w-4 h-4 text-[#C05800]" />
                 <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
                   Job Market
                 </h2>

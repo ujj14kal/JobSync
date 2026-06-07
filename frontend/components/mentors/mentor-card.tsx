@@ -11,7 +11,7 @@ interface MentorCardProps {
 }
 
 const platformConfig: Record<string, { label: string; color: string }> = {
-  unstop:       { label: "Unstop",       color: "text-purple-400 bg-purple-400/10 border-purple-400/20" },
+  unstop:       { label: "Unstop",       color: "text-[#d4aa30] bg-[#d4aa30]/10 border-[#d4aa30]/20" },
   adplist:      { label: "ADPList",      color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
   linkedin:     { label: "LinkedIn",     color: "text-sky-400 bg-sky-400/10 border-sky-400/20" },
   mentorcruise: { label: "MentorCruise", color: "text-orange-400 bg-orange-400/10 border-orange-400/20" },
@@ -21,7 +21,7 @@ const platformConfig: Record<string, { label: string; color: string }> = {
 
 const platformGlow: Record<string, string> = {
   adplist:      "rgba(59,130,246,0.08)",
-  unstop:       "rgba(139,92,246,0.08)",
+  unstop:       "rgba(212,170,48,0.08)",
   linkedin:     "rgba(14,165,233,0.08)",
   mentorcruise: "rgba(251,146,60,0.08)",
 };

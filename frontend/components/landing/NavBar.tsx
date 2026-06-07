@@ -52,8 +52,8 @@ export default function NavBar() {
               <div
                 className="w-8 h-8 rounded-xl flex items-center justify-center"
                 style={{
-                  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-                  boxShadow: "0 0 20px rgba(99,102,241,0.4)",
+                  background: "linear-gradient(135deg, #C05800, #713600)",
+                  boxShadow: "0 0 20px rgba(192,88,0,0.4)",
                 }}
               >
                 <Zap size={15} className="text-white" />
@@ -61,7 +61,7 @@ export default function NavBar() {
               <span className="font-bold text-primary text-base">JobSync</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.25)" }}
+                style={{ background: "rgba(192,88,0,0.15)", color: "#d97020", border: "1px solid rgba(192,88,0,0.25)" }}
               >
                 <Sparkles size={9} /> AI
               </span>
@@ -97,10 +97,10 @@ export default function NavBar() {
                 <motion.button
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
                   style={{
-                    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-                    boxShadow: "0 0 20px rgba(99,102,241,0.35)",
+                    background: "linear-gradient(135deg, #C05800, #713600)",
+                    boxShadow: "0 0 20px rgba(192,88,0,0.35)",
                   }}
-                  whileHover={{ scale: 1.03, boxShadow: "0 0 28px rgba(99,102,241,0.5)" }}
+                  whileHover={{ scale: 1.03, boxShadow: "0 0 28px rgba(192,88,0,0.5)" }}
                   whileTap={{ scale: 0.97 }}
                 >
                   Get Started Free
@@ -155,7 +155,7 @@ export default function NavBar() {
                 <Link href="/signup" className="flex-1">
                   <button
                     className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}
+                    style={{ background: "linear-gradient(135deg, #C05800, #713600)" }}
                   >
                     Get Started
                   </button>

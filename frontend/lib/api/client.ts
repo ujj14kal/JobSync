@@ -27,11 +27,31 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Session expired or unauthorized — redirect to login
+    if (error.response?.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login?reason=session_expired";
+      return Promise.reject(new Error("Session expired. Redirecting to login…"));
+    }
+
+    // Network error (no response at all)
+    if (!error.response) {
+      const isTimeout = error.code === "ECONNABORTED";
+      return Promise.reject(
+        new Error(
+          isTimeout
+            ? "Request timed out. The server may be busy — please try again."
+            : "Network error. Check your connection and try again."
+        )
+      );
+    }
+
+    // Server sent a meaningful error message
     const message =
       error.response?.data?.detail ||
       error.response?.data?.message ||
       error.message ||
       "An unexpected error occurred";
+
     return Promise.reject(new Error(message));
   }
 );

@@ -6,6 +6,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ScoreRing } from "@/components/ui/ScoreDonut";
+import { Spotlight } from "@/components/ui/spotlight";
 
 /* ── Rotating hero headlines (positive, empowering) ── */
 const HERO_VARIANTS = [
@@ -79,7 +80,7 @@ const FLOAT_CARDS = [
     content: (
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-xs text-secondary">
-          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#C05800" }} />
           ATS Analysis
         </div>
         <ScoreRing score={84} size={64} strokeWidth={6} />
@@ -95,13 +96,13 @@ const FLOAT_CARDS = [
     content: (
       <div className="flex flex-col gap-3 p-4 min-w-[180px]">
         <div className="flex items-center gap-2 text-xs text-secondary">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#d4aa30" }} />
           Skill Match
         </div>
         {[
-          { label: "Python", pct: 95, color: "#3b82f6" },
-          { label: "React", pct: 78, color: "#8b5cf6" },
-          { label: "AWS",   pct: 62, color: "#06b6d4" },
+          { label: "Python", pct: 95, color: "#C05800" },
+          { label: "React",  pct: 78, color: "#713600" },
+          { label: "AWS",    pct: 62, color: "#d4aa30" },
         ].map((item) => (
           <div key={item.label}>
             <div className="flex justify-between text-[10px] mb-1" style={{ color: "rgba(148,163,184,0.8)" }}>
@@ -131,13 +132,13 @@ const FLOAT_CARDS = [
       <div className="flex items-center gap-3 p-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}
+          style={{ background: "rgba(192,88,0,0.15)", border: "1px solid rgba(192,88,0,0.30)" }}
         >
-          <Zap size={16} className="text-green-400" />
+          <Zap size={16} style={{ color: "#d97020" }} />
         </div>
         <div>
           <div className="text-xs font-semibold text-primary">Analysis Time</div>
-          <div className="text-xl font-bold" style={{ color: "#10b981" }}>&lt; 30s</div>
+          <div className="text-xl font-bold" style={{ color: "#C05800" }}>&lt; 30s</div>
         </div>
       </div>
     ),
@@ -159,6 +160,12 @@ export default function HeroSection() {
       ref={containerRef}
       className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-20"
     >
+      {/* ── Mouse-tracking spotlight ── */}
+      <Spotlight
+        color="rgba(99,102,241,0.13)"
+        size={800}
+      />
+
       {/* ── Neural network background ── */}
       <div className="absolute inset-0">
         <NeuralNetworkCanvas />
@@ -167,30 +174,21 @@ export default function HeroSection() {
       {/* ── Ambient gradient orbs ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div
-          className="absolute w-[700px] h-[700px] rounded-full opacity-20 blur-[120px]"
+          className="absolute w-[900px] h-[700px] rounded-full blur-[140px] animate-aurora-1"
           style={{
-            background: "radial-gradient(circle, #3b82f6, transparent 70%)",
-            top: "10%",
-            left: "20%",
-            transform: "translate(-50%,-50%)",
+            background: "radial-gradient(circle, rgba(192,88,0,0.10) 0%, transparent 65%)",
+            top: "0%",
+            left: "30%",
+            transform: "translate(-50%,-40%)",
           }}
         />
         <div
-          className="absolute w-[500px] h-[500px] rounded-full opacity-15 blur-[100px]"
+          className="absolute w-[600px] h-[500px] rounded-full blur-[120px] animate-aurora-3"
           style={{
-            background: "radial-gradient(circle, #8b5cf6, transparent 70%)",
-            top: "35%",
-            right: "15%",
-            transform: "translate(50%,-50%)",
-          }}
-        />
-        <div
-          className="absolute w-[400px] h-[400px] rounded-full opacity-10 blur-[80px]"
-          style={{
-            background: "radial-gradient(circle, #06b6d4, transparent 70%)",
-            bottom: "10%",
-            left: "40%",
-            transform: "translate(-50%,50%)",
+            background: "radial-gradient(circle, rgba(184,144,32,0.07) 0%, transparent 65%)",
+            bottom: "5%",
+            left: "45%",
+            transform: "translate(-50%,40%)",
           }}
         />
       </div>
@@ -240,12 +238,12 @@ export default function HeroSection() {
           <div
             className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
             style={{
-              background: "rgba(99,102,241,0.1)",
-              border: "1px solid rgba(99,102,241,0.25)",
-              color: "#a78bfa",
+              background: "rgba(192,88,0,0.12)",
+              border: "1px solid rgba(192,88,0,0.30)",
+              color: "#e89848",
             }}
           >
-            <Sparkles size={14} className="text-purple-400" />
+            <Sparkles size={14} className="text-[#d97020]" />
             <span>JobSync AI — free for students &amp; job seekers</span>
           </div>
         </motion.div>
@@ -290,12 +288,12 @@ export default function HeroSection() {
               key={chip.text}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "rgba(148,163,184,0.9)",
+                background: "rgba(192,88,0,0.07)",
+                border: "1px solid rgba(192,88,0,0.18)",
+                color: "rgba(200,168,122,0.9)",
               }}
             >
-              <span className="text-blue-400">{chip.icon}</span>
+              <span style={{ color: "#d97020" }}>{chip.icon}</span>
               {chip.text}
             </div>
           ))}
@@ -340,7 +338,7 @@ export default function HeroSection() {
           transition={{ delay: 0.6, duration: 0.5 }}
         >
           <div className="flex -space-x-2">
-            {["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b"].map((color, i) => (
+            {["#C05800", "#713600", "#d4aa30", "#38240D"].map((color, i) => (
               <div
                 key={i}
                 className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
@@ -357,7 +355,7 @@ export default function HeroSection() {
           <span>Trusted by 2,400+ job seekers</span>
           <div className="flex gap-0.5">
             {[...Array(5)].map((_, i) => (
-              <span key={i} style={{ color: "#f59e0b" }}>★</span>
+              <span key={i} style={{ color: "#d4aa30" }}>★</span>
             ))}
             <span className="ml-1">4.9/5</span>
           </div>
