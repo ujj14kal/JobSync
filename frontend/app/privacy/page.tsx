@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy — JobSynk",
@@ -22,9 +22,7 @@ export default function PrivacyPage() {
       <header className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "#C05800" }}>
-              <Zap className="w-3.5 h-3.5 text-white" fill="white" />
-            </div>
+            <img src="/logo.png" alt="JobSynk" className="w-6 h-6 object-contain" />
             <span className="text-sm font-semibold" style={{ color: "rgba(226,232,240,0.9)" }}>JobSynk</span>
           </Link>
           <Link href="/" className="text-xs hover:text-white transition-colors" style={{ color: "rgba(148,163,184,0.7)" }}>

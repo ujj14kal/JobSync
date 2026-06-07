@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Mail, Lock, Eye, EyeOff, Phone, ShieldCheck } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Phone, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -180,9 +180,7 @@ function LoginContent() {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
           className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[var(--accent-primary)] flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" fill="white" />
-            </div>
+            <img src="/logo.png" alt="JobSynk" className="w-8 h-8 object-contain" />
             <span className="text-[16px] font-bold text-[var(--text-primary)]">JobSynk</span>
           </Link>
         </motion.div>
