@@ -1,51 +1,79 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { BarChart3, TrendingUp, Target, Zap } from "lucide-react";
 import ScoreDonut from "@/components/ui/ScoreDonut";
 
 const DEMO_SEGMENTS = [
-  { label: "ATS Compatibility",   shortLabel: "ATS",       value: 84, color: "blue" },
-  { label: "Technical Fit",       shortLabel: "Technical", value: 78, color: "purple" },
-  { label: "Semantic Match",      shortLabel: "Semantic",  value: 91, color: "cyan" },
-  { label: "Recruiter Impression",shortLabel: "Recruiter", value: 72, color: "green" },
-  { label: "Project Relevance",   shortLabel: "Projects",  value: 65, color: "amber" },
+  { label: "ATS Compatibility",    shortLabel: "ATS",       value: 84, color: "blue" },
+  { label: "Technical Fit",        shortLabel: "Technical", value: 78, color: "purple" },
+  { label: "Semantic Match",       shortLabel: "Semantic",  value: 91, color: "cyan" },
+  { label: "Recruiter Impression", shortLabel: "Recruiter", value: 72, color: "green" },
+  { label: "Project Relevance",    shortLabel: "Projects",  value: 65, color: "amber" },
 ];
 
 const FEATURE_BULLETS = [
-  { icon: Target,    color: "#C05800", title: "5-Dimension Scoring",    desc: "ATS, technical fit, semantic match, recruiter impression, project relevance — all scored independently." },
-  { icon: TrendingUp,color: "#7ab840", title: "Interview Probability",  desc: "ML model predicts your shortlist probability: 79% — strong candidate, top 10% tier." },
-  { icon: Zap,       color: "#d4aa30", title: "Instant Feedback",       desc: "Full analysis in under 10 seconds. No loading screens, no waiting for LLM queues." },
-  { icon: BarChart3, color: "#d97020", title: "Cohort Benchmarking",    desc: "You're in the top 23% of engineers applying to similar roles this month." },
+  { icon: Target,     color: "#C05800", title: "5-Dimension Scoring",   desc: "ATS, technical fit, semantic match, recruiter impression, project relevance — all scored independently." },
+  { icon: TrendingUp, color: "#7ab840", title: "Interview Probability", desc: "ML model predicts your shortlist probability: 79% — strong candidate, top 10% tier." },
+  { icon: Zap,        color: "#d4aa30", title: "Instant Feedback",      desc: "Full analysis in under 10 seconds. No loading screens, no waiting for LLM queues." },
+  { icon: BarChart3,  color: "#d97020", title: "Cohort Benchmarking",   desc: "You're in the top 23% of engineers applying to similar roles this month." },
 ];
 
 export default function ScoreDemoSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(sectionRef, { once: true, margin: "-80px" });
+
+  /* ── Scroll-driven parallax — left & right panels move in opposite directions ── */
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+
+  // Left panel rises faster than scroll
+  const leftY  = useTransform(scrollYProgress, [0, 1], ["60px", "-60px"]);
+  // Right panel lags behind (opposite)
+  const rightY = useTransform(scrollYProgress, [0, 1], ["-40px", "60px"]);
+  // Background orb drifts horizontally
+  const orbX   = useTransform(scrollYProgress, [0, 1], ["-40px", "60px"]);
+  const orbY   = useTransform(scrollYProgress, [0, 1], ["20px", "-40px"]);
 
   return (
-    <section ref={ref} className="section relative overflow-hidden">
-      {/* Decorative background */}
-      <div
-        className="absolute right-0 top-1/2 w-[600px] h-[600px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3"
+    <section ref={sectionRef} className="section relative overflow-hidden">
+      {/* ── Background orb (parallax) ── */}
+      <motion.div
+        className="absolute w-[600px] h-[600px] rounded-full blur-[80px] pointer-events-none"
         style={{
-          background: "radial-gradient(circle, rgba(192,88,0,0.08) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          x: orbX,
+          y: orbY,
+          background: "radial-gradient(circle, rgba(192,88,0,0.09) 0%, transparent 70%)",
+          right: "-10%",
+          top: "50%",
+          translateY: "-50%",
+        }}
+      />
+      <motion.div
+        className="absolute w-[350px] h-[350px] rounded-full blur-[70px] pointer-events-none"
+        style={{
+          y: useTransform(scrollYProgress, [0, 1], ["30px", "-50px"]),
+          background: "radial-gradient(circle, rgba(212,170,48,0.06) 0%, transparent 70%)",
+          left: "5%",
+          top: "20%",
         }}
       />
 
       <div className="container-xl relative">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
-          {/* ── Left: Score visualization ── */}
+          {/* ── Left panel: Score visualization (rises faster) ── */}
           <motion.div
             className="flex flex-col items-center"
+            style={{ y: leftY }}
             initial={{ opacity: 0, x: -40 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
-            {/* Glass card wrapping the donut */}
+            {/* Glass card */}
             <div
               className="relative w-full max-w-md p-8 rounded-3xl"
               style={{
@@ -72,7 +100,7 @@ export default function ScoreDemoSection() {
                 </div>
               </div>
 
-              {/* Donut chart */}
+              {/* Donut */}
               <ScoreDonut
                 segments={DEMO_SEGMENTS}
                 overallScore={82}
@@ -82,7 +110,7 @@ export default function ScoreDemoSection() {
                 animationDelay={isInView ? 200 : 99999}
               />
 
-              {/* Scan line animation */}
+              {/* Scan line */}
               <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
                 <motion.div
                   className="absolute left-0 right-0 h-px"
@@ -131,12 +159,13 @@ export default function ScoreDemoSection() {
             </motion.div>
           </motion.div>
 
-          {/* ── Right: Feature bullets ── */}
+          {/* ── Right panel: Feature bullets (lags behind — opposite) ── */}
           <motion.div
             className="flex flex-col gap-3"
+            style={{ y: rightY }}
             initial={{ opacity: 0, x: 40 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="mb-6">
               <div className="chip-blue mb-4 inline-flex">
@@ -148,7 +177,7 @@ export default function ScoreDemoSection() {
                 <span className="gradient-blue">predict outcomes</span>
               </h2>
               <p className="text-secondary text-lg leading-relaxed">
-                Our 8-dimension ATS engine doesn't just count keywords.
+                Our 8-dimension ATS engine doesn&apos;t just count keywords.
                 It evaluates everything a recruiter looks for in 6 seconds —
                 then tells you exactly how to improve.
               </p>
@@ -165,12 +194,13 @@ export default function ScoreDemoSection() {
                       background: "rgba(255,255,255,0.02)",
                       border: "1px solid rgba(255,255,255,0.06)",
                     }}
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 24 }}
                     animate={isInView ? { opacity: 1, x: 0 } : {}}
-                    transition={{ delay: 0.1 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ delay: 0.12 + i * 0.09, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     whileHover={{
                       backgroundColor: "rgba(255,255,255,0.04)",
                       borderColor: `${item.color}20`,
+                      x: -4,
                     }}
                   >
                     <div

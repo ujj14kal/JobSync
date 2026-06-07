@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { GraduationCap, RefreshCw, Briefcase, Globe, Code2, BarChart3 } from "lucide-react";
 
 const USE_CASES = [
@@ -49,15 +49,99 @@ const USE_CASES = [
   },
 ];
 
+/* ── Marquee row component ── */
+function MarqueeRow({
+  items,
+  direction = 1,
+  speed = 35,
+}: {
+  items: typeof USE_CASES;
+  direction?: 1 | -1;
+  speed?: number;
+}) {
+  // Duplicate for seamless loop
+  const doubled = [...items, ...items];
+  const totalWidth = items.length * 340; // ~340px per card
+
+  return (
+    <div className="overflow-hidden relative">
+      {/* Fade edges */}
+      <div className="absolute inset-y-0 left-0 w-24 z-10 pointer-events-none"
+        style={{ background: "linear-gradient(to right, var(--bg-base), transparent)" }} />
+      <div className="absolute inset-y-0 right-0 w-24 z-10 pointer-events-none"
+        style={{ background: "linear-gradient(to left, var(--bg-base), transparent)" }} />
+
+      <motion.div
+        className="flex gap-4 will-change-transform"
+        style={{ width: `${totalWidth * 2}px` }}
+        animate={{
+          x: direction === 1 ? [0, -totalWidth] : [-totalWidth, 0],
+        }}
+        transition={{
+          duration: speed,
+          repeat: Infinity,
+          ease: "linear",
+          repeatType: "loop",
+        }}
+      >
+        {doubled.map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <motion.div
+              key={i}
+              className="relative flex-shrink-0 w-[320px] p-5 rounded-2xl flex flex-col gap-3 group cursor-default"
+              style={{
+                background: `linear-gradient(135deg, rgba(${item.rgb},0.07) 0%, rgba(255,255,255,0.02) 100%)`,
+                border: `1px solid rgba(${item.rgb},0.14)`,
+              }}
+              whileHover={{ y: -4, scale: 1.02, transition: { duration: 0.2 } }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `rgba(${item.rgb},0.12)`, border: `1px solid rgba(${item.rgb},0.20)` }}
+                >
+                  <Icon size={16} style={{ color: item.color }} />
+                </div>
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: item.color }}
+                >
+                  {item.who}
+                </div>
+              </div>
+
+              <h3 className="text-sm font-bold text-primary leading-snug">
+                {item.headline}
+              </h3>
+              <p className="text-xs text-secondary leading-relaxed line-clamp-3">{item.body}</p>
+
+              {/* Bottom accent */}
+              <div
+                className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                style={{ background: `linear-gradient(90deg, transparent, rgba(${item.rgb},0.5), transparent)` }}
+              />
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </div>
+  );
+}
+
 export default function TestimonialsSection() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
+
+  /* ── Scroll parallax on the heading ── */
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const headingY = useTransform(scrollYProgress, [0, 1], ["-20px", "20px"]);
 
   return (
     <section ref={ref} className="section overflow-hidden">
       <div className="container-xl">
         {/* Heading */}
-        <div className="text-center mb-14">
+        <motion.div className="text-center mb-14" style={{ y: headingY }}>
           <motion.h2
             className="text-4xl sm:text-5xl font-bold text-primary mb-4"
             initial={{ opacity: 0, y: 20 }}
@@ -75,54 +159,21 @@ export default function TestimonialsSection() {
           >
             Whether you&apos;re fresh out of college or switching industries, JobSync gives you the same clarity a career coach would — for free.
           </motion.p>
-        </div>
-
-        {/* Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {USE_CASES.map((item, i) => (
-            <motion.div
-              key={i}
-              className="relative p-6 rounded-2xl flex flex-col gap-4 group"
-              style={{
-                background: `linear-gradient(135deg, rgba(${item.rgb},0.06) 0%, rgba(255,255,255,0.02) 100%)`,
-                border: `1px solid rgba(${item.rgb},0.12)`,
-              }}
-              initial={{ opacity: 0, y: 24 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: i * 0.07, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -2 }}
-            >
-              {/* Icon */}
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `rgba(${item.rgb},0.12)`, border: `1px solid rgba(${item.rgb},0.20)` }}
-              >
-                <item.icon size={18} style={{ color: item.color }} />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1">
-                <div
-                  className="text-[11px] font-semibold uppercase tracking-wider mb-1.5"
-                  style={{ color: item.color }}
-                >
-                  {item.who}
-                </div>
-                <h3 className="text-sm font-bold text-primary mb-2 leading-snug">
-                  {item.headline}
-                </h3>
-                <p className="text-xs text-secondary leading-relaxed">{item.body}</p>
-              </div>
-
-              {/* Bottom accent */}
-              <div
-                className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                style={{ background: `linear-gradient(90deg, transparent, rgba(${item.rgb},0.5), transparent)` }}
-              />
-            </motion.div>
-          ))}
-        </div>
+        </motion.div>
       </div>
+
+      {/* ── Dual infinite marquee (opposite directions) ── */}
+      <motion.div
+        className="flex flex-col gap-4"
+        initial={{ opacity: 0 }}
+        animate={isInView ? { opacity: 1 } : {}}
+        transition={{ delay: 0.2, duration: 0.6 }}
+      >
+        {/* Row 1: scrolls left → */}
+        <MarqueeRow items={USE_CASES} direction={1} speed={40} />
+        {/* Row 2: scrolls right ← */}
+        <MarqueeRow items={[...USE_CASES].reverse()} direction={-1} speed={34} />
+      </motion.div>
     </section>
   );
 }

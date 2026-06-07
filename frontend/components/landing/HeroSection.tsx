@@ -2,13 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  useMotionValue,
+  useSpring,
+  MotionValue,
+} from "framer-motion";
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ScoreRing } from "@/components/ui/ScoreDonut";
 import { Spotlight } from "@/components/ui/spotlight";
 
-/* ── Rotating hero headlines (positive, empowering) ── */
+/* ── Rotating hero headlines ── */
 const HERO_VARIANTS = [
   {
     line1: "Get the interview",
@@ -70,13 +77,15 @@ const NeuralNetworkCanvas = dynamic(
   { ssr: false }
 );
 
-/* ── Floating card data ── */
+/* ── Float card definitions with depth for mouse parallax ── */
 const FLOAT_CARDS = [
   {
     id: "score",
-    className: "left-[4%] top-[22%] hidden xl:flex",
+    pos: { left: "4%", top: "22%" },
+    hidden: "hidden xl:flex",
     delay: 0,
     duration: 5.5,
+    depth: 0.022, // subtle depth layer
     content: (
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-xs text-secondary">
@@ -90,9 +99,11 @@ const FLOAT_CARDS = [
   },
   {
     id: "match",
-    className: "right-[4%] top-[28%] hidden xl:flex",
+    pos: { right: "4%", top: "28%" },
+    hidden: "hidden xl:flex",
     delay: 1.2,
     duration: 6,
+    depth: 0.038, // deeper layer — moves more with mouse
     content: (
       <div className="flex flex-col gap-3 p-4 min-w-[180px]">
         <div className="flex items-center gap-2 text-xs text-secondary">
@@ -125,9 +136,11 @@ const FLOAT_CARDS = [
   },
   {
     id: "interview",
-    className: "right-[6%] bottom-[24%] hidden xl:flex",
+    pos: { right: "6%", bottom: "24%" },
+    hidden: "hidden xl:flex",
     delay: 0.6,
     duration: 5,
+    depth: 0.016, // shallowest layer — barely moves
     content: (
       <div className="flex items-center gap-3 p-3">
         <div
@@ -143,13 +156,107 @@ const FLOAT_CARDS = [
       </div>
     ),
   },
-];
+] as const;
+
+/* ── FloatCard — each has its own hooks for depth-based mouse parallax ── */
+function FloatCard({
+  card,
+  springX,
+  springY,
+}: {
+  card: (typeof FLOAT_CARDS)[number];
+  springX: MotionValue<number>;
+  springY: MotionValue<number>;
+}) {
+  const mx = useTransform(springX, (v) => v * card.depth);
+  const my = useTransform(springY, (v) => v * card.depth);
+
+  return (
+    <motion.div
+      className={`absolute ${card.hidden}`}
+      style={{
+        ...card.pos,
+        x: mx,
+        y: my,
+      }}
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: card.delay + 1.5, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Inner — float up/down animation lives here independently */}
+      <motion.div
+        className="glass-md rounded-2xl"
+        style={{
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04) inset",
+        }}
+        animate={{ y: [0, -12, 0] }}
+        transition={{
+          delay: card.delay + 2.0,
+          duration: card.duration,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      >
+        {card.content}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ── Background orb — moves opposite to mouse for depth illusion ── */
+function ParallaxOrb({
+  springX,
+  springY,
+  depth,
+  style,
+  className,
+}: {
+  springX: MotionValue<number>;
+  springY: MotionValue<number>;
+  depth: number;
+  style: React.CSSProperties;
+  className?: string;
+}) {
+  const x = useTransform(springX, (v) => -v * depth);
+  const y = useTransform(springY, (v) => -v * depth);
+  return (
+    <motion.div
+      className={`absolute rounded-full pointer-events-none ${className ?? ""}`}
+      style={{ x, y, ...style }}
+    />
+  );
+}
 
 export default function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  /* ── Scroll parallax on the main content block ── */
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "25%"]);
-  const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+  const contentY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.65], [1, 0]);
+
+  /* ── Mouse parallax ── */
+  const rawMouseX = useMotionValue(0);
+  const rawMouseY = useMotionValue(0);
+  const springX = useSpring(rawMouseX, { stiffness: 55, damping: 22, mass: 0.8 });
+  const springY = useSpring(rawMouseY, { stiffness: 55, damping: 22, mass: 0.8 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    rawMouseX.set(e.clientX - rect.left - rect.width / 2);
+    rawMouseY.set(e.clientY - rect.top - rect.height / 2);
+  };
+
+  const handleMouseLeave = () => {
+    rawMouseX.set(0);
+    rawMouseY.set(0);
+  };
+
+  /* ── Headline text subtle mouse offset ── */
+  const textX = useTransform(springX, (v) => v * 0.006);
+  const textY = useTransform(springY, (v) => v * 0.006);
 
   const [variantIdx, setVariantIdx] = useState(0);
   useEffect(() => { setVariantIdx(pickVariant()); }, []);
@@ -159,206 +266,205 @@ export default function HeroSection() {
     <section
       ref={containerRef}
       className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-20"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
     >
-      {/* ── Mouse-tracking spotlight ── */}
-      <Spotlight
-        color="rgba(99,102,241,0.13)"
-        size={800}
-      />
+      {/* ── Spotlight (brand color) ── */}
+      <Spotlight color="rgba(192,88,0,0.10)" size={900} />
 
       {/* ── Neural network background ── */}
       <div className="absolute inset-0">
         <NeuralNetworkCanvas />
       </div>
 
-      {/* ── Ambient gradient orbs ── */}
+      {/* ── Ambient gradient orbs (react to mouse — opposite direction) ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute w-[900px] h-[700px] rounded-full blur-[140px] animate-aurora-1"
+        <ParallaxOrb
+          springX={springX}
+          springY={springY}
+          depth={0.008}
+          className="w-[900px] h-[700px] blur-[140px] animate-aurora-1"
           style={{
-            background: "radial-gradient(circle, rgba(192,88,0,0.10) 0%, transparent 65%)",
+            background: "radial-gradient(circle, rgba(192,88,0,0.12) 0%, transparent 65%)",
             top: "0%",
             left: "30%",
             transform: "translate(-50%,-40%)",
           }}
         />
-        <div
-          className="absolute w-[600px] h-[500px] rounded-full blur-[120px] animate-aurora-3"
+        <ParallaxOrb
+          springX={springX}
+          springY={springY}
+          depth={0.005}
+          className="w-[600px] h-[500px] blur-[120px] animate-aurora-3"
           style={{
-            background: "radial-gradient(circle, rgba(184,144,32,0.07) 0%, transparent 65%)",
+            background: "radial-gradient(circle, rgba(212,170,48,0.08) 0%, transparent 65%)",
             bottom: "5%",
             left: "45%",
             transform: "translate(-50%,40%)",
           }}
         />
+        {/* Extra depth orb — deep background layer */}
+        <ParallaxOrb
+          springX={springX}
+          springY={springY}
+          depth={0.003}
+          className="w-[400px] h-[400px] blur-[100px]"
+          style={{
+            background: "radial-gradient(circle, rgba(122,184,64,0.05) 0%, transparent 70%)",
+            top: "50%",
+            left: "15%",
+            transform: "translate(-50%,-50%)",
+          }}
+        />
       </div>
 
-      {/* ── Floating glass cards ── */}
+      {/* ── Floating glass cards (depth-layered mouse parallax) ── */}
       {FLOAT_CARDS.map((card) => (
-        <motion.div
+        <FloatCard
           key={card.id}
-          className={`absolute glass-md rounded-2xl ${card.className}`}
-          style={{
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04) inset",
-          }}
-          initial={{ opacity: 0, y: 20, scale: 0.9 }}
-          animate={{
-            opacity: 1,
-            y: [0, -10, 0],
-            scale: 1,
-          }}
-          transition={{
-            opacity: { delay: card.delay + 1.5, duration: 0.6 },
-            scale: { delay: card.delay + 1.5, duration: 0.6 },
-            y: {
-              delay: card.delay + 1.5,
-              duration: card.duration,
-              repeat: Infinity,
-              ease: "easeInOut",
-            },
-          }}
-        >
-          {card.content}
-        </motion.div>
+          card={card}
+          springX={springX}
+          springY={springY}
+        />
       ))}
 
-      {/* ── Main hero content ── */}
+      {/* ── Main hero content (scroll + subtle mouse parallax) ── */}
       <motion.div
         className="relative z-10 text-center px-6 max-w-5xl mx-auto"
-        style={{ y, opacity }}
+        style={{ y: contentY, opacity: contentOpacity }}
       >
-        {/* Eyebrow badge */}
-        <motion.div
-          className="inline-flex items-center gap-2 mb-8"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-            style={{
-              background: "rgba(192,88,0,0.12)",
-              border: "1px solid rgba(192,88,0,0.30)",
-              color: "#e89848",
-            }}
+        {/* Subtle mouse-driven tilt on text */}
+        <motion.div style={{ x: textX, y: textY }}>
+          {/* Eyebrow badge */}
+          <motion.div
+            className="inline-flex items-center gap-2 mb-8"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            <Sparkles size={14} className="text-[#d97020]" />
-            <span>JobSync AI — free for students &amp; job seekers</span>
-          </div>
-        </motion.div>
-
-        {/* Headline */}
-        <motion.h1
-          className="text-5xl sm:text-6xl lg:text-8xl font-bold tracking-tight leading-[1.05] mb-6"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <span className="text-primary">{variant.line1}</span>
-          <br />
-          <span className="gradient-cyan-blue">{variant.line2}</span>
-          <br />
-          <span className="text-primary">{variant.line3}</span>
-        </motion.h1>
-
-        {/* Sub-headline */}
-        <motion.p
-          className="text-lg sm:text-xl text-secondary max-w-2xl mx-auto mb-10 leading-relaxed"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          {variant.sub}
-        </motion.p>
-
-        {/* Trust chips */}
-        <motion.div
-          className="flex flex-wrap items-center justify-center gap-3 mb-10"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          {[
-            { icon: <Shield size={12} />, text: "Local AI — no data sent to OpenAI" },
-            { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
-            { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
-          ].map((chip) => (
             <div
-              key={chip.text}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
               style={{
-                background: "rgba(192,88,0,0.07)",
-                border: "1px solid rgba(192,88,0,0.18)",
-                color: "rgba(200,168,122,0.9)",
+                background: "rgba(192,88,0,0.12)",
+                border: "1px solid rgba(192,88,0,0.30)",
+                color: "#e89848",
               }}
             >
-              <span style={{ color: "#d97020" }}>{chip.icon}</span>
-              {chip.text}
+              <Sparkles size={14} className="text-[#d97020]" />
+              <span>JobSync AI — free for students &amp; job seekers</span>
             </div>
-          ))}
-        </motion.div>
+          </motion.div>
 
-        {/* CTAs */}
-        <motion.div
-          className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <Link href="/signup">
-            <motion.button
-              className="btn-primary text-base px-8 py-4"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              Analyze My Resume Free
-              <ArrowRight size={18} />
-            </motion.button>
-          </Link>
-          <Link href="/login">
-            <motion.button
-              className="btn-secondary text-base px-8 py-4"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              See Live Demo
-            </motion.button>
-          </Link>
+          {/* Headline */}
+          <motion.h1
+            className="text-5xl sm:text-6xl lg:text-8xl font-bold tracking-tight leading-[1.05] mb-6"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <span className="text-primary">{variant.line1}</span>
+            <br />
+            <span className="gradient-cyan-blue">{variant.line2}</span>
+            <br />
+            <span className="text-primary">{variant.line3}</span>
+          </motion.h1>
 
-          {/* Sound test — direct click = guaranteed user gesture */}
-          <EngineTestButton />
-        </motion.div>
+          {/* Sub-headline */}
+          <motion.p
+            className="text-lg sm:text-xl text-secondary max-w-2xl mx-auto mb-10 leading-relaxed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {variant.sub}
+          </motion.p>
 
-        {/* Social proof */}
-        <motion.div
-          className="mt-12 flex items-center justify-center gap-8 text-sm text-muted"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-        >
-          <div className="flex -space-x-2">
-            {["#C05800", "#713600", "#d4aa30", "#38240D"].map((color, i) => (
+          {/* Trust chips */}
+          <motion.div
+            className="flex flex-wrap items-center justify-center gap-3 mb-10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            {[
+              { icon: <Shield size={12} />, text: "Local AI — no data sent to OpenAI" },
+              { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
+              { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
+            ].map((chip) => (
               <div
-                key={i}
-                className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
+                key={chip.text}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
                 style={{
-                  background: `${color}20`,
-                  borderColor: `${color}40`,
-                  color: color,
+                  background: "rgba(192,88,0,0.07)",
+                  border: "1px solid rgba(192,88,0,0.18)",
+                  color: "rgba(200,168,122,0.9)",
                 }}
               >
-                {String.fromCharCode(65 + i)}
+                <span style={{ color: "#d97020" }}>{chip.icon}</span>
+                {chip.text}
               </div>
             ))}
-          </div>
-          <span>Trusted by 2,400+ job seekers</span>
-          <div className="flex gap-0.5">
-            {[...Array(5)].map((_, i) => (
-              <span key={i} style={{ color: "#d4aa30" }}>★</span>
-            ))}
-            <span className="ml-1">4.9/5</span>
-          </div>
+          </motion.div>
+
+          {/* CTAs */}
+          <motion.div
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <Link href="/signup">
+              <motion.button
+                className="btn-primary text-base px-8 py-4"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                Analyze My Resume Free
+                <ArrowRight size={18} />
+              </motion.button>
+            </Link>
+            <Link href="/login">
+              <motion.button
+                className="btn-secondary text-base px-8 py-4"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                See Live Demo
+              </motion.button>
+            </Link>
+            <EngineTestButton />
+          </motion.div>
+
+          {/* Social proof */}
+          <motion.div
+            className="mt-12 flex items-center justify-center gap-8 text-sm text-muted"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            <div className="flex -space-x-2">
+              {["#C05800", "#713600", "#d4aa30", "#38240D"].map((color, i) => (
+                <div
+                  key={i}
+                  className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
+                  style={{
+                    background: `${color}20`,
+                    borderColor: `${color}40`,
+                    color: color,
+                  }}
+                >
+                  {String.fromCharCode(65 + i)}
+                </div>
+              ))}
+            </div>
+            <span>Trusted by 2,400+ job seekers</span>
+            <div className="flex gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <span key={i} style={{ color: "#d4aa30" }}>★</span>
+              ))}
+              <span className="ml-1">4.9/5</span>
+            </div>
+          </motion.div>
         </motion.div>
       </motion.div>
 
@@ -386,7 +492,7 @@ export default function HeroSection() {
   );
 }
 
-/* ── Engine sound test button ────────────────────────────────────────────── */
+/* ── Engine sound test button ── */
 function EngineTestButton() {
   const [playing, setPlaying] = useState(false);
 

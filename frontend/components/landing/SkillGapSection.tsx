@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { GitBranch, Clock, ArrowRight, CheckCircle2, Circle, Zap } from "lucide-react";
+import { motion, useInView, useScroll, useTransform } from "framer-motion";
+import { GitBranch, Clock, ArrowRight, CheckCircle2, Zap } from "lucide-react";
 
 const SKILL_NODES = [
   { skill: "Python",       have: true,  color: "#C05800",  x: 10, y: 40 },
@@ -36,14 +36,35 @@ export default function SkillGapSection() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-80px" });
 
+  /* ── Scroll parallax ── */
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const orbY   = useTransform(scrollYProgress, [0, 1], ["-30%", "30%"]);
+  const orbX   = useTransform(scrollYProgress, [0, 1], ["-10%", "10%"]);
+  const leftY  = useTransform(scrollYProgress, [0, 1], ["50px", "-50px"]);
+  const rightY = useTransform(scrollYProgress, [0, 1], ["-30px", "60px"]);
+  const orb2Y  = useTransform(scrollYProgress, [0, 1], ["20%", "-25%"]);
+
   return (
     <section ref={ref} className="section relative overflow-hidden">
-      {/* Background orb */}
-      <div
-        className="absolute left-0 top-1/2 w-[500px] h-[500px] rounded-full pointer-events-none -translate-y-1/2 -translate-x-1/3"
+      {/* ── Parallax background orbs ── */}
+      <motion.div
+        className="absolute w-[500px] h-[500px] rounded-full pointer-events-none blur-[80px]"
         style={{
-          background: "radial-gradient(circle, rgba(6,182,212,0.07) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          x: orbX,
+          y: orbY,
+          background: "radial-gradient(circle, rgba(192,88,0,0.09) 0%, transparent 70%)",
+          left: "-5%",
+          top: "50%",
+          translateY: "-50%",
+        }}
+      />
+      <motion.div
+        className="absolute w-[350px] h-[350px] rounded-full pointer-events-none blur-[70px]"
+        style={{
+          y: orb2Y,
+          background: "radial-gradient(circle, rgba(212,170,48,0.06) 0%, transparent 70%)",
+          right: "5%",
+          top: "30%",
         }}
       />
 
@@ -81,6 +102,7 @@ export default function SkillGapSection() {
         <div className="grid lg:grid-cols-2 gap-12 items-start">
           {/* ── Skill graph visualization ── */}
           <motion.div
+            style={{ y: leftY }}
             initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
@@ -184,6 +206,7 @@ export default function SkillGapSection() {
 
           {/* ── Learning roadmap ── */}
           <motion.div
+            style={{ y: rightY }}
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
