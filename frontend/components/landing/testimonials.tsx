@@ -7,7 +7,7 @@ import { Star } from "lucide-react";
 const testimonials = [
   {
     quote:
-      "JobSync told me I was missing 'distributed systems' and 'Kubernetes' keywords. I added relevant experience, reapplied, and got a Google interview in 2 weeks.",
+      "JobSynk told me I was missing 'distributed systems' and 'Kubernetes' keywords. I added relevant experience, reapplied, and got a Google interview in 2 weeks.",
     name: "Arjun Mehta",
     role: "SWE → Google L4",
     avatar: "AM",
@@ -80,7 +80,7 @@ export function Testimonials() {
             at top companies
           </h2>
           <p className="text-[var(--text-secondary)] text-base">
-            Real results from real people who optimized with JobSync.
+            Real results from real people who optimized with JobSynk.
           </p>
         </motion.div>
 

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Zap } from "lucide-react";
 
 export const metadata = {
-  title: "Terms of Service — JobSync",
-  description: "Terms and conditions for using JobSync.",
+  title: "Terms of Service — JobSynk",
+  description: "Terms and conditions for using JobSynk.",
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -25,7 +25,7 @@ export default function TermsPage() {
             <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "#C05800" }}>
               <Zap className="w-3.5 h-3.5 text-white" fill="white" />
             </div>
-            <span className="text-sm font-semibold" style={{ color: "rgba(226,232,240,0.9)" }}>JobSync</span>
+            <span className="text-sm font-semibold" style={{ color: "rgba(226,232,240,0.9)" }}>JobSynk</span>
           </Link>
           <Link href="/" className="text-xs hover:text-white transition-colors" style={{ color: "rgba(148,163,184,0.7)" }}>
             ← Back to home
@@ -47,27 +47,27 @@ export default function TermsPage() {
             Last updated: June 7, 2026 &nbsp;·&nbsp; Effective: June 7, 2026
           </p>
           <p className="mt-4 text-sm leading-relaxed" style={{ color: "rgba(148,163,184,0.85)" }}>
-            These Terms of Service ("Terms") govern your use of JobSync ("the Service"), operated by
-            Ujjwal Kalra ("we", "us"). By creating an account or using JobSync, you agree to these Terms.
+            These Terms of Service ("Terms") govern your use of JobSynk ("the Service"), operated by
+            Ujjwal Kalra ("we", "us"). By creating an account or using JobSynk, you agree to these Terms.
             If you do not agree, do not use the Service.
           </p>
         </div>
 
         {/* 1 */}
-        <Section title="1. What JobSync Is">
+        <Section title="1. What JobSynk Is">
           <p>
-            JobSync is a free AI-powered career tool that helps job seekers analyze their resumes against
+            JobSynk is a free AI-powered career tool that helps job seekers analyze their resumes against
             job descriptions, identify skill gaps, track job applications, and prepare for interviews.
           </p>
           <p>
-            JobSync is an independent project, not a registered company or professional career consultancy.
+            JobSynk is an independent project, not a registered company or professional career consultancy.
             It is provided "as is" as a best-effort free service.
           </p>
         </Section>
 
         {/* 2 */}
         <Section title="2. Eligibility">
-          <p>You must be at least 13 years old to use JobSync. By using the Service you confirm you meet this requirement.</p>
+          <p>You must be at least 13 years old to use JobSynk. By using the Service you confirm you meet this requirement.</p>
           <p>If you are under 18, you confirm you have parental or guardian consent to create an account.</p>
         </Section>
 
@@ -83,7 +83,7 @@ export default function TermsPage() {
         <Section title="4. Acceptable Use">
           <p>You agree <strong className="text-white">not</strong> to:</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Use JobSync to analyze resumes or job descriptions on behalf of third parties for commercial purposes (e.g., running an ATS-optimization business using our API).</li>
+            <li>Use JobSynk to analyze resumes or job descriptions on behalf of third parties for commercial purposes (e.g., running an ATS-optimization business using our API).</li>
             <li>Attempt to reverse-engineer, scrape, or extract our AI models, embeddings, or scoring algorithms.</li>
             <li>Upload resumes containing other people&apos;s personal data without their consent.</li>
             <li>Use the Service to generate content that is false, defamatory, or intended to deceive employers.</li>
@@ -95,7 +95,7 @@ export default function TermsPage() {
         {/* 5 */}
         <Section title="5. AI Output Disclaimer">
           <p>
-            JobSync uses AI models to generate resume scores, skill gap analyses, bullet-point rewrites,
+            JobSynk uses AI models to generate resume scores, skill gap analyses, bullet-point rewrites,
             interview questions, and job status classifications. These outputs are{" "}
             <strong className="text-white">informational only</strong> and not professional career advice.
           </p>
@@ -108,13 +108,13 @@ export default function TermsPage() {
             <li>AI-rewritten resume bullets are suitable for your specific situation.</li>
             <li>Gmail status classifications accurately reflect the state of your application.</li>
           </ul>
-          <p>Always apply your own judgment. JobSync is a tool to inform your decisions, not replace them.</p>
+          <p>Always apply your own judgment. JobSynk is a tool to inform your decisions, not replace them.</p>
         </Section>
 
         {/* 6 */}
         <Section title="6. Your Content">
           <p>
-            You retain full ownership of any content you upload to JobSync — resumes, cover letters,
+            You retain full ownership of any content you upload to JobSynk — resumes, cover letters,
             job descriptions, or notes. By uploading content, you grant us a limited, non-exclusive
             license to process it for the sole purpose of providing the Service to you.
           </p>
@@ -124,7 +124,7 @@ export default function TermsPage() {
         {/* 7 */}
         <Section title="7. Gmail Integration">
           <p>
-            If you connect your Gmail account, you authorize JobSync to read job-related email metadata
+            If you connect your Gmail account, you authorize JobSynk to read job-related email metadata
             (subjects, sender info, snippets) to automatically update your job application statuses.
             This authorization is governed by Google&apos;s OAuth terms and our{" "}
             <Link href="/privacy" className="underline" style={{ color: "#C05800" }}>Privacy Policy</Link>.
@@ -139,7 +139,7 @@ export default function TermsPage() {
         {/* 8 */}
         <Section title="8. Availability & Changes">
           <p>
-            JobSync is a free, independently operated service. We do not guarantee 100% uptime,
+            JobSynk is a free, independently operated service. We do not guarantee 100% uptime,
             uninterrupted access, or that any specific feature will remain available permanently.
           </p>
           <p>
@@ -155,7 +155,7 @@ export default function TermsPage() {
         {/* 9 */}
         <Section title="9. Limitation of Liability">
           <p>
-            To the maximum extent permitted by applicable law, JobSync and its operator shall not be
+            To the maximum extent permitted by applicable law, JobSynk and its operator shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages,
             including but not limited to: loss of job opportunities, missed interview callbacks,
             incorrect career decisions made based on AI output, or data loss.
@@ -174,7 +174,7 @@ export default function TermsPage() {
         {/* 10 */}
         <Section title="10. Indemnification">
           <p>
-            You agree to indemnify and hold harmless JobSync and its operator from any claims,
+            You agree to indemnify and hold harmless JobSynk and its operator from any claims,
             damages, losses, or expenses (including legal fees) arising from: your violation of
             these Terms, your use of the Service in an unlawful way, or content you upload that
             infringes a third party&apos;s rights.
@@ -184,9 +184,9 @@ export default function TermsPage() {
         {/* 11 */}
         <Section title="11. Intellectual Property">
           <p>
-            The JobSync name, logo, UI design, and proprietary AI scoring methodology are owned
+            The JobSynk name, logo, UI design, and proprietary AI scoring methodology are owned
             by Ujjwal Kalra. The codebase is open source under the MIT License — you are free to
-            fork and self-host it, but you may not use the "JobSync" name or branding for a
+            fork and self-host it, but you may not use the "JobSynk" name or branding for a
             competing commercial service without permission.
           </p>
         </Section>
@@ -196,7 +196,7 @@ export default function TermsPage() {
           <p>
             These Terms are governed by the laws of India. Any disputes shall be resolved in the
             courts of India. If you are located outside India, you agree to submit to Indian
-            jurisdiction for disputes arising from your use of JobSync.
+            jurisdiction for disputes arising from your use of JobSynk.
           </p>
         </Section>
 
@@ -214,7 +214,7 @@ export default function TermsPage() {
       {/* Footer */}
       <footer className="border-t py-8 px-6 text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <p className="text-xs" style={{ color: "rgba(100,116,139,0.8)" }}>
-          © 2026 JobSync &nbsp;·&nbsp;{" "}
+          © 2026 JobSynk &nbsp;·&nbsp;{" "}
           <Link href="/terms" className="underline hover:text-white transition-colors">Terms of Service</Link>
           &nbsp;·&nbsp;{" "}
           <Link href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</Link>

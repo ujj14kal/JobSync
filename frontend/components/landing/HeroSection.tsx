@@ -21,25 +21,25 @@ const HERO_VARIANTS = [
     line1: "Get the interview",
     line2: "your resume",
     line3: "has always deserved",
-    sub: "Paste a job URL. Upload your resume. JobSync AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free, always.",
+    sub: "Paste a job URL. Upload your resume. JobSynk AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free, always.",
   },
   {
     line1: "Make your resume",
     line2: "impossible",
     line3: "to overlook",
-    sub: "JobSync AI reads every job posting like a recruiter, then tells you precisely how to match it — keyword by keyword, bullet by bullet. Stand out before a human even opens your file.",
+    sub: "JobSynk AI reads every job posting like a recruiter, then tells you precisely how to match it — keyword by keyword, bullet by bullet. Stand out before a human even opens your file.",
   },
   {
     line1: "Land your dream role",
     line2: "with AI working",
     line3: "in your corner",
-    sub: "Upload your resume. JobSync AI compares it to the job in real time — scoring every section, surfacing skill gaps, and rewriting weak bullets so recruiters see your best self first.",
+    sub: "Upload your resume. JobSynk AI compares it to the job in real time — scoring every section, surfacing skill gaps, and rewriting weak bullets so recruiters see your best self first.",
   },
   {
     line1: "Turn your resume",
     line2: "into your strongest",
     line3: "career asset",
-    sub: "JobSync AI does in seconds what recruiters do in years — matching you to the right roles, highlighting your strengths, and giving you a clear path to more interviews.",
+    sub: "JobSynk AI does in seconds what recruiters do in years — matching you to the right roles, highlighting your strengths, and giving you a clear path to more interviews.",
   },
   {
     line1: "See exactly how to",
@@ -51,7 +51,7 @@ const HERO_VARIANTS = [
     line1: "Beat the ATS and",
     line2: "let your talent",
     line3: "shine through",
-    sub: "Most resumes never reach a human. JobSync AI makes sure yours does — by scoring your resume against the actual job requirements and showing you exactly how to clear every filter.",
+    sub: "Most resumes never reach a human. JobSynk AI makes sure yours does — by scoring your resume against the actual job requirements and showing you exactly how to clear every filter.",
   },
 ] as const;
 
@@ -351,7 +351,7 @@ export default function HeroSection() {
               }}
             >
               <Sparkles size={14} className="text-[#d97020]" />
-              <span>JobSync AI — free for students &amp; job seekers</span>
+              <span>JobSynk AI — free for students &amp; job seekers</span>
             </div>
           </motion.div>
 

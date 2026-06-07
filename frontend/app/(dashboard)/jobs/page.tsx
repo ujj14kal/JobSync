@@ -560,7 +560,7 @@ function GmailBanner({
               Connect Gmail to auto-track status
             </div>
             <div className="text-[11px] text-[var(--text-muted)]">
-              JobSync reads recruiter emails and updates your application statuses automatically
+              JobSynk reads recruiter emails and updates your application statuses automatically
             </div>
           </div>
         </div>

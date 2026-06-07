@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Zap, ShieldCheck } from "lucide-react";
 
 export const metadata = {
-  title: "Privacy Policy — JobSync",
-  description: "How JobSync collects, uses, and protects your data.",
+  title: "Privacy Policy — JobSynk",
+  description: "How JobSynk collects, uses, and protects your data.",
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
             <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "#C05800" }}>
               <Zap className="w-3.5 h-3.5 text-white" fill="white" />
             </div>
-            <span className="text-sm font-semibold" style={{ color: "rgba(226,232,240,0.9)" }}>JobSync</span>
+            <span className="text-sm font-semibold" style={{ color: "rgba(226,232,240,0.9)" }}>JobSynk</span>
           </Link>
           <Link href="/" className="text-xs hover:text-white transition-colors" style={{ color: "rgba(148,163,184,0.7)" }}>
             ← Back to home
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
             Last updated: June 7, 2026 &nbsp;·&nbsp; Effective: June 7, 2026
           </p>
           <p className="mt-4 text-sm leading-relaxed" style={{ color: "rgba(148,163,184,0.85)" }}>
-            JobSync is an AI-powered career platform built by an individual developer. This policy explains
+            JobSynk is an AI-powered career platform built by an individual developer. This policy explains
             exactly what data we collect, how we use it, and what choices you have.
           </p>
         </div>
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
           </div>
           <div className="text-sm leading-relaxed space-y-2" style={{ color: "rgba(148,163,184,0.9)" }}>
             <p>
-              JobSync&apos;s use and transfer of information received from Google APIs to any other app will
+              JobSynk&apos;s use and transfer of information received from Google APIs to any other app will
               adhere to the{" "}
               <a
                 href="https://developers.google.com/terms/api-services-user-data-policy"
@@ -84,12 +84,12 @@ export default function PrivacyPage() {
               </a>
               , including the Limited Use requirements.
             </p>
-            <p>Specifically, JobSync commits to the following with respect to data obtained from Google APIs:</p>
+            <p>Specifically, JobSynk commits to the following with respect to data obtained from Google APIs:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Gmail data is used <strong className="text-white">only</strong> to provide the job-application status tracking feature that is visible to you in the app — for no other purpose.</li>
               <li>Gmail data is <strong className="text-white">never</strong> used for advertising or to serve ads.</li>
               <li>Gmail data is <strong className="text-white">never</strong> transferred to third parties, except to Groq solely for classifying email subjects/snippets as part of the job-tracking feature (see Section 5).</li>
-              <li>No human at JobSync reads your Gmail data. All access is fully automated.</li>
+              <li>No human at JobSynk reads your Gmail data. All access is fully automated.</li>
               <li>You can revoke access at any time, which immediately deletes all stored Gmail tokens.</li>
             </ul>
           </div>
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
         {/* 1 */}
         <Section title="1. Who We Are">
           <p>
-            JobSync is an independent project operated by Ujjwal Kalra (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
+            JobSynk is an independent project operated by Ujjwal Kalra (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
             For any privacy questions, contact:{" "}
             <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
               ujj.kalra10@gmail.com
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
 
         {/* 3 */}
         <Section title="3. How We Use Your Data">
-          <p>We use your data solely to provide and improve JobSync:</p>
+          <p>We use your data solely to provide and improve JobSynk:</p>
           <ul className="list-disc pl-5 space-y-1">
             <li>To perform ATS analysis and generate AI feedback on your resume</li>
             <li>To display your analysis history and job application tracker</li>
@@ -142,7 +142,7 @@ export default function PrivacyPage() {
         {/* 4 */}
         <Section title="4. Third-Party Services">
           <p>
-            JobSync uses the following third-party services. Data is shared with them only to the extent
+            JobSynk uses the following third-party services. Data is shared with them only to the extent
             necessary to operate the features described:
           </p>
 
@@ -165,7 +165,7 @@ export default function PrivacyPage() {
               },
               {
                 name: "Vercel (vercel.com)",
-                what: "The JobSync frontend is hosted on Vercel. Vercel may collect standard web server logs (IP address, browser, request path) for operational purposes.",
+                what: "The JobSynk frontend is hosted on Vercel. Vercel may collect standard web server logs (IP address, browser, request path) for operational purposes.",
                 link: "https://vercel.com/legal/privacy-policy",
               },
             ].map((tp) => (
@@ -184,7 +184,7 @@ export default function PrivacyPage() {
         <Section title="5. Gmail Integration — Full Disclosure">
           <p>
             Gmail integration is entirely <strong className="text-white">optional</strong>. You can use every
-            other JobSync feature without connecting your Gmail account. If you do connect it:
+            other JobSynk feature without connecting your Gmail account. If you do connect it:
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
@@ -214,12 +214,12 @@ export default function PrivacyPage() {
               Groq does not retain data after returning a response, per their policy.
             </li>
             <li>
-              <strong className="text-white">No human at JobSync reads your Gmail data.</strong> All access and
+              <strong className="text-white">No human at JobSynk reads your Gmail data.</strong> All access and
               processing is fully automated.
             </li>
             <li>
               Gmail data is used <strong className="text-white">exclusively</strong> to update job application
-              statuses in your JobSync Job Tracker. It is never used for advertising, analytics, or model training.
+              statuses in your JobSynk Job Tracker. It is never used for advertising, analytics, or model training.
             </li>
             <li>
               You can disconnect Gmail at any time from the Job Tracker settings page. Disconnecting
@@ -268,7 +268,7 @@ export default function PrivacyPage() {
             <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
               ujj.kalra10@gmail.com
             </a>{" "}
-            with the subject &quot;Data Request — JobSync&quot;. We will respond within 30 days.
+            with the subject &quot;Data Request — JobSynk&quot;. We will respond within 30 days.
           </p>
         </Section>
 
@@ -292,7 +292,7 @@ export default function PrivacyPage() {
         {/* 9 */}
         <Section title="9. Children&apos;s Privacy">
           <p>
-            JobSync is not directed at children under 13. We do not knowingly collect personal data from
+            JobSynk is not directed at children under 13. We do not knowingly collect personal data from
             anyone under 13. If you believe a child has provided us data, contact us and we will delete
             it promptly.
           </p>
@@ -303,7 +303,7 @@ export default function PrivacyPage() {
           <p>
             We may update this policy as the product evolves. When we do, we will update the
             &quot;Last updated&quot; date at the top. For significant changes, we will notify you via
-            the email address on your account. Continued use of JobSync after changes constitutes
+            the email address on your account. Continued use of JobSynk after changes constitutes
             acceptance of the revised policy.
           </p>
         </Section>
@@ -325,7 +325,7 @@ export default function PrivacyPage() {
       {/* Footer */}
       <footer className="border-t py-8 px-6 text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <p className="text-xs" style={{ color: "rgba(100,116,139,0.8)" }}>
-          © 2026 JobSync &nbsp;·&nbsp;{" "}
+          © 2026 JobSynk &nbsp;·&nbsp;{" "}
           <Link href="/terms" className="underline hover:text-white transition-colors">Terms of Service</Link>
           &nbsp;·&nbsp;{" "}
           <Link href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</Link>

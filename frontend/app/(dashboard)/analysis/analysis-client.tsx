@@ -38,11 +38,11 @@ export function AnalysisClient() {
           </h1>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
             <Brain className="w-2.5 h-2.5" />
-            Powered by JobSync AI
+            Powered by JobSynk AI
           </span>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Paste a job URL and let JobSync AI extract every detail and score your resume automatically.
+          Paste a job URL and let JobSynk AI extract every detail and score your resume automatically.
         </p>
       </motion.div>
 
@@ -74,11 +74,11 @@ export function AnalysisClient() {
             </h3>
             <ul className="space-y-2">
               {[
-                "5 JobSync AI dimension scores",
+                "5 JobSynk AI dimension scores",
                 "Missing keyword list",
                 "Skill gap analysis",
-                "JobSync AI recruiter-style feedback",
-                "JobSync AI bullet point rewrites",
+                "JobSynk AI recruiter-style feedback",
+                "JobSynk AI bullet point rewrites",
                 "AI-matched mentor recommendations",
               ].map((item) => (
                 <li
@@ -99,10 +99,10 @@ export function AnalysisClient() {
             </h3>
             <div className="space-y-3">
               {[
-                { step: "1", text: "Paste the job URL — JobSync AI extracts everything automatically" },
-                { step: "2", text: "JobSync AI parses requirements, skills, and keywords from the page" },
+                { step: "1", text: "Paste the job URL — JobSynk AI extracts everything automatically" },
+                { step: "2", text: "JobSynk AI parses requirements, skills, and keywords from the page" },
                 { step: "3", text: "Semantic embeddings compare your resume to the job description" },
-                { step: "4", text: "JobSync AI generates detailed recruiter feedback and rewrites" },
+                { step: "4", text: "JobSynk AI generates detailed recruiter feedback and rewrites" },
               ].map(({ step, text }) => (
                 <div key={step} className="flex items-start gap-2.5">
                   <div className="w-5 h-5 rounded-full bg-[var(--accent-muted)] flex items-center justify-center flex-shrink-0 mt-0.5">

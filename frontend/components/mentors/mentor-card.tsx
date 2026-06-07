@@ -178,7 +178,7 @@ export function MentorCard({ mentor, index = 0 }: MentorCardProps) {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
             <span className="text-[10px] font-medium text-[var(--accent-primary)] uppercase tracking-wider">
-              Matched by JobSync AI
+              Matched by JobSynk AI
             </span>
           </div>
           {mentor.match_reasons.slice(0, 2).map((reason) => (

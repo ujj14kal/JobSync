@@ -122,7 +122,7 @@ export function Sidebar() {
               transition={{ duration: 0.15 }}
               className="text-[14px] font-semibold text-[var(--text-primary)] whitespace-nowrap"
             >
-              JobSync
+              JobSynk
             </motion.span>
           )}
         </AnimatePresence>

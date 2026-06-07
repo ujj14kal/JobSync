@@ -225,7 +225,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
         <div className="flex-1">
           <div className="flex items-center gap-1.5 mb-2">
             <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
-            <span className="text-[10px] text-[var(--accent-hover)] font-medium">JobSync AI Score</span>
+            <span className="text-[10px] text-[var(--accent-hover)] font-medium">JobSynk AI Score</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -276,10 +276,10 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* JobSync AI badge row */}
+      {/* JobSynk AI badge row */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
         className="flex flex-wrap items-center gap-2">
-        {/* Always show JobSync AI as the scorer */}
+        {/* Always show JobSynk AI as the scorer */}
         <span className={cn(
           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
           analysis.scored_by === "jobsync-custom-ai"
@@ -287,7 +287,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
             : "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
         )}>
           <Brain className="w-3 h-3" />
-          Scored by JobSync AI
+          Scored by JobSynk AI
         </span>
 
         {/* Fallback badge — only shown when Groq LLM was the actual scorer */}
@@ -322,7 +322,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
           <div className="flex items-center gap-2 mb-2">
             <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-              JobSync AI Recruiter Analysis
+              JobSynk AI Recruiter Analysis
             </span>
           </div>
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
@@ -331,14 +331,14 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </motion.div>
       )}
 
-      {/* JobSync AI dimension reasoning */}
+      {/* JobSynk AI dimension reasoning */}
       {analysis.ai_reasoning && Object.values(analysis.ai_reasoning).some(Boolean) && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
           className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
           <div className="flex items-center gap-2 mb-3">
             <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-            <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Reasoning</span>
-            <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Reasoning</span>
+            <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
           </div>
           <div className="space-y-2">
             {(Object.entries(analysis.ai_reasoning) as [string, string][])
@@ -472,7 +472,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
                     Score Breakdown
                   </h3>
                   <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">
-                    <Brain className="w-2.5 h-2.5" /> JobSync AI
+                    <Brain className="w-2.5 h-2.5" /> JobSynk AI
                   </span>
                 </div>
                 <ScoreBreakdownPanel scores={analysis.scores} />
@@ -484,8 +484,8 @@ export function AnalysisResultClient({ id }: { id: string }) {
             <div className="space-y-1">
               <div className="flex items-center gap-2 mb-4">
                 <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Keyword Analysis</span>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Keyword Analysis</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
               </div>
               <KeywordGapPanel
                 keywords={analysis.missing_keywords}
@@ -498,8 +498,8 @@ export function AnalysisResultClient({ id }: { id: string }) {
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Improvement Suggestions</span>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Improvement Suggestions</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
               </div>
               {analysis.improvement_suggestions.map((s, i) => (
                 <div
@@ -542,11 +542,11 @@ export function AnalysisResultClient({ id }: { id: string }) {
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
-                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSync AI Resume Rewriter</span>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSync AI</span>
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Resume Rewriter</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
               </div>
               <p className="text-[13px] text-[var(--text-secondary)] mb-2">
-                JobSync AI-rewritten bullet points with stronger verbs, quantified metrics, and role-specific language.
+                JobSynk AI-rewritten bullet points with stronger verbs, quantified metrics, and role-specific language.
               </p>
               {analysis.rewritten_bullets.map((b, i) => (
                 <div

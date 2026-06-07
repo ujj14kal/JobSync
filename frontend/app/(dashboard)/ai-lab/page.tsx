@@ -159,7 +159,7 @@ export default function AILabPage() {
             AI Lab
           </h1>
           <p className="text-[var(--text-muted)] text-[14px] mt-1">
-            Train and manage your custom JobSync AI models. No third-party API needed after training.
+            Train and manage your custom JobSynk AI models. No third-party API needed after training.
           </p>
         </div>
         <button
@@ -179,7 +179,7 @@ export default function AILabPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <Brain className="w-5 h-5 text-[var(--accent-primary)]" />
-              <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">JobSync Neural Scorer</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">JobSynk Neural Scorer</h2>
             </div>
             <StatusPill active={neuralTrained} label={neuralTrained ? `v${neural?.version} active` : "Not trained"} />
           </div>

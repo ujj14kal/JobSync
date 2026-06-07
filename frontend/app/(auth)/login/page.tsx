@@ -183,7 +183,7 @@ function LoginContent() {
             <div className="w-8 h-8 rounded-xl bg-[var(--accent-primary)] flex items-center justify-center">
               <Zap className="w-4 h-4 text-white" fill="white" />
             </div>
-            <span className="text-[16px] font-bold text-[var(--text-primary)]">JobSync</span>
+            <span className="text-[16px] font-bold text-[var(--text-primary)]">JobSynk</span>
           </Link>
         </motion.div>
 
@@ -192,7 +192,7 @@ function LoginContent() {
           className="p-8 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
 
           <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-1">Welcome back</h1>
-          <p className="text-[13px] text-[var(--text-secondary)] mb-6">Sign in to continue to JobSync</p>
+          <p className="text-[13px] text-[var(--text-secondary)] mb-6">Sign in to continue to JobSynk</p>
 
           {/* Google */}
           <button onClick={handleGoogle}

@@ -26,7 +26,7 @@ const features = [
     icon: Search,
     title: "Auto Job Scraping",
     description:
-      "Enter a company name and role. JobSync finds the real job listing, scrapes requirements, extracts skills, and formats everything automatically.",
+      "Enter a company name and role. JobSynk finds the real job listing, scrapes requirements, extracts skills, and formats everything automatically.",
     accent: "amber",
     badge: "Web Automation",
   },
@@ -125,7 +125,7 @@ export function Features() {
             job seeker needs
           </h2>
           <p className="text-[var(--text-secondary)] text-lg max-w-xl mx-auto">
-            From semantic ATS analysis to AI-rewritten bullets — JobSync covers
+            From semantic ATS analysis to AI-rewritten bullets — JobSynk covers
             every stage of the job application process.
           </p>
         </motion.div>

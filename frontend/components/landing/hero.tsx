@@ -65,7 +65,7 @@ export function Hero() {
           custom={2}
           className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Upload your resume, enter the job you want. JobSync semantically
+          Upload your resume, enter the job you want. JobSynk semantically
           matches your profile against real job descriptions and gives you
           recruiter-grade feedback to close every gap.
         </motion.p>
@@ -137,7 +137,7 @@ function HeroDashboard() {
         <div className="w-3 h-3 rounded-full bg-[var(--success)]/60" />
         <div className="flex-1 mx-4 h-5 rounded-md bg-[var(--bg-overlay)] flex items-center justify-center">
           <span className="text-[11px] text-[var(--text-muted)]">
-            jobsync.io/analysis
+            jobsynk.in/analysis
           </span>
         </div>
       </div>

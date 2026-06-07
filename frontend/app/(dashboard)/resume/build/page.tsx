@@ -320,7 +320,7 @@ export default function ResumeBuilderPage() {
                           </button>
                         )}
                         <div className="grid grid-cols-2 gap-2">
-                          <Field label="Project Name" value={p.name} onChange={v => setProjects(pr => pr.map((x, j) => j === i ? { ...x, name: v } : x))} placeholder="JobSync" />
+                          <Field label="Project Name" value={p.name} onChange={v => setProjects(pr => pr.map((x, j) => j === i ? { ...x, name: v } : x))} placeholder="JobSynk" />
                           <Field label="Tech Stack" value={p.tech_stack} onChange={v => setProjects(pr => pr.map((x, j) => j === i ? { ...x, tech_stack: v } : x))} placeholder="Next.js, FastAPI, Supabase" />
                           <Field label="URL (optional)" value={p.url} onChange={v => setProjects(pr => pr.map((x, j) => j === i ? { ...x, url: v } : x))} placeholder="https://..." />
                         </div>

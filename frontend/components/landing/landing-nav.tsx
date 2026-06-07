@@ -34,7 +34,7 @@ export function LandingNav() {
             <Zap className="w-4 h-4 text-white" fill="white" />
           </div>
           <span className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
-            JobSync
+            JobSynk
           </span>
         </Link>
 

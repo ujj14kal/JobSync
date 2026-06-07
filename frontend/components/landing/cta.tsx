@@ -29,7 +29,7 @@ export function CTA() {
             Ready to land your dream job?
           </h2>
           <p className="text-[var(--text-secondary)] text-base mb-8 max-w-lg mx-auto">
-            Join thousands of job seekers who used JobSync to get past ATS
+            Join thousands of job seekers who used JobSynk to get past ATS
             filters and land interviews at top companies. Free, forever.
           </p>
 

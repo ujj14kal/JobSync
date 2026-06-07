@@ -447,7 +447,7 @@ export default function SettingsPage() {
               <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Privacy & Data</h2>
               {[
                 { key: "profile_public" as const, label: "Public profile", desc: "Allow mentors to see your profile for better matching" },
-                { key: "share_analytics" as const, label: "Share analytics", desc: "Help improve JobSync with anonymous usage data" },
+                { key: "share_analytics" as const, label: "Share analytics", desc: "Help improve JobSynk with anonymous usage data" },
               ].map(({ key, label, desc }) => (
                 <div key={key} className="flex items-center justify-between">
                   <div>

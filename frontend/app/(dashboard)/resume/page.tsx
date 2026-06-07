@@ -91,7 +91,7 @@ export default function ResumePage() {
         <Info className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0 mt-0.5" />
         <p className="text-[12px] text-[var(--text-muted)] leading-relaxed">
           <span className="font-semibold text-[var(--text-secondary)]">One resume at a time.</span>{" "}
-          JobSync uses your single active resume across all features. To upload a new version,
+          JobSynk uses your single active resume across all features. To upload a new version,
           delete your current resume first. Use{" "}
           <Link href="/resume/build" className="text-[var(--accent-primary)] hover:underline">AI Resume Builder</Link>{" "}
           to generate a polished, ATS-ready resume from scratch.

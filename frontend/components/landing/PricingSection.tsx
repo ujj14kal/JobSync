@@ -81,7 +81,7 @@ export default function PricingSection() {
             animate={isInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.2 }}
           >
-            JobSync is free while we&apos;re building it. Every feature is unlocked — because we believe students and job seekers shouldn&apos;t have to pay to compete.
+            JobSynk is free while we&apos;re building it. Every feature is unlocked — because we believe students and job seekers shouldn&apos;t have to pay to compete.
           </motion.p>
         </div>
 

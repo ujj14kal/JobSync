@@ -126,7 +126,7 @@ export default function MentorsPage() {
           </h1>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
             <Brain className="w-2.5 h-2.5" />
-            Matched by JobSync AI
+            Matched by JobSynk AI
           </span>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">

@@ -17,7 +17,7 @@ const USE_CASES = [
     color: "#d4aa30", rgb: "212,170,48",
     who: "Career switchers",
     headline: "Understand what transfers and what doesn't",
-    body: "JobSync's semantic matching maps your existing experience to new role requirements — so you know which skills carry over and exactly what gap you need to close.",
+    body: "JobSynk's semantic matching maps your existing experience to new role requirements — so you know which skills carry over and exactly what gap you need to close.",
   },
   {
     icon: Briefcase,
@@ -38,7 +38,7 @@ const USE_CASES = [
     color: "#d4aa30", rgb: "212,170,48",
     who: "Self-taught developers",
     headline: "Show your skills, not just your degree",
-    body: "Projects and open-source work are scored on their own dimension. JobSync evaluates your actual technical depth — not just credentials.",
+    body: "Projects and open-source work are scored on their own dimension. JobSynk evaluates your actual technical depth — not just credentials.",
   },
   {
     icon: BarChart3,
@@ -157,7 +157,7 @@ export default function TestimonialsSection() {
             animate={isInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.1 }}
           >
-            Whether you&apos;re fresh out of college or switching industries, JobSync gives you the same clarity a career coach would — for free.
+            Whether you&apos;re fresh out of college or switching industries, JobSynk gives you the same clarity a career coach would — for free.
           </motion.p>
         </motion.div>
       </div>

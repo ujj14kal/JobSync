@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "JobSync — AI Career Platform",
-    template: "%s · JobSync",
+    default: "JobSynk — AI Career Platform",
+    template: "%s · JobSynk",
   },
   description:
     "Optimize your resume with AI-powered ATS analysis, semantic scoring, and recruiter-grade feedback. Land your dream job faster.",
@@ -31,10 +31,10 @@ export const metadata: Metadata = {
     "resume analysis",
     "job matching",
   ],
-  authors: [{ name: "JobSync" }],
-  creator: "JobSync",
+  authors: [{ name: "JobSynk" }],
+  creator: "JobSynk",
   openGraph: {
-    title: "JobSync — AI Career Platform",
+    title: "JobSynk — AI Career Platform",
     description:
       "Optimize your resume with AI-powered ATS analysis and recruiter feedback.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "JobSync — AI Career Platform",
+    title: "JobSynk — AI Career Platform",
     description: "AI-powered resume optimizer and ATS scorer.",
   },
   robots: { index: true, follow: true },

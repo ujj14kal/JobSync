@@ -42,7 +42,7 @@ export function ScoreFeedback({ analysisId, jobTitle }: Props) {
         accuracy_rating: rating || null,
       });
       setStep("done");
-      toast.success("Thanks! Your feedback helps improve JobSync AI.");
+      toast.success("Thanks! Your feedback helps improve JobSynk AI.");
     } catch {
       toast.error("Failed to submit feedback");
     } finally {

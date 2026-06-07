@@ -4,7 +4,7 @@ import { Zap, Github } from "lucide-react";
 const LINKS = [
   { label: "Privacy Policy", href: "/privacy" },
   { label: "Terms of Service", href: "/terms" },
-  { label: "GitHub", href: "https://github.com/ujj14kal/JobSync", external: true },
+  { label: "GitHub", href: "https://github.com/ujj14kal/JobSynk", external: true },
 ];
 
 export function Footer() {
@@ -20,13 +20,13 @@ export function Footer() {
             <Zap className="w-3.5 h-3.5 text-white" fill="white" />
           </div>
           <span className="text-sm font-semibold" style={{ color: "rgba(148,163,184,0.8)" }}>
-            JobSync
+            JobSynk
           </span>
         </Link>
 
         {/* Centre copy */}
         <p className="text-xs text-center" style={{ color: "rgba(100,116,139,0.7)" }}>
-          © 2026 JobSync · Built by{" "}
+          © 2026 JobSynk · Built by{" "}
           <a
             href="https://github.com/ujj14kal"
             target="_blank"

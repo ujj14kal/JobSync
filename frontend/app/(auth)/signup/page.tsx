@@ -232,7 +232,7 @@ export default function SignupPage() {
             <div className="w-8 h-8 rounded-xl bg-[var(--accent-primary)] flex items-center justify-center">
               <Zap className="w-4 h-4 text-white" fill="white" />
             </div>
-            <span className="text-[16px] font-bold text-[var(--text-primary)]">JobSync</span>
+            <span className="text-[16px] font-bold text-[var(--text-primary)]">JobSynk</span>
           </Link>
         </motion.div>
 

@@ -58,7 +58,7 @@ export default function NavBar() {
               >
                 <Zap size={15} className="text-white" />
               </div>
-              <span className="font-bold text-primary text-base">JobSync</span>
+              <span className="font-bold text-primary text-base">JobSynk</span>
               <span
                 className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
                 style={{ background: "rgba(192,88,0,0.15)", color: "#d97020", border: "1px solid rgba(192,88,0,0.25)" }}
