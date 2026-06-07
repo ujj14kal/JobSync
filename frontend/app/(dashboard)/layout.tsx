@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import { PrefetchProvider } from "@/components/layout/prefetch-provider";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default async function DashboardLayout({
       {/* Dot grid texture overlay */}
       <div className="fixed inset-0 pointer-events-none z-0 dot-grid opacity-60" />
 
+      <PrefetchProvider />
       <Sidebar />
       <main className="relative z-10 flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-6 py-8">
