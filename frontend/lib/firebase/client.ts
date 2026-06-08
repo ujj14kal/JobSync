@@ -28,6 +28,12 @@ function init() {
   _auth = getAuth(_app);
 }
 
+/** Returns the default FirebaseApp (browser-only). */
+export function getFirebaseApp(): FirebaseApp {
+  init();
+  return _app;
+}
+
 // Proxy so existing `import { auth } from "@/lib/firebase/client"` still works.
 // The actual Auth object is resolved on first property access in the browser.
 export const auth = new Proxy({} as Auth, {
