@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -71,6 +72,78 @@ const navItems = [
   },
 ];
 
+// ── Isolated nav list — longest href match wins to prevent double-highlight ──
+function SidebarNav({
+  navItems,
+  pathname,
+  sidebarCollapsed,
+}: {
+  navItems: { href: string; icon: React.ElementType; label: string }[];
+  pathname: string;
+  sidebarCollapsed: boolean;
+}) {
+  // Find the single best match: most specific route that is a prefix of pathname
+  const activeHref = [...navItems]
+    .filter(n =>
+      n.href === "/dashboard"
+        ? pathname === "/dashboard"
+        : pathname === n.href || pathname.startsWith(n.href + "/")
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
+  return (
+    <nav className="relative flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+      {navItems.map((item) => {
+        const isActive = item.href === activeHref;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all group",
+              isActive
+                ? "text-white"
+                : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]"
+            )}
+            style={isActive ? {
+              background: "linear-gradient(135deg, rgba(192,88,0,0.22) 0%, rgba(113,54,0,0.12) 100%)",
+              border: "1px solid rgba(192,88,0,0.28)",
+              boxShadow: "0 0 16px rgba(192,88,0,0.12), inset 0 1px 0 rgba(253,251,212,0.06)",
+            } : undefined}
+            title={sidebarCollapsed ? item.label : undefined}
+          >
+            {isActive && (
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full"
+                style={{ background: "linear-gradient(180deg, #C05800, #713600)" }}
+              />
+            )}
+            <item.icon className={cn(
+              "w-4 h-4 flex-shrink-0",
+              isActive
+                ? "text-[#e89848]"
+                : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
+            )} />
+            <AnimatePresence>
+              {!sidebarCollapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="whitespace-nowrap font-medium"
+                >
+                  {item.label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, user } = useAppStore();
@@ -141,60 +214,8 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="relative flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all group",
-                isActive
-                  ? "text-white"
-                  : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]"
-              )}
-              style={isActive ? {
-                background: "linear-gradient(135deg, rgba(192,88,0,0.22) 0%, rgba(113,54,0,0.12) 100%)",
-                border: "1px solid rgba(192,88,0,0.28)",
-                boxShadow: "0 0 16px rgba(192,88,0,0.12), inset 0 1px 0 rgba(253,251,212,0.06)",
-              } : undefined}
-              title={sidebarCollapsed ? item.label : undefined}
-            >
-              {isActive && (
-                <div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full"
-                  style={{ background: "linear-gradient(180deg, #C05800, #713600)" }}
-                />
-              )}
-              <item.icon className={cn(
-                "w-4 h-4 flex-shrink-0",
-                isActive
-                  ? "text-[#e89848]"
-                  : "text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]"
-              )} />
-              <AnimatePresence>
-                {!sidebarCollapsed && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="whitespace-nowrap font-medium"
-                  >
-                    {item.label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Nav — longest-match wins so /resume/build doesn't also light up /resume */}
+      <SidebarNav navItems={navItems} pathname={pathname} sidebarCollapsed={sidebarCollapsed} />
 
       {/* Bottom user area */}
       <div className="border-t border-[var(--border-subtle)] p-2 space-y-0.5">

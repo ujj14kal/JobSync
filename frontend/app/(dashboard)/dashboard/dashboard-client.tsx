@@ -242,11 +242,10 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
     <div className="space-y-8">
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16,1,0.3,1] }}>
-        <div className="flex items-center gap-2 mb-1">
-          <img src="/logo.png" alt="JobSynk" className="w-7 h-7 object-contain" />
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Good morning, {name} 👋</h1>
+        <div className="mb-1">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Good morning, {name}</h1>
         </div>
-        <p className="text-[14px] text-[var(--text-secondary)] ml-9">
+        <p className="text-[14px] text-[var(--text-secondary)]">
           {mounted
             ? (hasResume ? "Ready to analyze another job? Pick a quick action below." : "Let's start by uploading your resume.")
             : "Ready to get started? Pick a quick action below."}

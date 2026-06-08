@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { chatApi } from "@/lib/api/chat";
+import { useUpsell } from "@/components/billing/UpsellModal";
 import {
   Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp,
-  Plus, Trash2, ExternalLink, FileText, Wand2, ArrowLeft,
+  Plus, Trash2, ExternalLink, FileText, Wand2, ArrowLeft, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -44,12 +47,34 @@ function Field({ label, value, onChange, placeholder = "", multiline = false }: 
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
+// Claude "A" logo mark
+function ClaudeMark({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 41 41" fill="currentColor" aria-hidden>
+      <path d="M23.5688 6L31.9999 35H27.8181L25.6817 27.7273H16.3635L14.2272 35H10.0454L18.4999 6H23.5688ZM21.0226 11.1591L17.477 24.4545H24.568L21.0226 11.1591Z"/>
+    </svg>
+  );
+}
+
 export default function ResumeBuilderPage() {
   const [mode, setMode]     = useState<"scratch" | "enhance">("enhance");
   const [loading, setLoading] = useState(false);
   const [latex, setLatex]   = useState("");
   const [copied, setCopied] = useState(false);
   const [targetJob, setTargetJob] = useState("");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const { showUpsell } = useUpsell();
+  const { data: status } = useQuery({
+    queryKey: ["chat-status"],
+    queryFn: chatApi.getStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const isPro = mounted && status?.is_pro === true;
+  const usedThisMonth = 0; // TODO: track per-feature usage in backend
+  const limit = 5; // Pro: 5 resume generations/month
 
   // Contact
   const [name,      setName]      = useState("");
@@ -86,6 +111,14 @@ export default function ResumeBuilderPage() {
   const toggle = (k: string) => setOpen(p => ({ ...p, [k]: !p[k] }));
 
   async function generate() {
+    if (!isPro) {
+      showUpsell({ feature: "AI Resume Builder", onProceed: () => {}, strict: true });
+      return;
+    }
+    if (usedThisMonth >= limit) {
+      toast.error(`Monthly limit reached (${limit} generations/month). Resets on your billing date.`);
+      return;
+    }
     setLoading(true);
     setLatex("");
     try {
@@ -137,18 +170,49 @@ export default function ResumeBuilderPage() {
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
           <Link href="/resume" className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Resume Builder</h1>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-            <Wand2 className="w-2.5 h-2.5" /> Jake's Resume template
+            <Wand2 className="w-2.5 h-2.5" /> Jake&apos;s Resume template
+          </span>
+          {/* Claude Sonnet powered badge */}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+            style={{ background: "rgba(192,88,0,0.10)", border: "1px solid rgba(192,88,0,0.25)", color: "#C05800" }}>
+            <ClaudeMark size={12} /> Claude Sonnet · Pro
           </span>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          AI polishes your content → outputs Jake's Resume LaTeX → paste into Overleaf → download PDF.
+          Claude Sonnet polishes your content → outputs Jake&apos;s Resume LaTeX → paste into Overleaf → download PDF.
         </p>
+        {/* Usage meter — shown after mount */}
+        {mounted && (
+          <div className="mt-3 flex items-center gap-3">
+            {isPro ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                  <span>{usedThisMonth} / {limit} generations used this month</span>
+                </div>
+                <div className="h-1.5 w-28 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min((usedThisMonth / limit) * 100, 100)}%`,
+                      background: usedThisMonth >= limit ? "#ef4444" : "#C05800",
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[12px] font-medium"
+                style={{ background: "rgba(192,88,0,0.08)", border: "1px solid rgba(192,88,0,0.2)", color: "#C05800" }}>
+                <Lock className="w-3 h-3" /> Pro feature · 5 generations/month included
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* How it works */}
@@ -354,13 +418,19 @@ export default function ResumeBuilderPage() {
 
           <button
             onClick={generate}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white font-medium text-[14px] transition-colors disabled:opacity-50"
+            disabled={loading || (mounted && isPro && usedThisMonth >= limit)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-medium text-[14px] transition-colors disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg, #C05800, #713600)" }}
           >
-            {loading
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating with AI…</>
-              : <><Sparkles className="w-4 h-4" /> Generate Jake's Resume</>
-            }
+            {loading ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Generating with Claude Sonnet…</>
+            ) : !mounted || !isPro ? (
+              <><Lock className="w-4 h-4" /> Generate with Claude Sonnet · Pro</>
+            ) : usedThisMonth >= limit ? (
+              <><Sparkles className="w-4 h-4" /> Monthly limit reached</>
+            ) : (
+              <><ClaudeMark size={16} /> Generate with Claude Sonnet</>
+            )}
           </button>
         </div>
 
