@@ -14,6 +14,287 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 
+// ── Template definitions ──────────────────────────────────────────────────────
+
+type AtsRating = "preferred" | "friendly" | "mixed" | "not-preferred";
+
+interface TemplateInfo {
+  id: string;
+  name: string;
+  ats: AtsRating;
+  recommended?: boolean;
+  description: string;
+}
+
+const TEMPLATES: TemplateInfo[] = [
+  {
+    id: "jake",
+    name: "Jake's Resume",
+    ats: "preferred",
+    recommended: true,
+    description: "Clean single-column. Industry standard for FAANG.",
+  },
+  {
+    id: "minimal",
+    name: "Minimal",
+    ats: "preferred",
+    description: "Ultra-clean, no frills. Works everywhere.",
+  },
+  {
+    id: "compact",
+    name: "Compact",
+    ats: "friendly",
+    description: "Tighter spacing — fits more content on one page.",
+  },
+  {
+    id: "modern",
+    name: "Modern",
+    ats: "mixed",
+    description: "Dark header, accent color. Visually striking.",
+  },
+  {
+    id: "two-column",
+    name: "Two-Column",
+    ats: "not-preferred",
+    description: "Sidebar layout. Great for print, risky for ATS.",
+  },
+];
+
+const ATS_CONFIG: Record<AtsRating, { label: string; color: string; bg: string; dot: string }> = {
+  "preferred":     { label: "ATS Preferred",     color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200",   dot: "bg-emerald-500" },
+  "friendly":      { label: "ATS Friendly",       color: "text-green-600",   bg: "bg-green-50 border-green-200",       dot: "bg-green-500" },
+  "mixed":         { label: "ATS Mixed",           color: "text-amber-600",   bg: "bg-amber-50 border-amber-200",       dot: "bg-amber-500" },
+  "not-preferred": { label: "Not ATS Preferred",   color: "text-red-600",     bg: "bg-red-50 border-red-200",           dot: "bg-red-500" },
+};
+
+// ── Mini template thumbnails ──────────────────────────────────────────────────
+
+function ThumbJakes() {
+  return (
+    <div className="w-full h-full bg-white rounded p-[6px] overflow-hidden" style={{ fontFamily: "serif" }}>
+      <div className="text-center mb-[3px]">
+        <div className="text-[5px] font-bold tracking-widest uppercase text-gray-900">John Doe</div>
+        <div className="text-[3px] text-gray-500 mt-[1px]">email | phone | linkedin | github</div>
+      </div>
+      <div className="border-b border-gray-400 mb-[3px]" />
+      {[
+        { section: "Education", rows: [["University of Technology", "2022–2026"], ["B.Tech Computer Science", "9.1 GPA"]] },
+        { section: "Experience", rows: [["Software Engineer", "2024–Present"], ["Tech Corp, New Delhi", ""]] },
+        { section: "Projects", rows: [["JobSync AI Platform", "Next.js, FastAPI"]] },
+        { section: "Skills", rows: [["Python, React, FastAPI, PostgreSQL, Docker, AWS", ""]] },
+      ].map(({ section, rows }) => (
+        <div key={section} className="mb-[3px]">
+          <div className="text-[3.5px] font-bold uppercase tracking-wider text-gray-900 border-b border-gray-400 pb-[1px] mb-[1.5px]">{section}</div>
+          {rows.map((row, i) => (
+            <div key={i} className="flex justify-between text-[3px] text-gray-600 leading-[1.4]">
+              <span className="font-medium">{row[0]}</span>
+              {row[1] && <span className="text-gray-400">{row[1]}</span>}
+            </div>
+          ))}
+          {section === "Experience" && (
+            <div className="mt-[1px] space-y-[1px]">
+              {["• Built scalable REST APIs serving 50k users", "• Reduced latency by 40% via caching"].map((b, i) => (
+                <div key={i} className="text-[2.8px] text-gray-500">{b}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThumbMinimal() {
+  return (
+    <div className="w-full h-full bg-white rounded p-[6px] overflow-hidden" style={{ fontFamily: "sans-serif" }}>
+      <div className="mb-[3px]">
+        <div className="text-[6px] font-bold text-gray-900">JOHN DOE</div>
+        <div className="text-[3px] text-gray-500">email · phone · linkedin · github</div>
+      </div>
+      <div className="border-t-2 border-gray-900 mb-[3px]" />
+      {[
+        { label: "EXPERIENCE", items: ["Software Engineer — Tech Corp", "2024–Present", "• Built scalable systems", "• Led 4-person team"] },
+        { label: "EDUCATION", items: ["B.Tech CSE — University", "2022–2026, GPA 9.1"] },
+        { label: "SKILLS", items: ["Python · React · FastAPI · PostgreSQL · AWS"] },
+      ].map(({ label, items }) => (
+        <div key={label} className="mb-[3px]">
+          <div className="text-[3.5px] font-bold uppercase tracking-widest text-gray-900 mb-[1px]">{label}</div>
+          {items.map((it, i) => (
+            <div key={i} className="text-[3px] text-gray-600 leading-[1.5]">{it}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThumbCompact() {
+  return (
+    <div className="w-full h-full bg-white rounded p-[5px] overflow-hidden" style={{ fontFamily: "serif" }}>
+      <div className="text-center mb-[2px]">
+        <div className="text-[5px] font-bold tracking-widest uppercase text-gray-900">John Doe</div>
+        <div className="text-[2.8px] text-gray-500">email | phone | linkedin</div>
+      </div>
+      <div className="border-b border-gray-400 mb-[2px]" />
+      {[
+        { section: "Education" },
+        { section: "Experience" },
+        { section: "Projects" },
+        { section: "Activities" },
+        { section: "Skills" },
+      ].map(({ section }) => (
+        <div key={section} className="mb-[2px]">
+          <div className="text-[3px] font-bold uppercase tracking-wider text-gray-900 border-b border-gray-400 pb-[1px] mb-[1px]">{section}</div>
+          <div className="text-[2.8px] text-gray-600 leading-[1.4]">
+            {section === "Skills" ? "Python, React, FastAPI, PostgreSQL, Docker, AWS, GCP" : "Content • Content • Content • Content"}
+          </div>
+          {section !== "Skills" && section !== "Education" && (
+            <div className="text-[2.5px] text-gray-400">• Point · • Point · • Point</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThumbModern() {
+  return (
+    <div className="w-full h-full bg-white rounded overflow-hidden" style={{ fontFamily: "sans-serif" }}>
+      {/* Dark header */}
+      <div className="px-[6px] py-[4px] mb-[3px]" style={{ background: "#16243a" }}>
+        <div className="text-[5.5px] font-bold text-white">John Doe</div>
+        <div className="text-[2.8px] mt-[1px]" style={{ color: "rgba(255,255,255,0.6)" }}>email | phone | linkedin | github</div>
+      </div>
+      <div className="px-[6px]">
+        {[
+          { label: "Experience", items: ["Software Engineer", "Tech Corp · 2024–Present", "• Built scalable APIs", "• Led team of 4 engineers"] },
+          { label: "Projects", items: ["JobSync AI — Next.js, FastAPI", "• AI-powered career platform"] },
+          { label: "Skills", items: ["Python · React · FastAPI · PostgreSQL"] },
+        ].map(({ label, items }) => (
+          <div key={label} className="mb-[3px]">
+            <div className="text-[3.5px] font-bold uppercase tracking-wider mb-[1px]" style={{ color: "#4e8cdc" }}>{label}</div>
+            <div className="border-b mb-[1.5px]" style={{ borderColor: "#4e8cdc", opacity: 0.5 }} />
+            {items.map((it, i) => (
+              <div key={i} className="text-[3px] text-gray-600 leading-[1.5]">{it}</div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThumbTwoColumn() {
+  return (
+    <div className="w-full h-full bg-white rounded overflow-hidden flex flex-col" style={{ fontFamily: "sans-serif" }}>
+      {/* Full-width header */}
+      <div className="border-b border-gray-300 px-[5px] py-[3px] text-center">
+        <div className="text-[5px] font-bold text-gray-900">John Doe</div>
+      </div>
+      {/* Two columns */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left sidebar */}
+        <div className="w-[38%] px-[4px] py-[3px]" style={{ background: "#f0f3f8", borderRight: "1px solid #dde3ec" }}>
+          {[
+            { label: "Contact", items: ["email@mail.com", "+91 98765", "New Delhi"] },
+            { label: "Skills", items: ["Python", "React", "FastAPI", "PostgreSQL", "Docker"] },
+            { label: "Education", items: ["B.Tech CSE", "University 2026", "GPA 9.1"] },
+          ].map(({ label, items }) => (
+            <div key={label} className="mb-[3px]">
+              <div className="text-[3px] font-bold uppercase mb-[1px]" style={{ color: "#1e50a0" }}>{label}</div>
+              <div className="border-b mb-[1px]" style={{ borderColor: "#1e50a0", opacity: 0.4 }} />
+              {items.map((it, i) => <div key={i} className="text-[2.8px] text-gray-600 leading-[1.5]">{it}</div>)}
+            </div>
+          ))}
+        </div>
+        {/* Right main */}
+        <div className="flex-1 px-[4px] py-[3px]">
+          {[
+            { label: "Experience", items: ["Software Engineer", "Tech Corp · 2024–Present", "• Built scalable APIs", "• Reduced latency 40%", "• Led 4-person team"] },
+            { label: "Projects", items: ["JobSync AI — Next.js", "• AI career platform", "• 500+ users"] },
+          ].map(({ label, items }) => (
+            <div key={label} className="mb-[3px]">
+              <div className="text-[3px] font-bold uppercase mb-[1px]" style={{ color: "#1e50a0" }}>{label}</div>
+              <div className="border-b mb-[1.5px]" style={{ borderColor: "#1e50a0", opacity: 0.4 }} />
+              {items.map((it, i) => <div key={i} className="text-[2.8px] text-gray-600 leading-[1.5]">{it}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const TEMPLATE_THUMBNAILS: Record<string, React.ReactNode> = {
+  jake:        <ThumbJakes />,
+  minimal:     <ThumbMinimal />,
+  compact:     <ThumbCompact />,
+  modern:      <ThumbModern />,
+  "two-column": <ThumbTwoColumn />,
+};
+
+// ── Template Card ─────────────────────────────────────────────────────────────
+
+function TemplateCard({
+  tmpl, selected, onClick,
+}: { tmpl: TemplateInfo; selected: boolean; onClick: () => void }) {
+  const ats = ATS_CONFIG[tmpl.ats];
+  return (
+    <button
+      onClick={onClick}
+      className="relative flex flex-col items-stretch text-left transition-all rounded-2xl overflow-hidden shrink-0 focus:outline-none"
+      style={{
+        width: 140,
+        border: selected
+          ? "2px solid var(--accent-primary)"
+          : "2px solid var(--border-default)",
+        background: selected ? "var(--bg-elevated)" : "var(--bg-surface)",
+        boxShadow: selected ? "0 0 0 3px rgba(192,88,0,0.12)" : "none",
+      }}
+    >
+      {/* Recommended badge */}
+      {tmpl.recommended && (
+        <div
+          className="absolute top-2 left-2 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-white"
+          style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
+        >
+          ★ Recommended
+        </div>
+      )}
+
+      {/* Selected checkmark */}
+      {selected && (
+        <div
+          className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full flex items-center justify-center"
+          style={{ background: "var(--accent-primary)" }}
+        >
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+      )}
+
+      {/* Thumbnail */}
+      <div
+        className="w-full overflow-hidden"
+        style={{ height: 130, background: "#f8f9fa", borderBottom: "1px solid var(--border-subtle)" }}
+      >
+        {TEMPLATE_THUMBNAILS[tmpl.id]}
+      </div>
+
+      {/* Info */}
+      <div className="p-2.5 space-y-1.5">
+        <div className="text-[12px] font-semibold text-[var(--text-primary)]">{tmpl.name}</div>
+        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${ats.bg} ${ats.color}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${ats.dot}`} />
+          {ats.label}
+        </div>
+        <div className="text-[10px] text-[var(--text-muted)] leading-snug">{tmpl.description}</div>
+      </div>
+    </button>
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ExperienceEntry {
@@ -143,13 +424,14 @@ function LockedOverlay({ onUpgrade }: { onUpgrade: () => void }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ResumeBuilderPage() {
-  const [mode, setMode]       = useState<"scratch" | "enhance">("enhance");
-  const [loading, setLoading] = useState(false);
-  const [latex, setLatex]     = useState("");
-  const [modelUsed, setModelUsed] = useState<"jobsynk-ai" | "claude-sonnet" | null>(null);
-  const [copied, setCopied]   = useState(false);
-  const [targetJob, setTargetJob] = useState("");
-  const [mounted, setMounted] = useState(false);
+  const [mode, setMode]             = useState<"scratch" | "enhance">("enhance");
+  const [selectedTemplate, setSelectedTemplate] = useState("jake");
+  const [loading, setLoading]       = useState(false);
+  const [latex, setLatex]           = useState("");
+  const [modelUsed, setModelUsed]   = useState<"jobsynk-ai" | "claude-sonnet" | null>(null);
+  const [copied, setCopied]         = useState(false);
+  const [targetJob, setTargetJob]   = useState("");
+  const [mounted, setMounted]       = useState(false);
   useEffect(() => setMounted(true), []);
 
   const { showUpsell } = useUpsell();
@@ -220,10 +502,11 @@ export default function ResumeBuilderPage() {
     try {
       const body =
         mode === "enhance"
-          ? { use_active_resume: true, target_job: targetJob, contact: { name: "", email: "", phone: "", location: "", linkedin: "", github: "" } }
+          ? { use_active_resume: true, target_job: targetJob, template: selectedTemplate, contact: { name: "", email: "", phone: "", location: "", linkedin: "", github: "" } }
           : {
               use_active_resume: false,
               target_job: targetJob,
+              template: selectedTemplate,
               contact: { name, email, phone, location, linkedin, github },
               education,
               experience,
@@ -296,12 +579,19 @@ export default function ResumeBuilderPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Resume Builder</h1>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-            <Wand2 className="w-2.5 h-2.5" /> Jake&apos;s Resume template
-          </span>
+          {(() => {
+            const tmpl = TEMPLATES.find(t => t.id === selectedTemplate);
+            const ats = tmpl ? ATS_CONFIG[tmpl.ats] : null;
+            return tmpl && ats ? (
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${ats.bg} ${ats.color}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${ats.dot}`} />
+                {tmpl.name} · {ats.label}
+              </span>
+            ) : null;
+          })()}
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          AI polishes your content → outputs Jake&apos;s Resume LaTeX → paste into Overleaf → download PDF.
+          Choose a template → AI polishes your content → outputs LaTeX → paste into Overleaf → download PDF.
         </p>
 
         {/* Usage meter — deferred until mounted + status loaded */}
@@ -316,6 +606,34 @@ export default function ResumeBuilderPage() {
           </div>
         )}
       </motion.div>
+
+      {/* ── Template Picker ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Choose a Template</h2>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Select a style — AI generates the same polished content, formatted differently.</p>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]">
+            {Object.entries(ATS_CONFIG).map(([key, cfg]) => (
+              <span key={key} className="flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                {cfg.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+          {TEMPLATES.map(tmpl => (
+            <TemplateCard
+              key={tmpl.id}
+              tmpl={tmpl}
+              selected={selectedTemplate === tmpl.id}
+              onClick={() => setSelectedTemplate(tmpl.id)}
+            />
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] xl:grid-cols-[480px_1fr] gap-6 items-start">
         {/* ── Left: Input ── */}
@@ -544,10 +862,10 @@ export default function ResumeBuilderPage() {
                 <p className="text-[13px] text-[var(--text-muted)] max-w-xs leading-relaxed mb-6">Fill the form on the left and click Generate. The AI will write your resume and output it as LaTeX.</p>
                 <div className="flex flex-col gap-2 w-full max-w-xs">
                   {[
-                    { n: "1", t: "Fill form or use your uploaded resume" },
-                    { n: "2", t: "AI rewrites with action verbs & metrics" },
-                    { n: "3", t: "Copy LaTeX → paste into Overleaf" },
-                    { n: "4", t: "Download PDF in Jake's style" },
+                    { n: "1", t: "Pick a template above" },
+                    { n: "2", t: "Fill form or use your uploaded resume" },
+                    { n: "3", t: "AI rewrites with action verbs & metrics" },
+                    { n: "4", t: "Copy LaTeX → paste into Overleaf → PDF" },
                   ].map(s => (
                     <div key={s.n} className="flex items-center gap-3 text-left px-4 py-2.5 rounded-xl"
                       style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
@@ -569,7 +887,9 @@ export default function ResumeBuilderPage() {
                   <div className="text-[14px] font-medium text-[var(--text-primary)]">
                     {isPro ? "Claude Sonnet is writing your resume…" : "JobSynk AI Engine is writing your resume…"}
                   </div>
-                  <div className="text-[12px] text-[var(--text-muted)] mt-1">Adding action verbs, metrics, and ATS keywords</div>
+                  <div className="text-[12px] text-[var(--text-muted)] mt-1">
+                    Formatting with {TEMPLATES.find(t => t.id === selectedTemplate)?.name ?? "Jake's Resume"} template
+                  </div>
                 </div>
               </motion.div>
             )}
