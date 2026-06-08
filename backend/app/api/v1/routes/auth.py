@@ -112,38 +112,35 @@ async def phone_login(body: PhoneLoginRequest):
     sb = _supabase_admin()
 
     try:
-        # Try to find existing user by phone
-        users_resp = sb.auth.admin.list_users()
-        existing = next(
-            (u for u in users_resp if u.phone == phone),
-            None,
-        )
-
-        if existing:
-            user_id = existing.id
-        else:
-            # Create new user
-            create_payload: dict = {
-                "phone": phone,
-                "phone_confirm": True,
-                "user_metadata": {
-                    "firebase_uid": firebase_uid,
-                    "full_name": body.full_name,
-                    "career_stage": body.career_stage,
-                    "target_role": body.target_role,
-                    "auth_provider": "firebase_phone",
-                },
-            }
+        # 2. Upsert: try to create; if duplicate phone, fetch the existing user
+        create_payload: dict = {
+            "phone": phone,
+            "phone_confirm": True,
+            "user_metadata": {
+                "firebase_uid": firebase_uid,
+                "full_name": body.full_name,
+                "career_stage": body.career_stage,
+                "target_role": body.target_role,
+                "auth_provider": "firebase_phone",
+            },
+        }
+        try:
             new_user = sb.auth.admin.create_user(create_payload)
             user_id = new_user.id
+            logger.info("Created new Supabase user %s for phone %s", user_id, phone)
+        except Exception as create_exc:
+            err_str = str(create_exc).lower()
+            if "already" not in err_str and "duplicate" not in err_str and "exists" not in err_str:
+                raise  # unexpected error — let outer handler return 500
+            # User already exists — find them by iterating (pool is small for now)
+            users_resp = sb.auth.admin.list_users()
+            existing = next((u for u in users_resp if u.phone == phone), None)
+            if not existing:
+                raise RuntimeError(f"User with phone {phone} not found after duplicate error") from create_exc
+            user_id = existing.id
+            logger.info("Found existing Supabase user %s for phone %s", user_id, phone)
 
-        # 3. Create a magic-link style session (admin-generated token)
-        link_resp = sb.auth.admin.generate_link({
-            "type": "magiclink",
-            "email": f"phone_{firebase_uid}@firebase.jobsync.internal",
-        })
-        # The above gives us a link — instead just sign in with a one-time token
-        # Better: use admin.create_session (supabase-py ≥ 2.5 exposes this)
+        # 3. Create a Supabase session for this user (supabase-py ≥ 2.5)
         session = sb.auth.admin.create_session(user_id)
         return SessionResponse(
             access_token=session.session.access_token,
@@ -194,23 +191,8 @@ async def google_login(body: GoogleLoginRequest):
     # 2. Upsert Supabase user by email
     sb = _supabase_admin()
     try:
-        # Search for existing user by email
-        users_resp = sb.auth.admin.list_users()
-        existing = next((u for u in users_resp if u.email == email), None)
-
-        if existing:
-            user_id = existing.id
-            # Refresh metadata if picture or name changed
-            sb.auth.admin.update_user_by_id(
-                user_id,
-                {"user_metadata": {
-                    "full_name": existing.user_metadata.get("full_name") or name,
-                    "avatar_url": existing.user_metadata.get("avatar_url") or picture,
-                    "firebase_uid": firebase_uid,
-                    "auth_provider": "firebase_google",
-                }},
-            )
-        else:
+        # 2. Upsert by email: try create first, handle duplicate
+        try:
             new_user = sb.auth.admin.create_user({
                 "email": email,
                 "email_confirm": True,
@@ -222,6 +204,27 @@ async def google_login(body: GoogleLoginRequest):
                 },
             })
             user_id = new_user.id
+            logger.info("Created new Supabase user %s for email %s", user_id, email)
+        except Exception as create_exc:
+            err_str = str(create_exc).lower()
+            if "already" not in err_str and "duplicate" not in err_str and "exists" not in err_str:
+                raise
+            users_resp = sb.auth.admin.list_users()
+            existing = next((u for u in users_resp if u.email == email), None)
+            if not existing:
+                raise RuntimeError(f"User with email {email} not found after duplicate error") from create_exc
+            user_id = existing.id
+            # Keep metadata fresh
+            sb.auth.admin.update_user_by_id(
+                user_id,
+                {"user_metadata": {
+                    "full_name": existing.user_metadata.get("full_name") or name,
+                    "avatar_url": existing.user_metadata.get("avatar_url") or picture,
+                    "firebase_uid": firebase_uid,
+                    "auth_provider": "firebase_google",
+                }},
+            )
+            logger.info("Found existing Supabase user %s for email %s", user_id, email)
 
         # 3. Create Supabase session
         session = sb.auth.admin.create_session(user_id)
