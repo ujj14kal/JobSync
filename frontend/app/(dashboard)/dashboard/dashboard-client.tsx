@@ -233,10 +233,10 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
   const hasResume = (resumes?.length ?? 0) > 0;
   const hasJobData = (jobStats?.total ?? 0) > 0;
 
+  // No InView needed — scroll is inside <main overflow-y-auto>, not window.
+  // All sections are always visible so we animate unconditionally.
   const scoresRef = useRef<HTMLDivElement>(null);
-  const scoresInView = useInView(scoresRef, { once: true, margin: "-40px" });
   const pipelineRef = useRef<HTMLDivElement>(null);
-  const pipelineInView = useInView(pipelineRef, { once: true, margin: "-40px" });
 
   return (
     <div className="space-y-8">
@@ -349,11 +349,11 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           <div className="flex items-center justify-between mb-4">
             <motion.h2
               className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider"
-              initial={{ opacity: 0 }} animate={pipelineInView ? { opacity: 1 } : {}}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             >
               Application Pipeline
             </motion.h2>
-            <motion.div initial={{ opacity: 0 }} animate={pipelineInView ? { opacity: 1 } : {}}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <Link href="/jobs" className="text-[12px] text-[#C05800] hover:text-[#E08840] flex items-center gap-1 transition-colors">
                 <Briefcase className="w-3 h-3" /> Job Tracker <ArrowRight className="w-3 h-3" />
               </Link>
@@ -363,7 +363,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           {/* Big stat cards — always show, 0 when no data */}
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"
-            variants={container} initial="hidden" animate={pipelineInView ? "show" : "hidden"}
+            variants={container} initial="hidden" animate={"show"}
           >
             <motion.div variants={cardItem}>
               <JobStatCard label="Total Applications" value={jobStats?.total ?? 0} color="#D06818" rgb="192,88,0" />
@@ -515,7 +515,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
         <div ref={scoresRef}>
           <motion.h2
             className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"
-            initial={{ opacity: 0 }} animate={scoresInView ? { opacity: 1 } : {}}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           >
             Latest Score Breakdown
           </motion.h2>
@@ -523,7 +523,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           {latestAnalysis && latestAnalysis.status === "complete" ? (
             <motion.div
               className="grid grid-cols-2 md:grid-cols-5 gap-3"
-              variants={container} initial="hidden" animate={scoresInView ? "show" : "hidden"}
+              variants={container} initial="hidden" animate={"show"}
             >
               {[
                 { label: "Overall",   score: latestAnalysis.scores.overall_score },
@@ -547,7 +547,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
                       >
                         <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 50% 0%,rgba(${rgb},0.18),transparent 60%)` }} />
                         <div className="text-2xl font-bold mb-1 relative" style={{ color: c, textShadow: `0 0 20px ${c}80` }}>
-                          {scoresInView ? <AnimatedNumber value={score} duration={1.0} /> : "0"}
+                          {<AnimatedNumber value={score} duration={1.0} />}
                         </div>
                         <div className="text-[11px] text-[var(--text-muted)] relative">{label}</div>
                         <motion.div

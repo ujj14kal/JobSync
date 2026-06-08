@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
 
 const navItems = [
   {
@@ -150,6 +152,16 @@ export function Sidebar() {
   const router = useRouter();
   const supabase = createClient();
 
+  const { data: chatStatus } = useQuery({
+    queryKey: ["chat-status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/chat/status");
+      return data as { is_pro: boolean };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const isPro = chatStatus?.is_pro === true;
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.push("/");
@@ -177,7 +189,23 @@ export function Sidebar() {
 
       {/* Logo */}
       <div className="relative flex items-center gap-3 px-4 h-14 border-b border-[rgba(255,255,255,0.06)]">
-        <img src="/logo.png" alt="JobSynk" className="w-7 h-7 flex-shrink-0 object-contain" />
+        {/* Briefcase logo + Pro badge */}
+        <div className="relative flex-shrink-0">
+          <img src="/logo.png" alt="JobSynk" className="w-7 h-7 object-contain" />
+          {isPro && (
+            <span
+              className="absolute -top-1.5 -right-2 text-[8px] font-bold px-1 py-px rounded-full leading-none"
+              style={{
+                background: "linear-gradient(135deg, #C05800, #d4aa30)",
+                color: "#fff",
+                boxShadow: "0 0 6px rgba(192,88,0,0.6)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              PRO
+            </span>
+          )}
+        </div>
         <AnimatePresence>
           {!sidebarCollapsed && (
             <motion.span
