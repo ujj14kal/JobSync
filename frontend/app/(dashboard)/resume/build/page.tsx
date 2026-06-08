@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { chatApi } from "@/lib/api/chat";
+import { resumeBuilderApi } from "@/lib/api/resume-builder";
 import { useUpsell } from "@/components/billing/UpsellModal";
 import {
   Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp,
   Plus, Trash2, ExternalLink, FileText, Wand2, ArrowLeft, Lock,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -27,7 +28,7 @@ interface ProjectEntry {
   name: string; tech_stack: string; description: string; url: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Small helpers ─────────────────────────────────────────────────────────────
 
 function Field({ label, value, onChange, placeholder = "", multiline = false }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -45,36 +46,130 @@ function Field({ label, value, onChange, placeholder = "", multiline = false }: 
   );
 }
 
-// ── Main Page ────────────────────────────────────────────────────────────────
-
 // Claude "A" logo mark
-function ClaudeMark({ size = 14 }: { size?: number }) {
+function ClaudeMark({ size = 14, className = "" }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 41 41" fill="currentColor" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 41 41" fill="currentColor" className={className} aria-hidden>
       <path d="M23.5688 6L31.9999 35H27.8181L25.6817 27.7273H16.3635L14.2272 35H10.0454L18.4999 6H23.5688ZM21.0226 11.1591L17.477 24.4545H24.568L21.0226 11.1591Z"/>
     </svg>
   );
 }
 
+// ── Usage meter strip ─────────────────────────────────────────────────────────
+
+function UsageMeter({
+  used, limit, isPro, model,
+}: {
+  used: number; limit: number; isPro: boolean; model: "jobsynk-ai" | "claude-sonnet";
+}) {
+  const pct = Math.min((used / limit) * 100, 100);
+  const atLimit = used >= limit;
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      {/* AI model badge */}
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+        style={isPro
+          ? { background: "rgba(192,88,0,0.12)", border: "1px solid rgba(192,88,0,0.28)", color: "#C05800" }
+          : { background: "rgba(122,184,64,0.10)", border: "1px solid rgba(122,184,64,0.28)", color: "#7ab840" }
+        }
+      >
+        {isPro
+          ? <><ClaudeMark size={11} /> Claude Sonnet · Pro</>
+          : <><Zap className="w-3 h-3" /> JobSynk AI Engine · Free</>
+        }
+      </span>
+
+      {/* Usage count + bar */}
+      <div className="flex items-center gap-2">
+        <span className={`text-[12px] ${atLimit ? "text-red-400" : "text-[var(--text-muted)]"}`}>
+          {used} / {limit} {isPro ? "" : "free "}generation{limit !== 1 ? "s" : ""} used
+        </span>
+        <div className="h-1.5 w-24 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${pct}%`,
+              background: atLimit ? "#ef4444" : isPro ? "#C05800" : "#7ab840",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Upgrade nudge for free users with remaining uses */}
+      {!isPro && !atLimit && (
+        <span className="text-[11px] text-[var(--text-muted)]">
+          · Upgrade to Pro for Claude Sonnet + {5} generations/month
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Locked overlay (shown when free limit is hit) ─────────────────────────────
+
+function LockedOverlay({ onUpgrade }: { onUpgrade: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="p-6 rounded-2xl text-center space-y-4"
+      style={{ background: "rgba(192,88,0,0.06)", border: "1px solid rgba(192,88,0,0.22)" }}
+    >
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
+        style={{ background: "linear-gradient(135deg,rgba(192,88,0,0.18),rgba(113,54,0,0.12))", border: "1px solid rgba(192,88,0,0.3)" }}>
+        <Lock className="w-5 h-5 text-[#C05800]" />
+      </div>
+      <div>
+        <p className="text-[15px] font-bold text-[var(--text-primary)] mb-1">Free limit reached</p>
+        <p className="text-[13px] text-[var(--text-secondary)]">
+          You&apos;ve used your 2 free resume generations this month.<br/>
+          Upgrade to Pro to unlock <span className="font-semibold text-[#C05800]">Claude Sonnet</span> with 5 generations/month.
+        </p>
+      </div>
+      <button
+        onClick={onUpgrade}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-[13px] font-semibold transition-all"
+        style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
+      >
+        <ClaudeMark size={14} /> Upgrade to Pro · ₹299/month
+      </button>
+      <p className="text-[11px] text-[var(--text-muted)]">Resets on the 1st of each month</p>
+    </motion.div>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+
 export default function ResumeBuilderPage() {
-  const [mode, setMode]     = useState<"scratch" | "enhance">("enhance");
+  const [mode, setMode]       = useState<"scratch" | "enhance">("enhance");
   const [loading, setLoading] = useState(false);
-  const [latex, setLatex]   = useState("");
-  const [copied, setCopied] = useState(false);
+  const [latex, setLatex]     = useState("");
+  const [modelUsed, setModelUsed] = useState<"jobsynk-ai" | "claude-sonnet" | null>(null);
+  const [copied, setCopied]   = useState(false);
   const [targetJob, setTargetJob] = useState("");
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const { showUpsell } = useUpsell();
-  const { data: status } = useQuery({
-    queryKey: ["chat-status"],
-    queryFn: chatApi.getStatus,
-    staleTime: 60_000,
+  const queryClient = useQueryClient();
+
+  // Fetch quota from /resume-builder/status
+  const { data: rbStatus, refetch: refetchStatus } = useQuery({
+    queryKey: ["resume-builder-status"],
+    queryFn: resumeBuilderApi.getStatus,
+    staleTime: 30_000,
     retry: false,
+    enabled: mounted, // only fetch after mount to prevent hydration issues
   });
-  const isPro = mounted && status?.is_pro === true;
-  const usedThisMonth = 0; // TODO: track per-feature usage in backend
-  const limit = 5; // Pro: 5 resume generations/month
+
+  const isPro         = rbStatus?.plan === "pro";
+  const usesUsed      = rbStatus?.uses_used ?? 0;
+  const usesLimit     = rbStatus?.uses_limit ?? 2;
+  const locked        = rbStatus?.locked ?? false;
+  const requiresPro   = rbStatus?.requires_pro ?? false;
+  const currentModel  = rbStatus?.model ?? "jobsynk-ai";
 
   // Contact
   const [name,      setName]      = useState("");
@@ -84,43 +179,44 @@ export default function ResumeBuilderPage() {
   const [linkedin,  setLinkedin]  = useState("");
   const [github,    setGithub]    = useState("");
 
-  // Education
   const [education, setEducation] = useState<EducationEntry[]>([
     { degree: "", institution: "", location: "", start_date: "", end_date: "", gpa: "" }
   ]);
-
-  // Experience
   const [experience, setExperience] = useState<ExperienceEntry[]>([
     { title: "", company: "", location: "", start_date: "", end_date: "Present", raw_bullets: [""] }
   ]);
-
-  // Projects
   const [projects, setProjects] = useState<ProjectEntry[]>([
     { name: "", tech_stack: "", description: "", url: "" }
   ]);
+  const [skillsRaw,  setSkillsRaw]  = useState("");
+  const [activities, setActivities] = useState("");
+  const [awards,     setAwards]     = useState("");
 
-  // Skills / other
-  const [skillsRaw,   setSkillsRaw]   = useState("");
-  const [activities,  setActivities]  = useState("");
-  const [awards,      setAwards]      = useState("");
-
-  // Sections collapse
   const [open, setOpen] = useState<Record<string, boolean>>({
     contact: true, education: true, experience: true, projects: true, other: false
   });
   const toggle = (k: string) => setOpen(p => ({ ...p, [k]: !p[k] }));
 
+  const handleUpgrade = useCallback(() => {
+    showUpsell({ feature: "AI Resume Builder", onProceed: () => {}, strict: true });
+  }, [showUpsell]);
+
   async function generate() {
-    if (!isPro) {
-      showUpsell({ feature: "AI Resume Builder", onProceed: () => {}, strict: true });
+    // If free and at limit → upsell
+    if (requiresPro) {
+      handleUpgrade();
       return;
     }
-    if (usedThisMonth >= limit) {
-      toast.error(`Monthly limit reached (${limit} generations/month). Resets on your billing date.`);
+    // If pro and at limit → friendly message
+    if (locked) {
+      toast.error(`Monthly limit reached (${usesLimit} generations). Resets on the 1st.`);
       return;
     }
+
     setLoading(true);
     setLatex("");
+    setModelUsed(null);
+
     try {
       const body =
         mode === "enhance"
@@ -139,9 +235,24 @@ export default function ResumeBuilderPage() {
 
       const { data } = await apiClient.post("/resume-builder/generate", body);
       setLatex(data.latex);
-      toast.success("Resume generated! Copy the LaTeX and paste into Overleaf.");
-    } catch (e) {
-      toast.error("Generation failed. Try again.");
+      setModelUsed(data.model_used ?? "jobsynk-ai");
+
+      // Refresh the status so the meter updates
+      queryClient.invalidateQueries({ queryKey: ["resume-builder-status"] });
+
+      const aiLabel = data.model_used === "claude-sonnet" ? "Claude Sonnet" : "JobSynk AI Engine";
+      toast.success(`Resume generated by ${aiLabel}! Copy the LaTeX and paste into Overleaf.`);
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail ?? "";
+      if (e?.response?.status === 402) {
+        // Backend says free limit reached
+        queryClient.invalidateQueries({ queryKey: ["resume-builder-status"] });
+        handleUpgrade();
+      } else if (e?.response?.status === 429) {
+        toast.error(detail || "Monthly limit reached. Resets on the 1st.");
+      } else {
+        toast.error("Generation failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -166,6 +277,16 @@ export default function ResumeBuilderPage() {
     );
   }
 
+  // Decide button content
+  const buttonContent = () => {
+    if (loading) return <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>;
+    if (!mounted || !rbStatus) return <><Sparkles className="w-4 h-4" /> Generate Resume</>;
+    if (requiresPro) return <><Lock className="w-4 h-4" /> Upgrade to Pro for More Generations</>;
+    if (locked) return <><Sparkles className="w-4 h-4" /> Monthly Limit Reached</>;
+    if (isPro) return <><ClaudeMark size={15} /> Generate with Claude Sonnet</>;
+    return <><Zap className="w-4 h-4" /> Generate with JobSynk AI Engine ({usesLimit - usesUsed} free left)</>;
+  };
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -178,39 +299,20 @@ export default function ResumeBuilderPage() {
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
             <Wand2 className="w-2.5 h-2.5" /> Jake&apos;s Resume template
           </span>
-          {/* Claude Sonnet powered badge */}
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
-            style={{ background: "rgba(192,88,0,0.10)", border: "1px solid rgba(192,88,0,0.25)", color: "#C05800" }}>
-            <ClaudeMark size={12} /> Claude Sonnet · Pro
-          </span>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
-          Claude Sonnet polishes your content → outputs Jake&apos;s Resume LaTeX → paste into Overleaf → download PDF.
+          AI polishes your content → outputs Jake&apos;s Resume LaTeX → paste into Overleaf → download PDF.
         </p>
-        {/* Usage meter — shown after mount */}
-        {mounted && (
-          <div className="mt-3 flex items-center gap-3">
-            {isPro ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-                  <span>{usedThisMonth} / {limit} generations used this month</span>
-                </div>
-                <div className="h-1.5 w-28 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.min((usedThisMonth / limit) * 100, 100)}%`,
-                      background: usedThisMonth >= limit ? "#ef4444" : "#C05800",
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[12px] font-medium"
-                style={{ background: "rgba(192,88,0,0.08)", border: "1px solid rgba(192,88,0,0.2)", color: "#C05800" }}>
-                <Lock className="w-3 h-3" /> Pro feature · 5 generations/month included
-              </div>
-            )}
+
+        {/* Usage meter — deferred until mounted + status loaded */}
+        {mounted && rbStatus && (
+          <div className="mt-3">
+            <UsageMeter
+              used={usesUsed}
+              limit={usesLimit}
+              isPro={isPro}
+              model={currentModel}
+            />
           </div>
         )}
       </motion.div>
@@ -234,6 +336,14 @@ export default function ResumeBuilderPage() {
         {/* ── Left: Input ── */}
         <div className="space-y-4">
 
+          {/* Show locked overlay instead of form when free limit is hit */}
+          {mounted && requiresPro ? (
+            <>
+              <LockedOverlay onUpgrade={handleUpgrade} />
+              {/* Still show the form below (read-only feel) so they see what they'd fill */}
+            </>
+          ) : null}
+
           {/* Mode toggle */}
           <div className="flex rounded-xl overflow-hidden border border-[var(--border-default)]">
             <button onClick={() => setMode("enhance")}
@@ -250,7 +360,7 @@ export default function ResumeBuilderPage() {
             <div className="p-4 rounded-xl border border-emerald-400/30 bg-emerald-400/5">
               <p className="text-[12px] text-emerald-400 font-medium mb-1">Using your active resume</p>
               <p className="text-[11px] text-[var(--text-muted)]">
-                AI will read your uploaded resume, rewrite all bullet points with stronger action verbs and metrics, and output Jake's Resume LaTeX.
+                AI will read your uploaded resume, rewrite all bullet points with stronger action verbs and metrics, and output Jake&apos;s Resume LaTeX.
               </p>
             </div>
           )}
@@ -416,21 +526,17 @@ export default function ResumeBuilderPage() {
             </div>
           )}
 
+          {/* Generate button */}
           <button
             onClick={generate}
-            disabled={loading || (mounted && isPro && usedThisMonth >= limit)}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-medium text-[14px] transition-colors disabled:opacity-50"
-            style={{ background: "linear-gradient(135deg, #C05800, #713600)" }}
+            disabled={loading || (mounted && !!rbStatus && locked && !requiresPro)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-medium text-[14px] transition-all disabled:opacity-50"
+            style={{ background: requiresPro && mounted
+              ? "linear-gradient(135deg,rgba(192,88,0,0.5),rgba(113,54,0,0.4))"
+              : "linear-gradient(135deg,#C05800,#713600)"
+            }}
           >
-            {loading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Generating with Claude Sonnet…</>
-            ) : !mounted || !isPro ? (
-              <><Lock className="w-4 h-4" /> Generate with Claude Sonnet · Pro</>
-            ) : usedThisMonth >= limit ? (
-              <><Sparkles className="w-4 h-4" /> Monthly limit reached</>
-            ) : (
-              <><ClaudeMark size={16} /> Generate with Claude Sonnet</>
-            )}
+            {buttonContent()}
           </button>
         </div>
 
@@ -455,7 +561,9 @@ export default function ResumeBuilderPage() {
                 className="h-full flex flex-col items-center justify-center py-20 gap-4">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--accent-primary)]" />
                 <div className="text-center">
-                  <div className="text-[14px] font-medium text-[var(--text-primary)]">AI is writing your resume…</div>
+                  <div className="text-[14px] font-medium text-[var(--text-primary)]">
+                    {isPro ? "Claude Sonnet is writing your resume…" : "JobSynk AI Engine is writing your resume…"}
+                  </div>
                   <div className="text-[12px] text-[var(--text-muted)] mt-1">Adding action verbs, metrics, and ATS keywords</div>
                 </div>
               </motion.div>
@@ -464,11 +572,25 @@ export default function ResumeBuilderPage() {
             {latex && !loading && (
               <motion.div key="output" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 className="space-y-3">
+                {/* Model attribution */}
+                {modelUsed && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                    {modelUsed === "claude-sonnet"
+                      ? <><ClaudeMark size={11} className="text-[#C05800]" /> Generated by Claude Sonnet</>
+                      : <><Zap className="w-3 h-3 text-[#7ab840]" /> Generated by JobSynk AI Engine</>
+                    }
+                    {modelUsed === "jobsynk-ai" && !isPro && (
+                      <span>· <button onClick={handleUpgrade} className="text-[#C05800] hover:underline">Upgrade to Pro for Claude Sonnet</button></span>
+                    )}
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={copyLatex}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-[13px] font-medium transition-colors"
+                    style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
                   >
                     {copied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy LaTeX</>}
                   </button>
@@ -486,7 +608,6 @@ export default function ResumeBuilderPage() {
                   <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                     <span className="font-semibold text-[var(--text-secondary)]">How to use:</span>{" "}
                     1. Copy LaTeX → 2. Open Overleaf → New Project → Blank → 3. Paste and replace all content → 4. Click Recompile → 5. Download PDF.
-                    The template is Jake's Resume — identical to the Overleaf Jake's Resume template.
                   </p>
                 </div>
 
