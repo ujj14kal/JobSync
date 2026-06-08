@@ -222,7 +222,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
     queryFn: resumeApi.list,
     staleTime: 4 * 60 * 1000,
   });
-  const { data: jobStats } = useQuery({
+  const { data: jobStats, isLoading: jobStatsLoading } = useQuery({
     queryKey: ["job-application-stats"],
     queryFn: jobApplicationsApi.stats,
     staleTime: 4 * 60 * 1000,
@@ -328,7 +328,23 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       </div>
 
       {/* ── Application Pipeline ── */}
-      {mounted && hasJobData && (
+      {!mounted || jobStatsLoading ? (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-3.5 w-40 rounded-full animate-shimmer" />
+            <div className="h-3.5 w-24 rounded-full animate-shimmer" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 rounded-2xl animate-shimmer" />
+            ))}
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="h-48 rounded-2xl animate-shimmer" />
+            <div className="h-48 rounded-2xl animate-shimmer" />
+          </div>
+        </div>
+      ) : hasJobData ? (
         <div ref={pipelineRef}>
           <div className="flex items-center justify-between mb-4">
             <motion.h2
@@ -371,7 +387,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
           >
             {/* Score trend — only when there are multiple analyses */}
-            {mounted && (analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
+            {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
 
             {/* Funnel */}
             {jobStats?.by_status && <FunnelChart byStatus={jobStats.by_status} />}
@@ -389,7 +405,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             </motion.div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* ── Recent Analyses ── */}
       <div>
@@ -474,7 +490,16 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       </div>
 
       {/* ── Score Breakdown (latest analysis) ── */}
-      {mounted && latestAnalysis && latestAnalysis.status === "complete" && (
+      {!mounted || analysesLoading ? (
+        <div>
+          <div className="h-3.5 w-44 rounded-full animate-shimmer mb-4" />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-24 rounded-2xl animate-shimmer" />
+            ))}
+          </div>
+        </div>
+      ) : latestAnalysis && latestAnalysis.status === "complete" ? (
         <div ref={scoresRef}>
           <motion.h2
             className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"
@@ -525,7 +550,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             })}
           </motion.div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
