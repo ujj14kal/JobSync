@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 // ── Plan data ─────────────────────────────────────────────────────────────────
 const FREE_FEATURES = [
-  "3 ATS analyses per day (Groq AI)",
+  "3 ATS analyses per day (JobSynk AI Engine)",
   "2 lifetime resume builder credits",
   "1 free text interview practice",
   "Job application tracker",
@@ -235,10 +235,12 @@ export default function PricingSection() {
           initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}} transition={{ delay: 0.45 }}>
           <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Why we charge</div>
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-            Free features use <strong>Groq AI</strong> (free, fast, good). Pro features use{" "}
-            <strong>Claude Sonnet</strong> — Anthropic&apos;s frontier model. It costs us real money per token
-            (~₹4–6 per analysis). Pro pricing ensures we can keep the lights on while giving you the
-            best possible AI quality. We never sell your data.
+            Free features are powered by the <strong>JobSynk AI Engine</strong> — our proprietary model
+            trained on thousands of resumes and job descriptions. Pro features use{" "}
+            <strong>Claude Sonnet by Anthropic</strong> — a frontier LLM that delivers deeper, more
+            personalised feedback. It costs us real money per token (~₹4–6 per analysis). Pro pricing
+            ensures we can keep the lights on while giving you the best possible quality. We never sell
+            your data.
           </p>
         </motion.div>
       </div>

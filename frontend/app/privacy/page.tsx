@@ -86,7 +86,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Gmail data is used <strong className="text-white">only</strong> to provide the job-application status tracking feature that is visible to you in the app — for no other purpose.</li>
               <li>Gmail data is <strong className="text-white">never</strong> used for advertising or to serve ads.</li>
-              <li>Gmail data is <strong className="text-white">never</strong> transferred to third parties, except to Groq solely for classifying email subjects/snippets as part of the job-tracking feature (see Section 5).</li>
+              <li>Gmail data is <strong className="text-white">never</strong> transferred to third parties, except to our AI backend solely for classifying email subjects/snippets as part of the job-tracking feature (see Section 5).</li>
               <li>No human at JobSynk reads your Gmail data. All access is fully automated.</li>
               <li>You can revoke access at any time, which immediately deletes all stored Gmail tokens.</li>
             </ul>
@@ -152,8 +152,8 @@ export default function PrivacyPage() {
                 link: "https://supabase.com/privacy",
               },
               {
-                name: "Groq (groq.com)",
-                what: "When you use AI feedback features or Gmail job-tracking, relevant text — resume snippets, job descriptions, or email subjects and snippets — is sent to Groq's API to generate AI responses. We do not send full email bodies to Groq. Groq's privacy policy governs their handling of this data.",
+                name: "JobSynk AI Engine (primary) / Groq fallback",
+                what: "Free-tier AI features are powered by the JobSynk AI Engine — our proprietary model running within our own infrastructure. Groq (groq.com) is used only as a fallback if our engine is temporarily unavailable. In that case, relevant text (resume snippets, job descriptions, or email subjects/snippets) is sent to Groq's API. We do not send full email bodies externally. Groq's privacy policy governs their handling.",
                 link: "https://groq.com/privacy-policy",
               },
               {
@@ -207,9 +207,9 @@ export default function PrivacyPage() {
               We <strong className="text-white">never</strong> read, store, or transmit full email body content.
             </li>
             <li>
-              The email subject and snippet are sent to Groq&apos;s API <em>solely</em> to classify whether the
+              The email subject and snippet are processed by the <strong className="text-white">JobSynk AI Engine</strong> solely to classify whether the
               email represents a status update (e.g., interview scheduled, rejected, offer received).
-              Groq does not retain data after returning a response, per their policy.
+              If our engine is unavailable, Groq may be used as a fallback — Groq does not retain data after returning a response, per their policy.
             </li>
             <li>
               <strong className="text-white">No human at JobSynk reads your Gmail data.</strong> All access and
