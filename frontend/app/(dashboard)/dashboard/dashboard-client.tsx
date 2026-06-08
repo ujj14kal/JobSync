@@ -385,7 +385,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
               <motion.div
                 className="grid md:grid-cols-2 gap-4"
                 initial={{ opacity: 0, y: 12 }}
-                animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
               >
                 {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
@@ -395,7 +395,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
                 <motion.div
                   className="mt-4"
                   initial={{ opacity: 0, y: 12 }}
-                  animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.35, duration: 0.5, ease: [0.16,1,0.3,1] }}
                 >
                   <ActivityChart weeklyActivity={jobStats.weekly_activity} />
@@ -404,7 +404,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             </>
           ) : (
             <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-[var(--border-subtle)]"
             >
@@ -554,7 +554,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
                           className="absolute bottom-0 left-0 h-0.5 rounded-full"
                           style={{ background: `linear-gradient(90deg,transparent,rgba(${rgb},0.7),transparent)` }}
                           initial={{ width: "0%" }}
-                          animate={scoresInView ? { width: `${score}%` } : { width: "0%" }}
+                          animate={{ width: `${score}%` }}
                           transition={{ duration: 1.2, ease: [0.16,1,0.3,1], delay: 0.3 }}
                         />
                       </div>
@@ -565,7 +565,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             </motion.div>
           ) : (
             <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={scoresInView ? { opacity: 1, y: 0 } : {}}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
               className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-[var(--border-subtle)]"
             >

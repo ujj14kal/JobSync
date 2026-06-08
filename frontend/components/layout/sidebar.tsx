@@ -189,17 +189,17 @@ export function Sidebar() {
 
       {/* Logo */}
       <div className="relative flex items-center gap-3 px-4 h-14 border-b border-[rgba(255,255,255,0.06)]">
-        {/* Briefcase logo + Pro badge */}
-        <div className="relative flex-shrink-0">
+        {/* Briefcase logo + Pro badge below */}
+        <div className="flex flex-col items-center flex-shrink-0">
           <img src="/logo.png" alt="JobSynk" className="w-7 h-7 object-contain" />
           {isPro && (
             <span
-              className="absolute -top-1.5 -right-2 text-[8px] font-bold px-1 py-px rounded-full leading-none"
+              className="mt-0.5 text-[7px] font-bold px-1.5 py-px rounded-sm leading-none tracking-widest"
               style={{
-                background: "linear-gradient(135deg, #C05800, #d4aa30)",
-                color: "#fff",
-                boxShadow: "0 0 6px rgba(192,88,0,0.6)",
-                letterSpacing: "0.04em",
+                background: "#0a0a0a",
+                color: "#d4aa30",
+                border: "1px solid rgba(212,170,48,0.4)",
+                boxShadow: "0 0 6px rgba(212,170,48,0.2)",
               }}
             >
               PRO
