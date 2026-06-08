@@ -102,8 +102,8 @@ export default function PricingSection() {
           </motion.div>
         </div>
 
-        {/* Plan cards */}
-        <div className="grid lg:grid-cols-3 gap-6 items-start mb-16">
+        {/* Plan cards — pt-4 gives the Pro badge room above the card */}
+        <div className="grid lg:grid-cols-3 gap-6 items-start mb-16 pt-4">
 
           {/* Free */}
           <motion.div className="p-6 rounded-3xl h-full"
@@ -132,7 +132,7 @@ export default function PricingSection() {
           </motion.div>
 
           {/* Pro — highlighted */}
-          <motion.div className="relative p-6 rounded-3xl overflow-hidden"
+          <motion.div className="relative pt-10 pb-6 px-6 rounded-3xl"
             style={{
               background:  "linear-gradient(135deg,rgba(192,88,0,0.10),rgba(113,54,0,0.06))",
               border:      "1px solid rgba(192,88,0,0.35)",
@@ -140,12 +140,12 @@ export default function PricingSection() {
             }}
             initial={{ opacity: 0, y: 24 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.22, duration: 0.6, ease: [0.16,1,0.3,1] }}>
-            {/* Most popular badge */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 py-1 rounded-full text-[11px] font-bold text-white"
-              style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}>
+            {/* Most popular badge — sits above the card, needs overflow visible */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3 py-1 rounded-full text-[11px] font-bold text-white whitespace-nowrap"
+              style={{ background: "linear-gradient(135deg,#C05800,#713600)", zIndex: 10 }}>
               MOST POPULAR
             </div>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 20% 20%,rgba(192,88,0,0.12),transparent 60%)" }} />
+            <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ background: "radial-gradient(circle at 20% 20%,rgba(192,88,0,0.12),transparent 60%)" }} />
 
             <div className="mb-5 relative">
               <div className="text-[12px] font-semibold text-[#C05800] uppercase tracking-wider mb-2">Pro</div>

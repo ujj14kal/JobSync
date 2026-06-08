@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, useInView, useMotionValue, useSpring, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, BarChart, Bar,
@@ -207,6 +207,11 @@ const listItem   = { hidden: { opacity: 0, x: -12 },             show: { opacity
 export function DashboardClient({ user }: { user: SupabaseUser | null }) {
   const name = user?.user_metadata?.full_name?.split(" ")[0] ?? "there";
 
+  // Defer React Query cache-driven content to after mount to prevent hydration mismatch.
+  // The persisted cache resolves synchronously on the client before React hydrates.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const { data: analyses, isLoading: analysesLoading } = useQuery({
     queryKey: ["analyses"],
     queryFn: analysisApi.list,
@@ -242,13 +247,15 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Good morning, {name} 👋</h1>
         </div>
         <p className="text-[14px] text-[var(--text-secondary)] ml-9">
-          {hasResume ? "Ready to analyze another job? Pick a quick action below." : "Let's start by uploading your resume."}
+          {mounted
+            ? (hasResume ? "Ready to analyze another job? Pick a quick action below." : "Let's start by uploading your resume.")
+            : "Ready to get started? Pick a quick action below."}
         </p>
       </motion.div>
 
       {/* ── Onboarding banner ── */}
       <AnimatePresence>
-        {!hasResume && (
+        {mounted && !hasResume && (
           <motion.div
             initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -322,7 +329,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       </div>
 
       {/* ── Application Pipeline ── */}
-      {hasJobData && (
+      {mounted && hasJobData && (
         <div ref={pipelineRef}>
           <div className="flex items-center justify-between mb-4">
             <motion.h2
@@ -365,7 +372,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
           >
             {/* Score trend — only when there are multiple analyses */}
-            {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
+            {mounted && (analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
 
             {/* Funnel */}
             {jobStats?.by_status && <FunnelChart byStatus={jobStats.by_status} />}
@@ -401,7 +408,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           </motion.div>
         </div>
 
-        {analysesLoading ? (
+        {!mounted || analysesLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
               <motion.div key={i} className="h-20 rounded-2xl animate-shimmer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }} />
@@ -468,7 +475,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       </div>
 
       {/* ── Score Breakdown (latest analysis) ── */}
-      {latestAnalysis && latestAnalysis.status === "complete" && (
+      {mounted && latestAnalysis && latestAnalysis.status === "complete" && (
         <div ref={scoresRef}>
           <motion.h2
             className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"

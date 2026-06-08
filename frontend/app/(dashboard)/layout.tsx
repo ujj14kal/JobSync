@@ -5,7 +5,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { PrefetchProvider } from "@/components/layout/prefetch-provider";
 import { UpsellProvider } from "@/components/billing/UpsellModal";
-import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import ChatSidebarClient from "@/components/chat/ChatSidebarClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -43,8 +43,8 @@ export default async function DashboardLayout({
           </div>
         </main>
 
-        {/* Ask Claude floating sidebar */}
-        <ChatSidebar />
+        {/* Ask Claude floating sidebar — client-only to avoid hydration mismatch */}
+        <ChatSidebarClient />
       </div>
     </UpsellProvider>
   );

@@ -189,9 +189,7 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
 
         {stage === "ready" && (
           <>
-            <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}>
-              <span className="text-white text-[20px] font-bold">J</span>
-            </div>
+            <img src="/logo.png" alt="JobSynk" className="w-12 h-12 object-contain mx-auto mb-4" />
             <div className="text-[18px] font-bold text-[var(--text-primary)] mb-1">{info.label}</div>
             <div className="text-[24px] font-bold text-[#C05800] mb-0.5">{info.amount}</div>
             <div className="text-[12px] text-[var(--text-muted)] mb-6">{info.desc}</div>
