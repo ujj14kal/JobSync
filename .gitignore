@@ -43,12 +43,14 @@ coverage/
 # Misc
 *.tsbuildinfo
 
-# Trained model binaries (large files — stored separately)
+# Trained model binaries — baked into Docker image, track in git
+# .pt and .json ARE committed so Cloud Run gets them without GitHub Release calls
 backend/models/*.joblib
-backend/models/*.pt
-backend/models/*.json
 backend/models/*.bin
 !backend/models/.gitkeep
+!backend/models/scorer.pt
+!backend/models/tokenizer.json
+!backend/models/model_meta.json
 backend/.env.production
 backend/.env
 

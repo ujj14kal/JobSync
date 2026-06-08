@@ -35,15 +35,15 @@ steps:
         docker pull $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest || true
 
   # ── Step 2: Build with layer cache ────────────────────────────────────────
-  # BUILDKIT_INLINE_CACHE=1 embeds cache metadata in the pushed image so
-  # --cache-from works for multi-stage builds on subsequent runs.
+  # Only :latest tag — no :COMMIT_SHA.
+  # Pushing 2 tags = 2 AR entries = double vulnerability-scan charges ($0.26/image)
+  # and confuses keep-latest-1 cleanup policy. One tag = one image = minimum cost.
   - name: gcr.io/cloud-builders/docker
     id: build
     waitFor: [pull-cache]
     args:
       - build
       - --file=backend/Dockerfile
-      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
       - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
       - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
       - --build-arg=BUILDKIT_INLINE_CACHE=1
@@ -52,14 +52,13 @@ steps:
       - DOCKER_BUILDKIT=1
 
   # ── Step 3: Push to Artifact Registry ─────────────────────────────────────
-  # With cache working, only changed layers are pushed (usually < 10 MB).
+  # Only push :latest — avoids double push and double storage charge.
   - name: gcr.io/cloud-builders/docker
     id: push
     waitFor: [build]
     args:
       - push
-      - --all-tags
-      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
 
   # ── Step 4: Deploy to Cloud Run ───────────────────────────────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -70,7 +69,7 @@ steps:
       - run
       - deploy
       - $_SERVICE_NAME
-      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
       - --region=$_DEPLOY_REGION
       - --platform=managed
       - --allow-unauthenticated
@@ -85,7 +84,6 @@ steps:
       - --set-secrets=GROQ_API_KEY=groq-api-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,FIREBASE_SERVICE_ACCOUNT_JSON=firebase-service-account:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest
 
 images:
-  - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
   - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
 
 options:

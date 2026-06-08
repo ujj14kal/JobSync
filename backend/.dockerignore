@@ -1,6 +1,9 @@
 data/
 logs/
-models/
+# models/ is intentionally NOT excluded — scorer.pt + tokenizer.json are baked
+# into the image so Cloud Run needs zero GitHub API calls on cold start.
+# Only exclude large legacy files if present.
+models/*.log
 notebooks/
 scripts/
 __pycache__/

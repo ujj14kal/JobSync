@@ -1,0 +1,20 @@
+{
+  "trained_at": "2026-06-08T06:03:52.232282",
+  "version": 2,
+  "encoder": "sentence-transformers/all-MiniLM-L6-v2 (frozen)",
+  "scorer": {
+    "val_mse": 0.52,
+    "val_mae": 0.53,
+    "epochs": 280
+  },
+  "data_source": "real-kaggle-datasets+synthetic",
+  "n_pairs": 6000,
+  "pair_dist": {
+    "high": 2117,
+    "medium": 2389,
+    "low": 1494
+  },
+  "device": "cpu",
+  "architecture": "MiniLM-L6(frozen,384d)+Scorer3L\u00d75heads(inp=1546)",
+  "label_strategy": "v8-cosine-based"
+}

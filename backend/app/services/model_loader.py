@@ -36,6 +36,16 @@ MODELS_DIR.mkdir(exist_ok=True)
 REQUIRED_FILES_V2 = ["scorer.pt", "tokenizer.json"]
 REQUIRED_FILES_V1 = ["encoder.pt", "scorer.pt", "tokenizer.json"]
 
+# ─── Bundled model check ──────────────────────────────────────────────────────
+# Model files are baked into the Docker image at build time (backend/models/).
+# This means zero GitHub API calls, zero download latency on cold start, and
+# no billing risk from accidental external downloads.
+# GitHub Release download is kept as a fallback for local dev without model files.
+
+def _bundled_model_exists() -> bool:
+    """True when scorer.pt + tokenizer.json were baked into the Docker image."""
+    return all((MODELS_DIR / f).exists() for f in REQUIRED_FILES_V2)
+
 
 # ─── GitHub helpers ───────────────────────────────────────────────────────────
 
@@ -86,6 +96,10 @@ def _cached_trained_at() -> Optional[str]:
 
 
 def ensure_model_downloaded(force: bool = False) -> bool:
+    # Bundled model (baked into Docker image) — no download needed ever
+    if _bundled_model_exists() and not force:
+        logger.info("Using bundled model files (baked into image) — no download needed")
+        return True
     if not force and _local_model_exists():
         logger.info("Model already cached locally — skipping download")
         return True
