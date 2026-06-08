@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api/client";
+import { chatApi } from "@/lib/api/chat";
+import { useUpsell } from "@/components/billing/UpsellModal";
 import {
   Mic, MicOff, ChevronRight, CheckCircle2, AlertCircle,
   RotateCcw, Sparkles, Brain, Loader2, ArrowRight,
   Building2, FileText, User, Clock, ChevronDown, TrendingUp,
-  Maximize2, X, Zap,
+  Maximize2, X, Zap, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -378,6 +381,17 @@ function AnalysisScreen({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InterviewPage() {
+  const { showUpsell } = useUpsell();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const { data: status } = useQuery({
+    queryKey: ["chat-status"],
+    queryFn: chatApi.getStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const isPro = mounted && status?.is_pro === true;
+
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
 
@@ -786,6 +800,10 @@ export default function InterviewPage() {
   }
 
   async function startInterview() {
+    if (!isPro) {
+      showUpsell({ feature: "AI Interview", onProceed: () => {}, strict: true });
+      return;
+    }
     setPhase("analyzing");
     setAnalysisReady(false);
     pendingSessionData.current = null;
@@ -1084,8 +1102,8 @@ export default function InterviewPage() {
                 {/* CTA */}
                 <button onClick={startInterview} disabled={!role.trim()}
                   className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white font-semibold text-[14px] transition-all shadow-lg shadow-[#C05800]/20 hover:shadow-[#C05800]/30 disabled:opacity-50 disabled:shadow-none">
-                  <Maximize2 className="w-4 h-4" />
-                  Start Interview — Fullscreen
+                  {mounted && !isPro ? <Lock className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  {mounted && !isPro ? "Start Interview · Pro Required" : "Start Interview — Fullscreen"}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
