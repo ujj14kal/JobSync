@@ -331,17 +331,17 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       {!mounted || jobStatsLoading ? (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <div className="h-3.5 w-40 rounded-full animate-shimmer" />
-            <div className="h-3.5 w-24 rounded-full animate-shimmer" />
+            <div className="h-3.5 w-40 rounded-full bg-white/5 animate-shimmer" />
+            <div className="h-3.5 w-24 rounded-full bg-white/5 animate-shimmer" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl animate-shimmer" />
+              <div key={i} className="h-24 rounded-2xl bg-white/5 animate-shimmer" />
             ))}
           </div>
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="h-48 rounded-2xl animate-shimmer" />
-            <div className="h-48 rounded-2xl animate-shimmer" />
+            <div className="h-48 rounded-2xl bg-white/5 animate-shimmer" />
+            <div className="h-48 rounded-2xl bg-white/5 animate-shimmer" />
           </div>
         </div>
       ) : hasJobData ? (
@@ -426,7 +426,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
         {!mounted || analysesLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <motion.div key={i} className="h-20 rounded-2xl animate-shimmer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }} />
+              <motion.div key={i} className="h-20 rounded-2xl bg-white/5 animate-shimmer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }} />
             ))}
           </div>
         ) : analyses && analyses.length > 0 ? (
@@ -492,10 +492,10 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
       {/* ── Score Breakdown (latest analysis) ── */}
       {!mounted || analysesLoading ? (
         <div>
-          <div className="h-3.5 w-44 rounded-full animate-shimmer mb-4" />
+          <div className="h-3.5 w-44 rounded-full bg-white/5 animate-shimmer mb-4" />
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl animate-shimmer" />
+              <div key={i} className="h-24 rounded-2xl bg-white/5 animate-shimmer" />
             ))}
           </div>
         </div>

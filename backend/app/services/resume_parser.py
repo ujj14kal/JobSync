@@ -320,7 +320,12 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
             continue
 
         if 2 <= len(words) <= 4:
-            return " ".join(cleaned_words)
+            # Normalise ALL-CAPS to Title-Case (e.g. "UJJWAL KALRA" → "Ujjwal Kalra")
+            normalized = " ".join(
+                w.title() if w.isupper() and len(w) > 1 else w
+                for w in cleaned_words
+            )
+            return normalized
 
         if len(words) == 1:
             split = _split_camelcase_name(cleaned_words[0])
@@ -331,8 +336,31 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
     if candidates:
         return candidates[0]
 
-    # Fallback: scan the first 400 chars for a Title-Case name sequence
-    # This catches PDFs where name + contact are on a single long line.
+    # Fallback 1: strip contact info from the first line and try again.
+    # Handles PDFs where name and phone/email are on the same line.
+    first_lines = [ln.strip() for ln in header_text.split("\n") if ln.strip()][:3]
+    for first_line in first_lines:
+        # Strip email addresses
+        cleaned = re.sub(r"[\w.+\-]+@[\w\-]+\.[a-zA-Z]{2,}", "", first_line)
+        # Strip phone numbers (international + local)
+        cleaned = re.sub(r"\+?[\d][\d\s\-\(\)\.]{6,}", "", cleaned)
+        # Strip URLs
+        cleaned = re.sub(r"https?://\S+|www\.\S+", "", cleaned)
+        # Strip common separators
+        cleaned = re.sub(r"[|•·/\\–—]", " ", cleaned)
+        # Strip trailing punctuation and normalize whitespace
+        cleaned = re.sub(r"[,;:]", "", cleaned).strip()
+        cleaned = re.sub(r"\s{2,}", " ", cleaned)
+        if not cleaned:
+            continue
+        parts = cleaned.split()
+        if 2 <= len(parts) <= 4 and all(re.match(r"^[A-Za-z\'\-\.]+$", p) for p in parts):
+            return " ".join(
+                p.title() if p.isupper() and len(p) > 1 else p
+                for p in parts
+            )
+
+    # Fallback 2: scan the first 400 chars for a Title-Case name sequence.
     text_start = re.sub(r"\s+", " ", header_text[:400])
     # Match 2–4 consecutive Title-Case words (≥2 chars each, no digits)
     name_re = re.compile(r"\b([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){1,3})\b")
@@ -341,6 +369,13 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
         parts = candidate.split()
         if all(_NAME_WORD.match(p) for p in parts):
             return candidate
+
+    # Fallback 3: scan for ALL-CAPS name sequence (2–4 words, 2+ chars each).
+    caps_re = re.compile(r"\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b")
+    for m in caps_re.finditer(text_start):
+        candidate_parts = m.group(1).split()
+        if all(re.match(r"^[A-Z]+$", p) for p in candidate_parts):
+            return " ".join(p.title() for p in candidate_parts)
 
     return None
 
