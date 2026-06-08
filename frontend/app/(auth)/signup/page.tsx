@@ -32,6 +32,52 @@ const careerStages = [
   { value: "senior",  label: "Senior (7+ yrs)" },
 ];
 
+// ── Defined OUTSIDE SignupPage so React never unmounts it on re-render ────────
+function ProfileFields({
+  fullName, setFullName,
+  careerStage, setCareerStage,
+  targetRole, setTargetRole,
+}: {
+  fullName: string; setFullName: (v: string) => void;
+  careerStage: string; setCareerStage: (v: string) => void;
+  targetRole: string; setTargetRole: (v: string) => void;
+}) {
+  return (
+    <>
+      <div>
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Full name</label>
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
+            placeholder="Arjun Mehta" required
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Career stage</label>
+        <select value={careerStage} onChange={(e) => setCareerStage(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors">
+          {careerStages.map((s) => (
+            <option key={s.value} value={s.value} style={{ background: "var(--bg-elevated)" }}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+          Target role <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+        </label>
+        <input type="text" value={targetRole} onChange={(e) => setTargetRole(e.target.value)}
+          placeholder="e.g. Software Engineer, Product Manager"
+          className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
+      </div>
+    </>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -182,41 +228,6 @@ export default function SignupPage() {
     }
   }
 
-  /* ── Shared profile section ── */
-  const ProfileFields = () => (
-    <>
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Full name</label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-            placeholder="Arjun Mehta" required
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Career stage</label>
-        <select value={careerStage} onChange={(e) => setCareerStage(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors">
-          {careerStages.map((s) => (
-            <option key={s.value} value={s.value} style={{ background: "var(--bg-elevated)" }}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Target role <span className="text-[var(--text-muted)] font-normal">(optional)</span>
-        </label>
-        <input type="text" value={targetRole} onChange={(e) => setTargetRole(e.target.value)}
-          placeholder="e.g. Software Engineer, Product Manager"
-          className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
-      </div>
-    </>
-  );
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center px-6 py-16">
@@ -276,7 +287,11 @@ export default function SignupPage() {
                 exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.15 }}
                 onSubmit={handleEmailSignup} className="space-y-4">
 
-                <ProfileFields />
+                <ProfileFields
+                  fullName={fullName} setFullName={setFullName}
+                  careerStage={careerStage} setCareerStage={setCareerStage}
+                  targetRole={targetRole} setTargetRole={setTargetRole}
+                />
 
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
@@ -316,7 +331,11 @@ export default function SignupPage() {
                 exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.15 }}
                 onSubmit={handleSendOtp} className="space-y-4">
 
-                <ProfileFields />
+                <ProfileFields
+                  fullName={fullName} setFullName={setFullName}
+                  careerStage={careerStage} setCareerStage={setCareerStage}
+                  targetRole={targetRole} setTargetRole={setTargetRole}
+                />
 
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Phone number</label>
