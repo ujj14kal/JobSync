@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { PrefetchProvider } from "@/components/layout/prefetch-provider";
+import { UpsellProvider } from "@/components/billing/UpsellModal";
+import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -23,22 +25,27 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="relative flex h-screen bg-[var(--bg-base)] overflow-hidden">
-      {/* Rich ambient aurora background */}
-      <AuroraBackground />
+    <UpsellProvider>
+      <div className="relative flex h-screen bg-[var(--bg-base)] overflow-hidden">
+        {/* Rich ambient aurora background */}
+        <AuroraBackground />
 
-      {/* Dot grid texture overlay */}
-      <div className="fixed inset-0 pointer-events-none z-0 dot-grid opacity-60" />
+        {/* Dot grid texture overlay */}
+        <div className="fixed inset-0 pointer-events-none z-0 dot-grid opacity-60" />
 
-      <PrefetchProvider />
-      <Sidebar />
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <DashboardShell>
-            {children}
-          </DashboardShell>
-        </div>
-      </main>
-    </div>
+        <PrefetchProvider />
+        <Sidebar />
+        <main className="relative z-10 flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <DashboardShell>
+              {children}
+            </DashboardShell>
+          </div>
+        </main>
+
+        {/* Ask Claude floating sidebar */}
+        <ChatSidebar />
+      </div>
+    </UpsellProvider>
   );
 }

@@ -2,9 +2,10 @@ import Link from "next/link";
 import { Zap, Github } from "lucide-react";
 
 const LINKS = [
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms of Service", href: "/terms" },
-  { label: "GitHub", href: "https://github.com/ujj14kal/JobSynk", external: true },
+  { label: "Privacy Policy",  href: "/legal/privacy-policy" },
+  { label: "Terms of Service", href: "/legal/terms" },
+  { label: "Pricing",          href: "/#pricing" },
+  { label: "GitHub",           href: "https://github.com/ujj14kal/JobSynk", external: true },
 ];
 
 export function Footer() {
@@ -71,7 +72,9 @@ export function Footer() {
           JobSynk is an AI-powered resume analysis and career platform. &nbsp;·&nbsp;
           Gmail access is optional and used only to track job application statuses from recruiter emails. &nbsp;·&nbsp;
           We never sell your data or use it for advertising. &nbsp;·&nbsp;
-          <a href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</a>
+          <a href="/legal/privacy-policy" className="underline hover:text-white transition-colors">Privacy Policy</a>
+          &nbsp;·&nbsp;
+          <a href="/legal/terms" className="underline hover:text-white transition-colors">Terms</a>
         </p>
       </div>
     </footer>

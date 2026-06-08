@@ -42,3 +42,7 @@ python-dotenv==1.0.1
 tenacity==8.4.1
 structlog==24.4.0
 cachetools==5.4.0
+
+# ─── Payments & Claude ────────────────────────────────────────
+anthropic==0.40.0          # Claude Sonnet — paid features only
+razorpay==1.4.2            # Indian payment gateway (2% fee, no monthly cost)

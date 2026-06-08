@@ -43,9 +43,33 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/callback"
     FRONTEND_URL: str = "http://localhost:3000"
 
-    # ElevenLabs (free tier TTS for AI interviews)
+    # ElevenLabs (paid-tier TTS for AI voice interviews)
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_VOICE_ID: str = "9BWtsMINqrJLrRacOk9x"  # Aria — conversational, natural American female
+
+    # Anthropic Claude (paid features only — Sonnet for all Pro tier)
+    ANTHROPIC_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-sonnet-4-5"      # Pro tier: all features
+    CLAUDE_MODEL_FAST: str = "claude-haiku-4-5"  # reserved for future lightweight tasks
+
+    # Razorpay (Indian payments — 2% per txn, no monthly fee)
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+    # Plan IDs created once in Razorpay dashboard:
+    RAZORPAY_PLAN_MONTHLY: str = ""   # ₹299/month
+    RAZORPAY_PLAN_YEARLY: str = ""    # ₹2499/year
+
+    # INR/USD rate for cost tracking
+    USD_TO_INR: float = 83.5
+
+    # Pro tier monthly limits (enforced server-side)
+    PRO_MONTHLY_ATS: int = 15
+    PRO_MONTHLY_RESUMES: int = 5
+    PRO_MONTHLY_COVERS: int = 3
+    PRO_MONTHLY_INTERVIEWS: int = 2
+    PRO_MONTHLY_VOICE: int = 1
+    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # ~35-40 messages/month
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
