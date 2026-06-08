@@ -48,15 +48,22 @@ function LoginContent() {
   const recaptchaContainerRef     = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
-  // ── Cleanup reCAPTCHA on unmount / tab switch ──────────────────────────
+  // Pre-render the invisible reCAPTCHA widget as soon as the phone tab is active.
   useEffect(() => {
+    if (tab !== "phone") {
+      window.recaptchaVerifier?.clear();
+      window.recaptchaVerifier = undefined;
+      return;
+    }
+    const verifier = createRecaptchaVerifier("recaptcha-container");
+    window.recaptchaVerifier = verifier;
+    verifier.render().catch(() => {});
+
     return () => {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = undefined;
-      }
+      verifier.clear();
+      window.recaptchaVerifier = undefined;
     };
-  }, []);
+  }, [tab]);
 
   function resetPhone() {
     setOtpSent(false);
@@ -66,6 +73,9 @@ function LoginContent() {
       window.recaptchaVerifier.clear();
       window.recaptchaVerifier = undefined;
     }
+    const verifier = createRecaptchaVerifier("recaptcha-container");
+    window.recaptchaVerifier = verifier;
+    verifier.render().catch(() => {});
   }
 
   /* ── Google OAuth — standard @supabase/ssr PKCE flow ── */
@@ -97,28 +107,28 @@ function LoginContent() {
       toast.error("Include country code e.g. +91 9876543210");
       return;
     }
+    if (!window.recaptchaVerifier) {
+      toast.error("reCAPTCHA not ready — please wait a moment and try again.");
+      return;
+    }
     setLoading(true);
     try {
-      // Initialise invisible reCAPTCHA verifier (required by Firebase)
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = createRecaptchaVerifier("recaptcha-container");
-      }
-
-      const confirmationResult = await sendPhoneOtp(
-        phone,
-        window.recaptchaVerifier
-      );
+      const confirmationResult = await sendPhoneOtp(phone, window.recaptchaVerifier);
       window.confirmationResult = confirmationResult;
       setOtpSent(true);
       toast.success("OTP sent! Check your SMS.");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send OTP";
       toast.error(msg);
-      // Reset verifier so user can retry
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = undefined;
-      }
+      window.recaptchaVerifier?.render().then((widgetId: number) => {
+        (window as unknown as { grecaptcha?: { reset(id: number): void } })
+          .grecaptcha?.reset(widgetId);
+      }).catch(() => {
+        window.recaptchaVerifier?.clear();
+        const v = createRecaptchaVerifier("recaptcha-container");
+        window.recaptchaVerifier = v;
+        v.render().catch(() => {});
+      });
     } finally {
       setLoading(false);
     }

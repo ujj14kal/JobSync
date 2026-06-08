@@ -102,24 +102,38 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
-  // Cleanup reCAPTCHA on unmount
+  // Pre-render the invisible reCAPTCHA widget as soon as the phone tab is active.
+  // Creating it inside the button-click handler is too late — setLoading(true) fires
+  // a React re-render before the widget finishes mounting, breaking its DOM reference.
   useEffect(() => {
+    if (tab !== "phone") {
+      window.recaptchaVerifier?.clear();
+      window.recaptchaVerifier = undefined;
+      return;
+    }
+    const verifier = createRecaptchaVerifier("recaptcha-container-signup");
+    window.recaptchaVerifier = verifier;
+    verifier.render().catch(() => {}); // pre-render silently; invisible so nothing visible yet
+
     return () => {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = undefined;
-      }
+      verifier.clear();
+      window.recaptchaVerifier = undefined;
     };
-  }, []);
+  }, [tab]);
 
   function resetPhone() {
     setOtpSent(false);
     setOtp("");
     setPhone("");
+    // Clear old widget; the tab useEffect will recreate it on next render cycle
     if (window.recaptchaVerifier) {
       window.recaptchaVerifier.clear();
       window.recaptchaVerifier = undefined;
     }
+    // Recreate immediately so the next Send OTP click has a ready verifier
+    const verifier = createRecaptchaVerifier("recaptcha-container-signup");
+    window.recaptchaVerifier = verifier;
+    verifier.render().catch(() => {});
   }
 
   /* ── Google OAuth via Supabase ── */
@@ -156,11 +170,12 @@ export default function SignupPage() {
       toast.error("Include country code e.g. +91 9876543210");
       return;
     }
+    if (!window.recaptchaVerifier) {
+      toast.error("reCAPTCHA not ready — please wait a moment and try again.");
+      return;
+    }
     setLoading(true);
     try {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = createRecaptchaVerifier("recaptcha-container-signup");
-      }
       const result = await sendPhoneOtp(phone, window.recaptchaVerifier);
       window.confirmationResult = result;
       setOtpSent(true);
@@ -168,10 +183,17 @@ export default function SignupPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send OTP";
       toast.error(msg);
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = undefined;
-      }
+      // Reset the widget in-place so the user can retry without a page refresh
+      window.recaptchaVerifier?.render().then((widgetId: number) => {
+        (window as unknown as { grecaptcha?: { reset(id: number): void } })
+          .grecaptcha?.reset(widgetId);
+      }).catch(() => {
+        // If reset fails, recreate entirely
+        window.recaptchaVerifier?.clear();
+        const v = createRecaptchaVerifier("recaptcha-container-signup");
+        window.recaptchaVerifier = v;
+        v.render().catch(() => {});
+      });
     } finally {
       setLoading(false);
     }
