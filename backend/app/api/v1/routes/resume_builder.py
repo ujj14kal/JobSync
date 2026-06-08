@@ -381,15 +381,43 @@ async def generate_resume(
 ):
     """
     Tiered resume generation:
-      Free  → JobSynk AI Engine (Groq LLaMA-3.3-70b), limit 2/month
-      Pro   → Claude Sonnet, limit 5/month
+      Free       → JobSynk AI Engine (Groq LLaMA-3.3-70b), limit 2/month
+      Credit     → Claude Sonnet, 1 credit per generation (resume_pack purchase)
+      Pro        → Claude Sonnet, limit 5/month
     """
     plan  = await get_user_plan(user_id)
     usage = await get_monthly_usage(user_id)
     used  = usage.get("resume_count", 0)
 
+    # ── Check for purchased resume_pack credits (non-Pro) ────────────────────
+    using_credit = False
+    if plan != "pro":
+        sb = get_supabase()
+        credit = await asyncio.to_thread(
+            lambda: sb.table("user_credits")
+            .select("id, credits_remaining")
+            .eq("user_id", user_id)
+            .eq("credit_type", "resume_pack")
+            .gt("credits_remaining", 0)
+            .order("created_at")
+            .limit(1)
+            .execute()
+        )
+        if credit.data:
+            # Consume 1 credit and unlock Claude for this generation
+            row = credit.data[0]
+            await asyncio.to_thread(
+                lambda: sb.table("user_credits")
+                .update({"credits_remaining": row["credits_remaining"] - 1})
+                .eq("id", row["id"])
+                .execute()
+            )
+            using_credit = True
+            plan = "pro"  # treat as Pro for this request
+            logger.info("Resume pack credit consumed for user %s (remaining: %d)", user_id, row["credits_remaining"] - 1)
+
     if plan == "pro":
-        if used >= PRO_RESUME_LIMIT:
+        if not using_credit and used >= PRO_RESUME_LIMIT:
             raise HTTPException(
                 status_code=429,
                 detail=f"Monthly limit reached ({PRO_RESUME_LIMIT} resumes/month on Pro). Resets on the 1st.",

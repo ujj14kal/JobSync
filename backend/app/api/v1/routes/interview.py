@@ -1,16 +1,24 @@
 """
 AI Interview Practice — HireVue-style with ElevenLabs TTS + Groq.
 
-Free-tier constraints:
-  - ElevenLabs: 10,000 chars/month. Each question ≤ 250 chars.
-  - Groq: rate-limited via groq_call() helper.
+Cost model (paid tier):
+  - ElevenLabs: Creator plan, 100K chars/month included. Per call capped at 300 chars.
+    A typical voice session (10 questions × 300 chars) = 3,000 chars ≈ ₹28 cost.
+    Requires Pro plan OR a purchased voice interview credit (₹349).
+  - Groq: FREE — question generation, evaluation, follow-ups.
   - No DB session storage — client holds conversation state.
+
+Access control:
+  - /tts  → Pro plan OR voice credit. One credit opens a 90-min session window.
+  - All other endpoints → any authenticated user (Groq, free).
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -21,7 +29,15 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
+from app.services.claude_client import get_user_plan
 from app.services.groq_limiter import groq_call
+
+# ── In-memory voice session tracker ──────────────────────────────────────────
+# Maps user_id → session expiry. Avoids consuming a credit on every TTS call
+# within the same 90-minute interview window. Single-container safe (Cloud Run
+# min-instances=0, so no horizontal scaling concern for now).
+_voice_sessions: dict[str, datetime] = {}
+_VOICE_SESSION_TTL = timedelta(minutes=90)
 
 logger = logging.getLogger(__name__)
 
@@ -347,11 +363,63 @@ async def text_to_speech(
     body: TTSRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Proxy text to ElevenLabs TTS and stream audio back."""
+    """
+    Proxy text to ElevenLabs TTS and stream audio back.
+
+    Access: Pro plan OR purchased voice interview credit.
+    Credit consumption: 1 credit opens a 90-minute session window so we don't
+    charge per TTS call — only once per interview session.
+    """
     if not settings.ELEVENLABS_API_KEY:
         raise HTTPException(status_code=503, detail="TTS not configured — set ELEVENLABS_API_KEY")
 
-    text = body.text[:300].strip()  # ~300 chars keeps cost low on paid tier
+    # ── Access control ────────────────────────────────────────────────────────
+    plan = await get_user_plan(user_id)
+    if plan != "pro":
+        now = datetime.now(timezone.utc)
+        # Clean up expired sessions (lazy GC)
+        expired = [uid for uid, exp in _voice_sessions.items() if exp <= now]
+        for uid in expired:
+            _voice_sessions.pop(uid, None)
+
+        if _voice_sessions.get(user_id, now) > now:
+            # Within an active session window — no need to consume another credit
+            pass
+        else:
+            # Need to open a new session — consume 1 voice credit
+            supabase = get_supabase()
+            credit = await asyncio.to_thread(
+                lambda: supabase.table("user_credits")
+                .select("id, credits_remaining")
+                .eq("user_id", user_id)
+                .eq("credit_type", "interview_voice")
+                .gt("credits_remaining", 0)
+                .order("created_at")
+                .limit(1)
+                .execute()
+            )
+            if not credit.data:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "Voice interview requires a Pro plan (₹299/month) "
+                        "or a Voice Interview credit (₹349). "
+                        "Upgrade at /settings."
+                    ),
+                )
+            # Atomically decrement the credit
+            row = credit.data[0]
+            await asyncio.to_thread(
+                lambda: supabase.table("user_credits")
+                .update({"credits_remaining": row["credits_remaining"] - 1})
+                .eq("id", row["id"])
+                .execute()
+            )
+            # Open session window — free TTS calls for the next 90 min
+            _voice_sessions[user_id] = now + _VOICE_SESSION_TTL
+            logger.info("Voice session opened for user %s (credit consumed)", user_id)
+
+    text = body.text[:300].strip()  # hard cap: 300 chars per TTS call
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 

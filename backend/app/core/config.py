@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     # ElevenLabs (paid-tier TTS for AI voice interviews)
+    # Creator plan: $11/month = ₹918 for 100K chars. Per-call capped at 300 chars (server-enforced).
+    # A full voice session (~10 questions × 300 chars) = 3,000 chars ≈ ₹28 cost.
+    # Access requires Pro plan OR a purchased voice interview credit (₹349).
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_VOICE_ID: str = "9BWtsMINqrJLrRacOk9x"  # Aria — conversational, natural American female
 
@@ -64,12 +67,19 @@ class Settings(BaseSettings):
     USD_TO_INR: float = 83.5
 
     # Pro tier monthly limits (enforced server-side)
-    PRO_MONTHLY_ATS: int = 15
-    PRO_MONTHLY_RESUMES: int = 5
-    PRO_MONTHLY_COVERS: int = 3
-    PRO_MONTHLY_INTERVIEWS: int = 2
-    PRO_MONTHLY_VOICE: int = 1
-    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # ~35-40 messages/month
+    # Cost breakdown per Pro user worst-case (₹299/month revenue):
+    #   Resume × 5  : Claude Sonnet ~₹27.50  (5 × 4K output + 2K input)
+    #   Chat 50K tok: Claude Sonnet ~₹25.00
+    #   Voice × 1   : ElevenLabs   ~₹28.00  (1 session × 3K chars)
+    #   Everything else (ATS, interviews, covers): Groq = ₹0.00 (free tier)
+    #   ─────────────────────────────────────────────────────
+    #   Total worst-case AI cost: ~₹80   →  margin ~73% on ₹299
+    PRO_MONTHLY_ATS: int = 15           # Groq → free; limit is fair-use cap only
+    PRO_MONTHLY_RESUMES: int = 5        # Claude → ~₹27.50 total
+    PRO_MONTHLY_COVERS: int = 5         # Groq → free; bumped from 3 (more generous)
+    PRO_MONTHLY_INTERVIEWS: int = 10    # Groq → free; bumped from 2 (more generous)
+    PRO_MONTHLY_VOICE: int = 2          # ElevenLabs → ~₹56 total; bumped from 1
+    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # Claude → ~₹25 worst-case (~35-40 msgs)
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
