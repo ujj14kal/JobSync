@@ -288,7 +288,7 @@ export default function ResumeBuilderPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -317,22 +317,7 @@ export default function ResumeBuilderPage() {
         )}
       </motion.div>
 
-      {/* How it works */}
-      <div className="flex items-stretch gap-3 text-center">
-        {[
-          { step: "1", label: "Fill form or use your uploaded resume" },
-          { step: "2", label: "AI rewrites with action verbs & metrics" },
-          { step: "3", label: "Copy LaTeX → paste into Overleaf" },
-          { step: "4", label: "Download PDF in Jake's style" },
-        ].map(s => (
-          <div key={s.step} className="flex-1 p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-            <div className="w-6 h-6 rounded-full bg-[var(--accent-muted)] text-[var(--accent-primary)] text-[11px] font-bold flex items-center justify-center mx-auto mb-1.5">{s.step}</div>
-            <p className="text-[11px] text-[var(--text-muted)]">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] xl:grid-cols-[480px_1fr] gap-6 items-start">
         {/* ── Left: Input ── */}
         <div className="space-y-4">
 
@@ -541,24 +526,44 @@ export default function ResumeBuilderPage() {
         </div>
 
         {/* ── Right: Output ── */}
-        <div>
+        <div className="lg:sticky lg:top-6">
           <AnimatePresence mode="wait">
             {!latex && !loading && (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="h-full flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed border-[var(--border-subtle)] text-center px-8"
+                className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-subtle)] text-center px-8"
+                style={{ minHeight: "calc(100vh - 180px)" }}
               >
-                <Wand2 className="w-10 h-10 text-[var(--text-muted)] mb-3" />
-                <p className="text-[14px] font-medium text-[var(--text-secondary)] mb-1">LaTeX output appears here</p>
-                <p className="text-[12px] text-[var(--text-muted)]">Fill the form and click Generate. Then copy the LaTeX into a new Overleaf project.</p>
+                <div className="mb-6 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+                  style={{ background: "rgba(192,88,0,0.08)", border: "1px solid rgba(192,88,0,0.15)" }}>
+                  <Wand2 className="w-7 h-7 text-[#C05800]" />
+                </div>
+                <p className="text-[16px] font-semibold text-[var(--text-secondary)] mb-2">LaTeX output appears here</p>
+                <p className="text-[13px] text-[var(--text-muted)] max-w-xs leading-relaxed mb-6">Fill the form on the left and click Generate. The AI will write your resume and output it as LaTeX.</p>
+                <div className="flex flex-col gap-2 w-full max-w-xs">
+                  {[
+                    { n: "1", t: "Fill form or use your uploaded resume" },
+                    { n: "2", t: "AI rewrites with action verbs & metrics" },
+                    { n: "3", t: "Copy LaTeX → paste into Overleaf" },
+                    { n: "4", t: "Download PDF in Jake's style" },
+                  ].map(s => (
+                    <div key={s.n} className="flex items-center gap-3 text-left px-4 py-2.5 rounded-xl"
+                      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                        style={{ background: "rgba(192,88,0,0.15)", color: "#C05800" }}>{s.n}</span>
+                      <span className="text-[12px] text-[var(--text-secondary)]">{s.t}</span>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
 
             {loading && (
               <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="h-full flex flex-col items-center justify-center py-20 gap-4">
+                className="flex flex-col items-center justify-center gap-4 rounded-2xl"
+                style={{ minHeight: "calc(100vh - 180px)" }}>
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--accent-primary)]" />
                 <div className="text-center">
                   <div className="text-[14px] font-medium text-[var(--text-primary)]">
@@ -620,7 +625,7 @@ export default function ResumeBuilderPage() {
                       {copied ? "Copied" : "Copy"}
                     </button>
                   </div>
-                  <pre className="p-4 text-[11px] font-mono text-[#e6edf3] overflow-auto max-h-[560px] leading-relaxed whitespace-pre-wrap break-all">
+                  <pre className="p-4 text-[11px] font-mono text-[#e6edf3] overflow-auto leading-relaxed whitespace-pre-wrap break-all" style={{ maxHeight: "calc(100vh - 300px)" }}>
                     {latex}
                   </pre>
                 </div>
