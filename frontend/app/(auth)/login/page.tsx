@@ -8,13 +8,13 @@ import { Mail, Lock, Eye, EyeOff, Phone, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
-// Firebase phone auth
-import { auth as firebaseAuth } from "@/lib/firebase/client";
+// Firebase phone auth — uses compat SDK to match UrbanRide (fixes hostname check)
 import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult,
-} from "firebase/auth";
+  createRecaptchaVerifier,
+  sendPhoneOtp,
+  type RecaptchaVerifier,
+  type ConfirmationResult,
+} from "@/lib/firebase/phone-auth";
 
 
 type Tab = "email" | "phone";
@@ -101,15 +101,10 @@ function LoginContent() {
     try {
       // Initialise invisible reCAPTCHA verifier (required by Firebase)
       if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(
-          firebaseAuth,
-          "recaptcha-container",
-          { size: "invisible" }
-        );
+        window.recaptchaVerifier = createRecaptchaVerifier("recaptcha-container");
       }
 
-      const confirmationResult = await signInWithPhoneNumber(
-        firebaseAuth,
+      const confirmationResult = await sendPhoneOtp(
         phone,
         window.recaptchaVerifier
       );
@@ -141,7 +136,7 @@ function LoginContent() {
     try {
       // 1. Confirm OTP with Firebase
       const credential = await window.confirmationResult.confirm(otp);
-      const idToken = await credential.user.getIdToken();
+      const idToken = await credential.user!.getIdToken();
 
       // 2. Exchange Firebase ID token for Supabase session via backend
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

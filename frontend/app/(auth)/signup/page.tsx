@@ -8,13 +8,13 @@ import { Mail, Lock, User, Eye, EyeOff, Phone, ShieldCheck } from "lucide-react"
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
-// Firebase phone auth
-import { auth as firebaseAuth } from "@/lib/firebase/client";
+// Firebase phone auth — uses compat SDK to match UrbanRide (fixes hostname check)
 import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult,
-} from "firebase/auth";
+  createRecaptchaVerifier,
+  sendPhoneOtp,
+  type RecaptchaVerifier,
+  type ConfirmationResult,
+} from "@/lib/firebase/phone-auth";
 
 type Tab = "email" | "phone";
 
@@ -159,17 +159,9 @@ export default function SignupPage() {
     setLoading(true);
     try {
       if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(
-          firebaseAuth,
-          "recaptcha-container-signup",
-          { size: "invisible" }
-        );
+        window.recaptchaVerifier = createRecaptchaVerifier("recaptcha-container-signup");
       }
-      const result = await signInWithPhoneNumber(
-        firebaseAuth,
-        phone,
-        window.recaptchaVerifier
-      );
+      const result = await sendPhoneOtp(phone, window.recaptchaVerifier);
       window.confirmationResult = result;
       setOtpSent(true);
       toast.success("OTP sent! Check your SMS.");
@@ -196,7 +188,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const credential = await window.confirmationResult.confirm(otp);
-      const idToken = await credential.user.getIdToken();
+      const idToken = await credential.user!.getIdToken();
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/v1/auth/phone-login`, {
