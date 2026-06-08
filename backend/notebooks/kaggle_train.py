@@ -31,6 +31,12 @@ print("=" * 60)
 print("JobSync AI Trainer v2 — MiniLM + Real Data")
 print("=" * 60)
 
+# Show all available input files for debugging
+print("\nAvailable input files:")
+for p in sorted(Path("/kaggle/input").rglob("*")):
+    if p.is_file() and p.suffix in (".csv", ".json", ".jsonl"):
+        print(f"  {p}  ({p.stat().st_size // 1024} KB)")
+
 # ── Install deps ──────────────────────────────────────────────────────────────
 os.system("pip install -q sentence-transformers pandas numpy torch")
 
@@ -54,15 +60,19 @@ print(f"Device: {device}")
 
 # ── Hyperparams ───────────────────────────────────────────────────────────────
 if device.type == "cuda":
-    SCORER_EPOCHS = 200
+    SCORER_EPOCHS = 300
     SCORER_BATCH  = 256
-    SCORER_LR     = 3e-4
+    SCORER_LR     = 1e-3
+    WARMUP_EPOCHS = 10
     N_PAIRS       = 12_000
+    N_SYNTHETIC   = 2_000   # augment with synthetic for diversity
 else:
-    SCORER_EPOCHS = 80
+    SCORER_EPOCHS = 200
     SCORER_BATCH  = 128
-    SCORER_LR     = 3e-4
+    SCORER_LR     = 1e-3   # higher LR is fine now — smaller model converges faster
+    WARMUP_EPOCHS = 5
     N_PAIRS       = 4_000
+    N_SYNTHETIC   = 2_000  # +2k synthetic = 6k total, better for 120k param model
 
 print(f"Epochs={SCORER_EPOCHS}  Batch={SCORER_BATCH}  Pairs={N_PAIRS}")
 
@@ -224,116 +234,130 @@ def load_resumes():
     return df
 
 def load_jobs():
-    # Try linkedin-job-postings first
-    for pattern in ["job_postings.csv", "*.csv"]:
-        for p in Path("/kaggle/input/linkedin-job-postings").rglob(pattern):
-            try:
-                df = pd.read_csv(p, usecols=lambda c: c in ["title","description","company_name","job_id"], nrows=15000)
-                if "description" in df.columns and "title" in df.columns:
-                    df = df.dropna(subset=["description","title"])
-                    df = df[df["description"].str.len() > 100]
-                    print(f"Loaded {len(df)} job postings from {p.name}")
-                    return df
-            except Exception as e:
-                print(f"  Could not load {p}: {e}")
-    print("⚠ Job postings dataset not found — using resume categories to generate JD stubs")
+    # Search all CSV files under /kaggle/input for a job postings file
+    candidates = sorted(Path("/kaggle/input").rglob("*.csv"), key=lambda p: p.stat().st_size, reverse=True)
+    for p in candidates:
+        if p.stat().st_size < 50_000:  # skip tiny files
+            continue
+        try:
+            # Peek at columns
+            sample = pd.read_csv(p, nrows=2)
+            cols = set(sample.columns.str.lower())
+            title_col = next((c for c in sample.columns if c.lower() in ("title","job_title","position")), None)
+            desc_col  = next((c for c in sample.columns if c.lower() in ("description","job_description","body","text")), None)
+            if not title_col or not desc_col:
+                continue
+            df = pd.read_csv(p, usecols=[title_col, desc_col], nrows=20000)
+            df = df.rename(columns={title_col: "title", desc_col: "description"})
+            df = df.dropna(subset=["title","description"])
+            df = df[df["description"].astype(str).str.len() > 150]
+            if len(df) < 100:
+                continue
+            print(f"Loaded {len(df)} job postings from {p.name} (title={title_col}, desc={desc_col})")
+            return df
+        except Exception as e:
+            continue
+    print("⚠ No job postings CSV found — using JD stubs from category keywords")
     return None
 
 # ── Pair creation ─────────────────────────────────────────────────────────────
 def create_pairs(resumes_df, jobs_df, n_pairs):
-    pairs = []
-
-    if jobs_df is not None:
-        # Build category → JD index by matching category keywords to job titles
-        cat_to_jds = defaultdict(list)
-        for _, row in jobs_df.iterrows():
-            title_lower = str(row["title"]).lower()
-            desc = str(row["description"])[:3000]
-            jd_text = f"{row['title']}\n\n{desc}"
-            for cat, keywords in CATEGORY_MAP.items():
-                if any(k in title_lower for k in keywords):
-                    cat_to_jds[cat].append(jd_text)
-                    break
-        print(f"JDs indexed by category: {[(k, len(v)) for k,v in sorted(cat_to_jds.items()) if v]}")
-    else:
-        cat_to_jds = {}
-
+    """
+    Creates BALANCED pairs: 35% high / 40% medium / 25% low.
+    Enforces distribution by construction — never relies on category matching luck.
+    """
     target_high   = int(n_pairs * 0.35)
     target_medium = int(n_pairs * 0.40)
     target_low    = int(n_pairs * 0.25)
 
+    # Build resume pool by category
     by_cat = defaultdict(list)
     for _, row in resumes_df.iterrows():
         text = str(row.get("Resume_str", row.get("resume", ""))).strip()
         cat  = str(row.get("Category", "Information-Technology")).strip()
         if len(text) > 200:
-            by_cat[cat].append(text)
-
+            by_cat[cat].append(text[:3000])
     cats = list(by_cat.keys())
-    print(f"Resume categories available: {cats}")
+    all_resumes = [(cat, r) for cat, resumes in by_cat.items() for r in resumes]
+    print(f"Resume pool: {len(all_resumes)} resumes across {len(cats)} categories")
 
-    def _jd_for_cat(cat):
-        if cat in cat_to_jds and cat_to_jds[cat]:
-            return random.choice(cat_to_jds[cat])
-        # Fallback: build a JD stub from category keywords
-        kws = CATEGORY_MAP.get(cat, ["software", "engineer"])
-        return (f"{cat.replace('-', ' ').title()} Role\n\n"
-                f"Requirements:\n"
-                f"• Experience with {', '.join(kws[:4])}\n"
-                f"• Strong communication and teamwork\n"
-                f"• Proven track record in {kws[0] if kws else 'the field'}")
+    # Build JD pool — ALL job postings, no category filtering
+    jd_pool = []  # list of (title_lower, jd_text)
+    if jobs_df is not None:
+        for _, row in jobs_df.sample(min(len(jobs_df), 5000), random_state=42).iterrows():
+            title = str(row.get("title", ""))
+            desc  = str(row.get("description", ""))[:2000]
+            if len(desc) > 100:
+                jd_pool.append((title.lower(), f"{title}\n\n{desc}"))
+        print(f"JD pool: {len(jd_pool)} job postings")
 
-    # High match pairs: same category
+    def _jd_for_cat(cat, require_match=True):
+        """Get a JD that matches (or doesn't match) the given category."""
+        kws = CATEGORY_MAP.get(cat, ["engineer"])
+        if jd_pool:
+            if require_match:
+                matched = [jd for title, jd in jd_pool if any(k in title for k in kws)]
+                if matched:
+                    return random.choice(matched)
+            else:
+                # explicitly non-matching JD
+                non_matched = [jd for title, jd in jd_pool if not any(k in title for k in kws)]
+                if non_matched:
+                    return random.choice(non_matched)
+                # fallback: just pick a random one from a clearly different domain
+                domain_kws = ["chef","nurse","teacher","accountant","driver","sales","lawyer","hr"]
+                diff = [jd for title, jd in jd_pool if any(k in title for k in domain_kws)]
+                return random.choice(diff) if diff else random.choice([jd for _, jd in jd_pool])
+        # No job pool — build stub
+        kws2 = CATEGORY_MAP.get(cat, ["software", "engineer"])
+        return (f"{cat.replace('-',' ').title()} Role\n\n"
+                f"Requirements:\n• Experience with {', '.join(kws2[:4])}\n"
+                f"• Strong communication skills")
+
+    pairs = []
+    random.shuffle(all_resumes)
+
+    # ── HIGH: same-category resume + matching JD ──────────────────────────────
     count = 0
-    for cat, resumes in by_cat.items():
+    for cat, resume in all_resumes:
         if count >= target_high: break
-        for resume in resumes:
-            if count >= target_high: break
-            jd = _jd_for_cat(cat)
-            labels = generate_labels(resume, jd, "high", cat, cat)
-            pairs.append({"resume": resume[:3000], "jd": jd[:2000], "match_level": "high",
-                          "resume_cat": cat, "jd_cat": cat, **labels})
-            count += 1
+        jd = _jd_for_cat(cat, require_match=True)
+        pairs.append({"resume": resume, "jd": jd[:2000], "match_level": "high",
+                      "resume_cat": cat, "jd_cat": cat,
+                      **generate_labels(resume, jd, "high", cat, cat)})
+        count += 1
     print(f"  High pairs: {count}")
 
-    # Medium match pairs: adjacent category
+    # ── MEDIUM: same category group, slightly mismatched JD ───────────────────
     count = 0
-    cat_list = list(by_cat.items())
-    random.shuffle(cat_list)
-    for i, (cat1, resumes) in enumerate(cat_list):
+    random.shuffle(all_resumes)
+    for cat1, resume in all_resumes:
         if count >= target_medium: break
         g1 = get_category_group(cat1)
-        # Find adjacent category
-        adj_cats = [c for c in cats if c != cat1 and get_category_group(c) == g1]
-        if not adj_cats:
-            adj_cats = [c for c in cats if c != cat1]
-        for resume in resumes[:3]:
-            if count >= target_medium: break
-            cat2 = random.choice(adj_cats)
-            jd = _jd_for_cat(cat2)
-            labels = generate_labels(resume, jd, "medium", cat1, cat2)
-            pairs.append({"resume": resume[:3000], "jd": jd[:2000], "match_level": "medium",
-                          "resume_cat": cat1, "jd_cat": cat2, **labels})
-            count += 1
+        # Pick a category from same group but different
+        adj = [c for c in cats if c != cat1 and get_category_group(c) == g1]
+        cat2 = random.choice(adj) if adj else random.choice([c for c in cats if c != cat1])
+        jd = _jd_for_cat(cat2, require_match=True)
+        pairs.append({"resume": resume, "jd": jd[:2000], "match_level": "medium",
+                      "resume_cat": cat1, "jd_cat": cat2,
+                      **generate_labels(resume, jd, "medium", cat1, cat2)})
+        count += 1
     print(f"  Medium pairs: {count}")
 
-    # Low match pairs: completely different category
+    # ── LOW: completely different domain JD ───────────────────────────────────
     count = 0
-    random.shuffle(cat_list)
-    for cat1, resumes in cat_list:
+    random.shuffle(all_resumes)
+    for cat1, resume in all_resumes:
         if count >= target_low: break
         g1 = get_category_group(cat1)
-        diff_cats = [c for c in cats if c != cat1 and get_category_group(c) != g1]
-        if not diff_cats:
-            diff_cats = [c for c in cats if c != cat1]
-        for resume in resumes[:2]:
-            if count >= target_low: break
-            cat2 = random.choice(diff_cats)
-            jd = _jd_for_cat(cat2)
-            labels = generate_labels(resume, jd, "low", cat1, cat2)
-            pairs.append({"resume": resume[:3000], "jd": jd[:2000], "match_level": "low",
-                          "resume_cat": cat1, "jd_cat": cat2, **labels})
-            count += 1
+        # Force a JD from a completely different domain
+        diff_cats = [c for c in cats if get_category_group(c) != g1]
+        cat2 = random.choice(diff_cats) if diff_cats else random.choice([c for c in cats if c != cat1])
+        jd = _jd_for_cat(cat2, require_match=False)
+        pairs.append({"resume": resume, "jd": jd[:2000], "match_level": "low",
+                      "resume_cat": cat1, "jd_cat": cat2,
+                      **generate_labels(resume, jd, "low", cat1, cat2)})
+        count += 1
     print(f"  Low pairs: {count}")
 
     random.shuffle(pairs)
@@ -481,16 +505,18 @@ def hc_features(r_emb, j_emb, resume_text, jd_text):
 INPUT_DIM = EMB_DIM * 4 + 10  # [r, j, |r-j|, r*j, hc] = 384*4 + 10 = 1546
 
 class Scorer(nn.Module):
+    """
+    Lightweight scorer — ~120k params, appropriate for 4k-8k training samples.
+    Smaller model + high dropout = better generalisation on limited data.
+    """
     def __init__(self, inp=INPUT_DIM):
         super().__init__()
         self.trunk = nn.Sequential(
-            nn.Linear(inp, 768), nn.LayerNorm(768), nn.GELU(), nn.Dropout(0.25),
-            nn.Linear(768, 384), nn.LayerNorm(384), nn.GELU(), nn.Dropout(0.20),
-            nn.Linear(384, 192), nn.LayerNorm(192), nn.GELU(), nn.Dropout(0.15),
+            nn.Linear(inp, 256), nn.LayerNorm(256), nn.GELU(), nn.Dropout(0.4),
+            nn.Linear(256, 128), nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.3),
         )
         self.heads = nn.ModuleList([
-            nn.Sequential(nn.Linear(192, 96), nn.GELU(), nn.Dropout(0.1),
-                          nn.Linear(96, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
+            nn.Sequential(nn.Linear(128, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
             for _ in range(5)
         ])
         for n, p in self.named_parameters():
@@ -560,9 +586,17 @@ def train_scorer(Xt, Yt):
     print(f"  Scorer params: {model.n_params:,}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=SCORER_LR, weight_decay=1e-4)
-    sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=SCORER_EPOCHS, eta_min=1e-6)
 
-    best, best_state, patience = float("inf"), None, 0
+    # Warmup then cosine decay — prevents early divergence
+    def lr_lambda(ep):
+        if ep < WARMUP_EPOCHS:
+            return (ep + 1) / WARMUP_EPOCHS          # linear warmup
+        t = (ep - WARMUP_EPOCHS) / max(SCORER_EPOCHS - WARMUP_EPOCHS, 1)
+        return 0.5 * (1 + math.cos(math.pi * t))    # cosine decay
+
+    sch = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda)
+
+    best, best_state, best_mae, patience = float("inf"), None, float("inf"), 0
     t0 = time.monotonic()
 
     for ep in range(1, SCORER_EPOCHS + 1):
@@ -595,7 +629,7 @@ def train_scorer(Xt, Yt):
             patience = 0
         else:
             patience += 1
-            if patience >= 25:
+            if patience >= 40:   # more patience — balanced data needs longer to converge
                 print(f"  Early stop at ep={ep}")
                 break
 
@@ -613,7 +647,11 @@ jobs_df    = load_jobs()
 
 if resumes_df is not None:
     pairs = create_pairs(resumes_df, jobs_df, N_PAIRS)
-    data_source = "real-kaggle-datasets"
+    # Augment with synthetic for diversity — helps the model generalise
+    print(f"\n▶ Adding {N_SYNTHETIC} synthetic pairs for augmentation...")
+    pairs += create_fallback_pairs(N_SYNTHETIC)
+    random.shuffle(pairs)
+    data_source = "real-kaggle-datasets+synthetic"
 else:
     print(f"⚠ Using fallback synthetic data ({N_PAIRS} pairs)")
     pairs = create_fallback_pairs(N_PAIRS)

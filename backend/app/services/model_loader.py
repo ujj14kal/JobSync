@@ -219,35 +219,37 @@ def _load_v2_minilm(tok_data: dict, torch, nn) -> bool:
         while f"trunk.{i}.weight" not in scr_state and i < 20:
             i += 1
 
+    # Auto-detect architecture from saved weights
+    # Supports both v2-large (768/384/192) and v2-small (256/128) architectures
+    trunk_linear_keys = sorted([k for k in scr_state if k.startswith("trunk.") and k.endswith(".weight")])
+    trunk_dims = [scr_state[k].shape for k in trunk_linear_keys]
+    head_hidden = scr_state["heads.0.0.weight"].shape[1] if "heads.0.0.weight" in scr_state else 128
+
     class _Scorer(nn.Module):
-        def __init__(self, inp, hidden=192):
+        def __init__(self, inp, dims, hh):
             super().__init__()
-            self.trunk = nn.Sequential(
-                nn.Linear(inp, 768), nn.LayerNorm(768), nn.GELU(), nn.Dropout(0.25),
-                nn.Linear(768, 384), nn.LayerNorm(384), nn.GELU(), nn.Dropout(0.20),
-                nn.Linear(384, hidden), nn.LayerNorm(hidden), nn.GELU(), nn.Dropout(0.15),
-            )
+            layers = []
+            in_d = inp
+            for out_d in dims:
+                layers += [nn.Linear(in_d, out_d), nn.LayerNorm(out_d), nn.GELU(), nn.Dropout(0.3)]
+                in_d = out_d
+            self.trunk = nn.Sequential(*layers)
             self.heads = nn.ModuleList([
-                nn.Sequential(nn.Linear(hidden, 96), nn.GELU(), nn.Dropout(0.1),
-                              nn.Linear(96, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
+                nn.Sequential(nn.Linear(hh, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
                 for _ in range(5)
             ])
         def forward(self, x):
             s = self.trunk(x)
             return torch.cat([h(s) * 100.0 for h in self.heads], dim=1)
 
-    _scorer = _Scorer(actual_inp)
+    hidden_dims = [shape[0] for shape in trunk_dims]
+    _scorer = _Scorer(actual_inp, hidden_dims, head_hidden)
     try:
         _scorer.load_state_dict(scr_state, strict=False)
     except Exception:
-        # Fallback: try with any trunk hidden dim that matches
-        for hidden in [128, 192, 256]:
-            try:
-                _scorer = _Scorer(actual_inp, hidden)
-                _scorer.load_state_dict(scr_state, strict=False)
-                break
-            except Exception:
-                continue
+        # Hard fallback: small architecture
+        _scorer = _Scorer(actual_inp, [256, 128], 128)
+        _scorer.load_state_dict(scr_state, strict=False)
     _scorer.eval()
     n_scr = sum(p.numel() for p in _scorer.parameters())
     logger.info("v2 Scorer loaded", parameters=f"{n_scr:,}", input_dim=actual_inp)
