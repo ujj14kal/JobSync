@@ -29,6 +29,25 @@ function loadRazorpay(): Promise<boolean> {
   });
 }
 
+// ── Brand theme applied to the Razorpay popup ────────────────────────────────
+// Razorpay exposes two theme options on their hosted checkout:
+//   theme.color          → buttons, links, focus rings, header accent
+//   theme.backdrop_color → the semi-transparent overlay behind their modal
+//
+// Their modal card (white, with payment fields) cannot be further customised
+// on the standard checkout — it's rendered inside a sandboxed iframe.
+// Everything else (our pre-checkout card, loading states, etc.) is fully ours.
+const RZP_THEME = {
+  color:          "#C05800",           // caramel — primary brand
+  backdrop_color: "rgba(10,8,6,0.82)", // matches our --bg-base dark overlay
+} as const;
+
+// Absolute logo URL — Razorpay requires HTTPS, relative paths don't work
+const rzpLogo = () =>
+  typeof window !== "undefined"
+    ? `${window.location.origin}/logo.png`
+    : "https://jobsynk.com/logo.png";
+
 interface CheckoutModalProps {
   plan:      string;   // "pro_monthly" | "pro_yearly" | product_id
   onClose:   () => void;
@@ -80,8 +99,8 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
             subscription_id: subscription_id,
             name:            "JobSynk",
             description:     `${info.label} — ${info.desc}`,
-            image:           "/logo.png",
-            theme:           { color: "#C05800" },
+            image:           rzpLogo(),
+            theme:           RZP_THEME,
             handler: async (response: any) => {
               try {
                 await billingApi.verifySubscription({
@@ -111,8 +130,8 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
             currency:    "INR",
             name:        "JobSynk",
             description: `${info.label}`,
-            image:       "/logo.png",
-            theme:       { color: "#C05800" },
+            image:       rzpLogo(),
+            theme:       RZP_THEME,
             handler: async (response: any) => {
               try {
                 await billingApi.verifyPayment({
