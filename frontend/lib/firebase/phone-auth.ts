@@ -35,8 +35,8 @@ export function getCompatAuth(): firebaseCompat.auth.Auth {
 }
 
 export function createRecaptchaVerifier(containerId: string): RecaptchaVerifier {
-  // Mirror exactly what works in UrbanRide
-  return new firebaseCompat.auth.RecaptchaVerifier(containerId, { size: "invisible" });
+  // Pass the named app explicitly so compat doesn't look for [DEFAULT]
+  return new firebaseCompat.auth.RecaptchaVerifier(containerId, { size: "invisible" }, getCompatApp());
 }
 
 export async function sendPhoneOtp(
