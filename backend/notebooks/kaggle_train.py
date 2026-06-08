@@ -60,19 +60,19 @@ print(f"Device: {device}")
 
 # ── Hyperparams ───────────────────────────────────────────────────────────────
 if device.type == "cuda":
-    SCORER_EPOCHS = 300
+    SCORER_EPOCHS = 500
     SCORER_BATCH  = 256
-    SCORER_LR     = 1e-3
-    WARMUP_EPOCHS = 10
+    SCORER_LR     = 1e-4   # v7: lower LR — prevents divergence after warmup peak
+    WARMUP_EPOCHS = 20
     N_PAIRS       = 12_000
-    N_SYNTHETIC   = 2_000   # augment with synthetic for diversity
+    N_SYNTHETIC   = 3_000
 else:
-    SCORER_EPOCHS = 200
-    SCORER_BATCH  = 128
-    SCORER_LR     = 1e-3   # higher LR is fine now — smaller model converges faster
-    WARMUP_EPOCHS = 5
+    SCORER_EPOCHS = 500
+    SCORER_BATCH  = 64     # v7: smaller batch → better gradient estimates on CPU
+    SCORER_LR     = 1e-4   # v7: was 1e-3, caused divergence at ep20-40 every run
+    WARMUP_EPOCHS = 15     # v7: longer warmup — peak LR reached at ep15, not ep5
     N_PAIRS       = 4_000
-    N_SYNTHETIC   = 2_000  # +2k synthetic = 6k total, better for 120k param model
+    N_SYNTHETIC   = 2_000
 
 print(f"Epochs={SCORER_EPOCHS}  Batch={SCORER_BATCH}  Pairs={N_PAIRS}")
 
@@ -629,7 +629,7 @@ def train_scorer(Xt, Yt):
             patience = 0
         else:
             patience += 1
-            if patience >= 40:   # more patience — balanced data needs longer to converge
+            if patience >= 60:   # v7: more patience — low LR converges slowly
                 print(f"  Early stop at ep={ep}")
                 break
 
