@@ -33,6 +33,9 @@ export default function NeuralNetworkCanvas({
   const mouseRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number>(0);
   const timeRef = useRef(0);
+  const lastFrameRef = useRef(0);
+  // Cap at 30fps — halves CPU/GPU usage on mobile without a visible quality drop
+  const FRAME_INTERVAL = 1000 / 30;
 
   const initNodes = useCallback((w: number, h: number) => {
     const nodeCount = Math.min(Math.floor((w * h) / 14000), 90);
@@ -83,7 +86,13 @@ export default function NeuralNetworkCanvas({
 
     const MAX_DIST = 140; // max distance for drawing a connection
 
-    const draw = () => {
+    const draw = (timestamp: number) => {
+      rafRef.current = requestAnimationFrame(draw);
+
+      // FPS throttle — skip frame if too soon
+      if (timestamp - lastFrameRef.current < FRAME_INTERVAL) return;
+      lastFrameRef.current = timestamp;
+
       timeRef.current += 0.008;
       const t = timeRef.current;
       const nodes = nodesRef.current;
@@ -198,7 +207,6 @@ export default function NeuralNetworkCanvas({
         ctx.fill();
       }
 
-      rafRef.current = requestAnimationFrame(draw);
     };
 
     resize();

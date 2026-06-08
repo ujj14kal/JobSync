@@ -545,37 +545,59 @@ async def search_and_scrape_job(
     metadata: dict = {"title": "", "company": ""}
 
     # ── Strategy 0: Direct URL ──────────────────────────────────────────────
+    # Race strategies in parallel — first non-empty result wins.
+    # Previously sequential (20s + 20s + 35s = 75s worst case).
+    # Now: all fire at once, total cap = 10s.
     if direct_url:
         url = direct_url
 
-        # 0a. LinkedIn guest API (no login required)
-        if "linkedin.com" in url:
-            result = await scrape_linkedin_guest_api(url)
-            if result:
-                raw_text, metadata = result
-                source_url = url
+        async def _try_linkedin():
+            if "linkedin.com" in url:
+                return await scrape_linkedin_guest_api(url)
+            return None
 
-        # 0b. httpx (Greenhouse, Lever, and other mostly-static pages)
-        if not raw_text:
+        async def _try_httpx():
             html = await scrape_url_with_httpx(url)
             if html and len(html) > 800:
-                metadata = extract_metadata_from_html(html, url)
+                meta = extract_metadata_from_html(html, url)
                 content = extract_job_content_from_html(html, url)
                 if content and len(content) > 200:
-                    raw_text = content
-                    source_url = url
-                    logger.info("httpx scrape success", chars=len(raw_text))
+                    return content, meta
+            return None
 
-        # 0c. Playwright (Indeed, Workday, anything JS-heavy)
-        if not raw_text:
-            html = await scrape_url_with_playwright(url, timeout=settings.SCRAPING_TIMEOUT)
+        async def _try_playwright():
+            html = await scrape_url_with_playwright(url, timeout=12)
             if html:
-                metadata = extract_metadata_from_html(html, url)
+                meta = extract_metadata_from_html(html, url)
                 content = extract_job_content_from_html(html, url)
                 if content and len(content) > 200:
-                    raw_text = content
+                    return content, meta
+            return None
+
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    _try_linkedin(),
+                    _try_httpx(),
+                    _try_playwright(),
+                    return_exceptions=True,
+                ),
+                timeout=10.0,
+            )
+        except asyncio.TimeoutError:
+            results = [None, None, None]
+
+        for res in results:
+            if res and not isinstance(res, Exception):
+                if isinstance(res, tuple):
+                    raw_text, metadata = res
+                else:
+                    # LinkedIn returns (text, meta) tuple
+                    raw_text, metadata = res if isinstance(res, tuple) else (None, {})
+                if raw_text:
                     source_url = url
-                    logger.info("Playwright scrape success", chars=len(raw_text))
+                    logger.info("Scrape success", strategy="parallel-race", chars=len(raw_text))
+                    break
 
         if not raw_text:
             logger.warning("All URL strategies failed — using synthetic fallback", url=url)
@@ -589,17 +611,28 @@ async def search_and_scrape_job(
             f"https://careers.{slug}.com/jobs/{job_id}",
             f"https://www.{slug}.com/careers/{job_id}",
         ]
-        for url in career_urls:
-            html = await scrape_url_with_httpx(url)
-            if not html:
-                html = await scrape_url_with_playwright(url)
+        # Race all career URLs simultaneously instead of sequential fallback
+        async def _try_career_url(u: str):
+            html = await scrape_url_with_httpx(u)
             if html and len(html) > 800:
-                metadata = extract_metadata_from_html(html, url)
-                content = extract_job_content_from_html(html, url)
+                meta = extract_metadata_from_html(html, u)
+                content = extract_job_content_from_html(html, u)
                 if content and len(content) > 200:
-                    raw_text = content
-                    source_url = url
-                    break
+                    return u, content, meta
+            return None
+
+        try:
+            career_results = await asyncio.wait_for(
+                asyncio.gather(*[_try_career_url(u) for u in career_urls], return_exceptions=True),
+                timeout=8.0,
+            )
+        except asyncio.TimeoutError:
+            career_results = []
+
+        for res in career_results:
+            if res and not isinstance(res, Exception):
+                source_url, raw_text, metadata = res
+                break
 
     # ── Determine effective title + company for LLM ─────────────────────────
     # Prefer metadata extracted from the page; fall back to request params.

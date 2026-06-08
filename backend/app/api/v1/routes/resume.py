@@ -1,6 +1,7 @@
 """Resume upload and management endpoints."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.core.security import get_current_user_id
@@ -25,7 +26,6 @@ async def upload_resume(
     user_id: str = Depends(get_current_user_id),
 ):
     """Upload and parse a resume file (PDF/DOCX)."""
-    # Validate
     if file.content_type not in ALLOWED_TYPES and not file.filename.endswith((".pdf", ".docx", ".doc")):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -42,48 +42,67 @@ async def upload_resume(
     supabase = get_supabase()
     file_id = str(uuid.uuid4())
 
-    # Upload to Supabase Storage
+    # ── Run all CPU-bound work concurrently off the event loop ────────────────
+    # extract_text (pdfplumber/python-docx), parse_resume (regex/NLP), and
+    # embed_text (SentenceTransformer.encode) are all synchronous + CPU-heavy.
+    # Wrapping with asyncio.to_thread() prevents blocking other requests.
     storage_path = f"{user_id}/{file_id}/{file.filename}"
-    try:
-        supabase.storage.from_("resumes").upload(
-            storage_path,
-            content,
-            {"content-type": file.content_type or "application/octet-stream"},
-        )
-        signed = supabase.storage.from_("resumes").create_signed_url(storage_path, 3600)
-        file_url = signed.get("signedURL") or signed.get("signedUrl")
-    except Exception as e:
-        # If storage fails, continue without URL
-        file_url = None
 
-    # Parse resume
-    try:
-        raw_text = extract_text(content, file.filename)
-    except Exception:
+    async def _upload_storage():
+        try:
+            await asyncio.to_thread(
+                supabase.storage.from_("resumes").upload,
+                storage_path, content,
+                {"content-type": file.content_type or "application/octet-stream"},
+            )
+            signed = await asyncio.to_thread(
+                supabase.storage.from_("resumes").create_signed_url,
+                storage_path, 3600,
+            )
+            return signed.get("signedURL") or signed.get("signedUrl")
+        except Exception:
+            return None
+
+    async def _extract():
+        try:
+            return await asyncio.to_thread(extract_text, content, file.filename)
+        except Exception:
+            return None
+
+    # Upload to storage + extract text in parallel — independent operations
+    file_url, raw_text = await asyncio.gather(_upload_storage(), _extract())
+
+    if not raw_text:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Failed to read the file. It may be corrupted or password-protected.",
         )
-    if not raw_text or len(raw_text.strip()) < 50:
+    if len(raw_text.strip()) < 50:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not extract text from the resume. Please ensure it's not scanned/image-only.",
         )
 
-    try:
-        parsed_data = parse_resume(raw_text)
-    except Exception:
-        parsed_data = {}
+    # Parse + embed in parallel — both depend on raw_text but not each other
+    async def _parse():
+        try:
+            return await asyncio.to_thread(parse_resume, raw_text)
+        except Exception:
+            return {}
 
-    try:
-        embedding = embed_text(raw_text[:3000])
-    except Exception:
-        embedding = None
+    async def _embed():
+        try:
+            return await asyncio.to_thread(embed_text, raw_text[:3000])
+        except Exception:
+            return None
 
-    # Deactivate previous resumes
-    supabase.table("resumes").update({"is_active": False}).eq("user_id", user_id).execute()
+    parsed_data, embedding = await asyncio.gather(_parse(), _embed())
 
-    # Insert record
+    # Deactivate previous + insert new in sequence (ordering matters)
+    await asyncio.to_thread(
+        lambda: supabase.table("resumes").update({"is_active": False}).eq("user_id", user_id).execute()
+    )
+
     record = {
         "id": file_id,
         "user_id": user_id,
@@ -96,7 +115,9 @@ async def upload_resume(
         "is_active": True,
     }
 
-    result = supabase.table("resumes").insert(record).execute()
+    result = await asyncio.to_thread(
+        lambda: supabase.table("resumes").insert(record).execute()
+    )
 
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to save resume")
@@ -108,8 +129,8 @@ async def upload_resume(
 async def list_resumes(user_id: str = Depends(get_current_user_id)):
     """List all resumes for the authenticated user."""
     supabase = get_supabase()
-    result = (
-        supabase.table("resumes")
+    result = await asyncio.to_thread(
+        lambda: supabase.table("resumes")
         .select("id, user_id, file_name, file_url, file_size, is_active, created_at, parsed_data")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
@@ -125,8 +146,8 @@ async def get_resume(
 ):
     """Get a specific resume."""
     supabase = get_supabase()
-    result = (
-        supabase.table("resumes")
+    result = await asyncio.to_thread(
+        lambda: supabase.table("resumes")
         .select("*")
         .eq("id", resume_id)
         .eq("user_id", user_id)
@@ -145,13 +166,11 @@ async def activate_resume(
 ):
     """Set a resume as active."""
     supabase = get_supabase()
-
-    # Deactivate all
-    supabase.table("resumes").update({"is_active": False}).eq("user_id", user_id).execute()
-
-    # Activate target
-    result = (
-        supabase.table("resumes")
+    await asyncio.to_thread(
+        lambda: supabase.table("resumes").update({"is_active": False}).eq("user_id", user_id).execute()
+    )
+    result = await asyncio.to_thread(
+        lambda: supabase.table("resumes")
         .update({"is_active": True})
         .eq("id", resume_id)
         .eq("user_id", user_id)
@@ -169,4 +188,6 @@ async def delete_resume(
 ):
     """Delete a resume."""
     supabase = get_supabase()
-    supabase.table("resumes").delete().eq("id", resume_id).eq("user_id", user_id).execute()
+    await asyncio.to_thread(
+        lambda: supabase.table("resumes").delete().eq("id", resume_id).eq("user_id", user_id).execute()
+    )

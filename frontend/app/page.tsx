@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import NavBar from "@/components/landing/NavBar";
 import HeroSection from "@/components/landing/HeroSection";
-import StatsSection from "@/components/landing/StatsSection";
-import FeaturesSection from "@/components/landing/FeaturesSection";
-import ScoreDemoSection from "@/components/landing/ScoreDemoSection";
-import SkillGapSection from "@/components/landing/SkillGapSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
-import PricingSection from "@/components/landing/PricingSection";
-import CTASection from "@/components/landing/CTASection";
-import { Footer } from "@/components/landing/footer";
+
+// Below-fold sections — lazily loaded so they don't block hero paint
+const StatsSection        = dynamic(() => import("@/components/landing/StatsSection"),        { ssr: false });
+const FeaturesSection     = dynamic(() => import("@/components/landing/FeaturesSection"),     { ssr: false });
+const ScoreDemoSection    = dynamic(() => import("@/components/landing/ScoreDemoSection"),    { ssr: false });
+const SkillGapSection     = dynamic(() => import("@/components/landing/SkillGapSection"),     { ssr: false });
+const TestimonialsSection = dynamic(() => import("@/components/landing/TestimonialsSection"), { ssr: false });
+const PricingSection      = dynamic(() => import("@/components/landing/PricingSection"),      { ssr: false });
+const CTASection          = dynamic(() => import("@/components/landing/CTASection"),          { ssr: false });
+const Footer              = dynamic(() => import("@/components/landing/footer").then((m) => m.Footer), { ssr: false });
 
 export const metadata: Metadata = {
   title: "JobSynk — AI-Powered Resume Analyzer & ATS Scorer",

@@ -227,8 +227,20 @@ async def run_analysis(
                     return None
             return val
 
-        resume_embedding = _parse_embedding(resume_data.get("embedding")) or embed_text(resume_text[:3000])
-        job_embedding = _parse_embedding(job_data.get("embedding")) or embed_text(job_text[:3000])
+        # Fallback embeddings — only computed if not already stored.
+        # asyncio.to_thread() prevents SentenceTransformer.encode() from
+        # blocking the event loop (it's synchronous + CPU-heavy).
+        _r_emb = _parse_embedding(resume_data.get("embedding"))
+        _j_emb = _parse_embedding(job_data.get("embedding"))
+        if not _r_emb or not _j_emb:
+            _r_emb_t, _j_emb_t = await asyncio.gather(
+                asyncio.to_thread(embed_text, resume_text[:3000]) if not _r_emb else asyncio.sleep(0, result=_r_emb),
+                asyncio.to_thread(embed_text, job_text[:3000])    if not _j_emb else asyncio.sleep(0, result=_j_emb),
+            )
+            _r_emb = _r_emb or _r_emb_t
+            _j_emb = _j_emb or _j_emb_t
+        resume_embedding = _r_emb
+        job_embedding    = _j_emb
 
         # ── AI-first scoring ───────────────────────────────────────────────────
         # Primary: LLM-as-judge (scores all 5 dimensions with reasoning)
@@ -258,6 +270,9 @@ async def run_analysis(
 
         # ── LLM feedback (strengths/weaknesses/suggestions/rewrites) ──────────
         # Run in parallel — feedback uses scores from AI scorer as context
+        # Run feedback + rewrites in parallel with a hard 35s timeout.
+        # If Groq is slow or rate-limited, we return structured fallback
+        # instead of hanging the entire request.
         feedback_task = asyncio.create_task(
             generate_recruiter_feedback(
                 resume_text=resume_text,
@@ -275,7 +290,16 @@ async def run_analysis(
             )
         )
 
-        feedback, rewrites = await asyncio.gather(feedback_task, rewrites_task)
+        try:
+            feedback, rewrites = await asyncio.wait_for(
+                asyncio.gather(feedback_task, rewrites_task),
+                timeout=35.0,
+            )
+        except asyncio.TimeoutError:
+            feedback_task.cancel()
+            rewrites_task.cancel()
+            feedback = {}
+            rewrites = []
 
         # Merge AI key_strengths/weaknesses with LLM-generated feedback
         strengths = feedback.get("strengths") or [

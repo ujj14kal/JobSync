@@ -19,6 +19,7 @@ import {
   Briefcase,
   Brain,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
@@ -27,6 +28,122 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type Tab = "overview" | "keywords" | "feedback" | "rewrite" | "mentors";
+
+// ── Analysis progress steps UI ────────────────────────────────────────────────
+const PIPELINE_STEPS = [
+  { id: "parse",   label: "Parsing resume",          icon: FileText,  duration: 4  },
+  { id: "embed",   label: "Generating embeddings",   icon: Brain,     duration: 8  },
+  { id: "score",   label: "Scoring with AI",         icon: Sparkles,  duration: 18 },
+  { id: "feedback",label: "Writing recruiter report",icon: Users,     duration: 30 },
+] as const;
+
+function AnalysisProcessingState({ status }: { status: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  // Determine which step is active based on elapsed time
+  const getActiveStep = () => {
+    let acc = 0;
+    for (let i = 0; i < PIPELINE_STEPS.length; i++) {
+      acc += PIPELINE_STEPS[i].duration;
+      if (elapsed < acc) return i;
+    }
+    return PIPELINE_STEPS.length - 1;
+  };
+
+  const activeStep = getActiveStep();
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      {/* Animated ring */}
+      <div className="relative w-20 h-20 mb-8">
+        <div className="absolute inset-0 rounded-full border-2 border-[var(--accent-primary)]/15" />
+        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--accent-primary)] animate-spin" />
+        <div className="absolute inset-2 rounded-full border border-[var(--accent-primary)]/10 border-t-[var(--accent-primary)]/40 animate-spin" style={{ animationDuration: "1.5s", animationDirection: "reverse" }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Sparkles className="w-6 h-6 text-[var(--accent-primary)]" />
+        </div>
+      </div>
+
+      <h2 className="text-[20px] font-bold text-[var(--text-primary)] mb-2 text-center">
+        Analyzing your resume…
+      </h2>
+      <p className="text-[13px] text-[var(--text-secondary)] mb-8 text-center max-w-sm">
+        Our AI is running a full ATS pipeline. Usually 15–30 seconds.
+      </p>
+
+      {/* Step pipeline */}
+      <div className="w-full max-w-sm space-y-2">
+        {PIPELINE_STEPS.map((step, i) => {
+          const Icon = step.icon;
+          const done = i < activeStep;
+          const active = i === activeStep;
+          return (
+            <motion.div
+              key={step.id}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.12, type: "spring", stiffness: 300, damping: 28 }}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300",
+                done   && "opacity-40",
+                active && "bg-[var(--accent-primary)]/8 border border-[var(--accent-primary)]/20",
+                !done && !active && "opacity-25",
+              )}
+            >
+              <div className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300",
+                done   && "bg-emerald-400/10 border border-emerald-400/20",
+                active && "bg-[var(--accent-primary)]/15 border border-[var(--accent-primary)]/30",
+                !done && !active && "bg-[var(--bg-elevated)] border border-[var(--border-subtle)]",
+              )}>
+                {done ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Icon className={cn(
+                    "w-4 h-4 transition-colors",
+                    active ? "text-[var(--accent-primary)]" : "text-[var(--text-muted)]",
+                  )} />
+                )}
+              </div>
+              <span className={cn(
+                "text-[13px] font-medium transition-colors",
+                active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]",
+              )}>
+                {step.label}
+              </span>
+              {active && (
+                <motion.div
+                  className="ml-auto flex gap-0.5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  {[0, 1, 2].map((d) => (
+                    <motion.div
+                      key={d}
+                      className="w-1 h-1 rounded-full bg-[var(--accent-primary)]"
+                      animate={{ opacity: [0.2, 1, 0.2] }}
+                      transition={{ repeat: Infinity, duration: 1.2, delay: d * 0.2 }}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <p className="text-[11px] text-[var(--text-muted)] mt-6">
+        {elapsed}s elapsed · updating automatically
+      </p>
+    </div>
+  );
+}
 
 export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -110,20 +227,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const isFailed = analysis.status === "failed";
 
   if (isProcessing) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <div className="relative w-16 h-16 mb-6">
-          <div className="absolute inset-0 rounded-full border-2 border-[var(--accent-primary)]/20" />
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--accent-primary)] animate-spin" />
-        </div>
-        <h2 className="text-[18px] font-semibold text-[var(--text-primary)] mb-2">
-          Analyzing your resume…
-        </h2>
-        <p className="text-[13px] text-[var(--text-secondary)]">
-          This usually takes 15–30 seconds. The page will update automatically.
-        </p>
-      </div>
-    );
+    return <AnalysisProcessingState status={analysis.status} />;
   }
 
   if (isFailed) {
