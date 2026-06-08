@@ -673,9 +673,9 @@ def _build_latex_twocol(data: dict) -> str:
         )
 
     activities = data.get("activities", [])
-    act_tex = "\n".join(rf"  \item {\small " + _escape_latex(a) + "}" for a in activities)
+    act_tex = "\n".join(r"  \item {\small " + _escape_latex(a) + "}" for a in activities)
     awards = data.get("awards", [])
-    award_tex = "\n".join(rf"  \item {\small " + _escape_latex(a) + "}" for a in awards)
+    award_tex = "\n".join(r"  \item {\small " + _escape_latex(a) + "}" for a in awards)
 
     act_section = f"\\shead{{Activities}}\n\\begin{{itemize}}\n{act_tex}\n\\end{{itemize}}\n" if act_tex else ""
     award_section = f"\\shead{{Awards}}\n\\begin{{itemize}}\n{award_tex}\n\\end{{itemize}}\n" if award_tex else ""
