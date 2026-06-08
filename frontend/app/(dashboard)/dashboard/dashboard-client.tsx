@@ -344,7 +344,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             <div className="h-48 rounded-2xl bg-white/5 animate-shimmer" />
           </div>
         </div>
-      ) : hasJobData ? (
+      ) : (
         <div ref={pipelineRef}>
           <div className="flex items-center justify-between mb-4">
             <motion.h2
@@ -360,7 +360,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             </motion.div>
           </div>
 
-          {/* Big stat cards */}
+          {/* Big stat cards — always show, 0 when no data */}
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"
             variants={container} initial="hidden" animate={pipelineInView ? "show" : "hidden"}
@@ -379,33 +379,45 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             </motion.div>
           </motion.div>
 
-          {/* Charts */}
-          <motion.div
-            className="grid md:grid-cols-2 gap-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
-          >
-            {/* Score trend — only when there are multiple analyses */}
-            {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
-
-            {/* Funnel */}
-            {jobStats?.by_status && <FunnelChart byStatus={jobStats.by_status} />}
-          </motion.div>
-
-          {/* Weekly activity — only when there's data */}
-          {jobStats?.weekly_activity && (
+          {/* Charts — show empty state when no applications yet */}
+          {hasJobData ? (
+            <>
+              <motion.div
+                className="grid md:grid-cols-2 gap-4"
+                initial={{ opacity: 0, y: 12 }}
+                animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
+              >
+                {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
+                {jobStats?.by_status && <FunnelChart byStatus={jobStats.by_status} />}
+              </motion.div>
+              {jobStats?.weekly_activity && (
+                <motion.div
+                  className="mt-4"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+                  transition={{ delay: 0.35, duration: 0.5, ease: [0.16,1,0.3,1] }}
+                >
+                  <ActivityChart weeklyActivity={jobStats.weekly_activity} />
+                </motion.div>
+              )}
+            </>
+          ) : (
             <motion.div
-              className="mt-4"
-              initial={{ opacity: 0, y: 12 }}
-              animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.35, duration: 0.5, ease: [0.16,1,0.3,1] }}
+              initial={{ opacity: 0, y: 8 }} animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-[var(--border-subtle)]"
             >
-              <ActivityChart weeklyActivity={jobStats.weekly_activity} />
+              <Briefcase className="w-7 h-7 text-[var(--text-muted)] mb-3" />
+              <p className="text-[14px] text-[var(--text-secondary)] mb-1">No applications tracked yet</p>
+              <p className="text-[12px] text-[var(--text-muted)] mb-4">Start logging jobs to see funnel & trend charts</p>
+              <Link href="/jobs" className="btn-primary !px-4 !py-2 !text-[13px] flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Track a job
+              </Link>
             </motion.div>
           )}
         </div>
-      ) : null}
+      )}
 
       {/* ── Recent Analyses ── */}
       <div>
@@ -499,7 +511,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
             ))}
           </div>
         </div>
-      ) : latestAnalysis && latestAnalysis.status === "complete" ? (
+      ) : (
         <div ref={scoresRef}>
           <motion.h2
             className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"
@@ -507,50 +519,66 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           >
             Latest Score Breakdown
           </motion.h2>
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-5 gap-3"
-            variants={container} initial="hidden" animate={scoresInView ? "show" : "hidden"}
-          >
-            {[
-              { label: "Overall",   score: latestAnalysis.scores.overall_score },
-              { label: "ATS",       score: latestAnalysis.scores.ats_score },
-              { label: "Tech Fit",  score: latestAnalysis.scores.technical_fit_score },
-              { label: "Semantic",  score: latestAnalysis.scores.semantic_match_score },
-              { label: "Recruiter", score: latestAnalysis.scores.recruiter_impression_score },
-            ].map(({ label, score }) => {
-              const c = getScoreColor(score);
-              const rgb = score >= 80 ? "106,170,52" : score >= 60 ? "192,88,0" : score >= 40 ? "212,170,48" : "200,64,32";
-              return (
-                <motion.div key={label} variants={cardItem}>
-                  <TiltCard intensity={12} scale={1.05}>
-                    <div
-                      className="relative p-4 rounded-2xl text-center overflow-hidden"
-                      style={{
-                        background: `linear-gradient(135deg,rgba(${rgb},0.14) 0%,rgba(${rgb},0.05) 100%)`,
-                        border: `1px solid rgba(${rgb},0.28)`,
-                        boxShadow: `0 0 28px rgba(${rgb},0.10), 0 8px 24px rgba(0,0,0,0.25)`,
-                      }}
-                    >
-                      <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 50% 0%,rgba(${rgb},0.18),transparent 60%)` }} />
-                      <div className="text-2xl font-bold mb-1 relative" style={{ color: c, textShadow: `0 0 20px ${c}80` }}>
-                        {scoresInView ? <AnimatedNumber value={score} duration={1.0} /> : "0"}
+
+          {latestAnalysis && latestAnalysis.status === "complete" ? (
+            <motion.div
+              className="grid grid-cols-2 md:grid-cols-5 gap-3"
+              variants={container} initial="hidden" animate={scoresInView ? "show" : "hidden"}
+            >
+              {[
+                { label: "Overall",   score: latestAnalysis.scores.overall_score },
+                { label: "ATS",       score: latestAnalysis.scores.ats_score },
+                { label: "Tech Fit",  score: latestAnalysis.scores.technical_fit_score },
+                { label: "Semantic",  score: latestAnalysis.scores.semantic_match_score },
+                { label: "Recruiter", score: latestAnalysis.scores.recruiter_impression_score },
+              ].map(({ label, score }) => {
+                const c = getScoreColor(score);
+                const rgb = score >= 80 ? "106,170,52" : score >= 60 ? "192,88,0" : score >= 40 ? "212,170,48" : "200,64,32";
+                return (
+                  <motion.div key={label} variants={cardItem}>
+                    <TiltCard intensity={12} scale={1.05}>
+                      <div
+                        className="relative p-4 rounded-2xl text-center overflow-hidden"
+                        style={{
+                          background: `linear-gradient(135deg,rgba(${rgb},0.14) 0%,rgba(${rgb},0.05) 100%)`,
+                          border: `1px solid rgba(${rgb},0.28)`,
+                          boxShadow: `0 0 28px rgba(${rgb},0.10), 0 8px 24px rgba(0,0,0,0.25)`,
+                        }}
+                      >
+                        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 50% 0%,rgba(${rgb},0.18),transparent 60%)` }} />
+                        <div className="text-2xl font-bold mb-1 relative" style={{ color: c, textShadow: `0 0 20px ${c}80` }}>
+                          {scoresInView ? <AnimatedNumber value={score} duration={1.0} /> : "0"}
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)] relative">{label}</div>
+                        <motion.div
+                          className="absolute bottom-0 left-0 h-0.5 rounded-full"
+                          style={{ background: `linear-gradient(90deg,transparent,rgba(${rgb},0.7),transparent)` }}
+                          initial={{ width: "0%" }}
+                          animate={scoresInView ? { width: `${score}%` } : { width: "0%" }}
+                          transition={{ duration: 1.2, ease: [0.16,1,0.3,1], delay: 0.3 }}
+                        />
                       </div>
-                      <div className="text-[11px] text-[var(--text-muted)] relative">{label}</div>
-                      <motion.div
-                        className="absolute bottom-0 left-0 h-0.5 rounded-full"
-                        style={{ background: `linear-gradient(90deg,transparent,rgba(${rgb},0.7),transparent)` }}
-                        initial={{ width: "0%" }}
-                        animate={scoresInView ? { width: `${score}%` } : { width: "0%" }}
-                        transition={{ duration: 1.2, ease: [0.16,1,0.3,1], delay: 0.3 }}
-                      />
-                    </div>
-                  </TiltCard>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+                    </TiltCard>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={scoresInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ delay: 0.15 }}
+              className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-[var(--border-subtle)]"
+            >
+              <BarChart2 className="w-7 h-7 text-[var(--text-muted)] mb-3" />
+              <p className="text-[14px] text-[var(--text-secondary)] mb-1">No score data yet</p>
+              <p className="text-[12px] text-[var(--text-muted)] mb-4">Run an ATS analysis to see your resume scores here</p>
+              <Link href="/analysis" className="btn-primary !px-4 !py-2 !text-[13px] flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Run analysis
+              </Link>
+            </motion.div>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
