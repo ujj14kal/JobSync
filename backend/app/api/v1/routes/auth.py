@@ -210,11 +210,20 @@ async def google_login(body: GoogleLoginRequest):
 
     # 2. Upsert Supabase user by email
     sb = _supabase_admin()
+
+    # Derive a stable password from firebase_uid so we can issue a session via
+    # sign_in_with_password (supabase-py 2.x has no admin.create_session).
+    user_password = hmac.new(
+        settings.SECRET_KEY.encode(),
+        firebase_uid.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
     try:
-        # 2. Upsert by email: try create first, handle duplicate
         try:
             new_user = sb.auth.admin.create_user({
                 "email": email,
+                "password": user_password,
                 "email_confirm": True,
                 "user_metadata": {
                     "firebase_uid": firebase_uid,
@@ -227,30 +236,36 @@ async def google_login(body: GoogleLoginRequest):
             logger.info("Created new Supabase user %s for email %s", user_id, email)
         except Exception as create_exc:
             err_str = str(create_exc).lower()
-            if "already" not in err_str and "duplicate" not in err_str and "exists" not in err_str:
+            if not any(kw in err_str for kw in ("already", "duplicate", "exists")):
                 raise
             users_resp = sb.auth.admin.list_users()
             existing = next((u for u in users_resp if u.email == email), None)
             if not existing:
                 raise RuntimeError(f"User with email {email} not found after duplicate error") from create_exc
             user_id = existing.id
-            # Keep metadata fresh
             sb.auth.admin.update_user_by_id(
                 user_id,
-                {"user_metadata": {
-                    "full_name": existing.user_metadata.get("full_name") or name,
-                    "avatar_url": existing.user_metadata.get("avatar_url") or picture,
-                    "firebase_uid": firebase_uid,
-                    "auth_provider": "firebase_google",
-                }},
+                {
+                    "password": user_password,
+                    "user_metadata": {
+                        "full_name": existing.user_metadata.get("full_name") or name,
+                        "avatar_url": existing.user_metadata.get("avatar_url") or picture,
+                        "firebase_uid": firebase_uid,
+                        "auth_provider": "firebase_google",
+                    },
+                },
             )
             logger.info("Found existing Supabase user %s for email %s", user_id, email)
 
-        # 3. Create Supabase session
-        session = sb.auth.admin.create_session(user_id)
+        # Sign in with derived password to get a real session token
+        from supabase import create_client
+        sb_anon = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+        session_resp = sb_anon.auth.sign_in_with_password({"email": email, "password": user_password})
+        session = session_resp.session
+
         return SessionResponse(
-            access_token=session.session.access_token,
-            refresh_token=session.session.refresh_token,
+            access_token=session.access_token,
+            refresh_token=session.refresh_token,
             user_id=user_id,
             email=email,
         )
