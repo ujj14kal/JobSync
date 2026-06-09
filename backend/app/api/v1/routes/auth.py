@@ -130,7 +130,7 @@ async def phone_login(body: PhoneLoginRequest):
             logger.info("Created new Supabase user %s for phone %s", user_id, phone)
         except Exception as create_exc:
             err_str = str(create_exc).lower()
-            if "already" not in err_str and "duplicate" not in err_str and "exists" not in err_str:
+            if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
                 raise  # unexpected error — let outer handler return 500
             # User already exists — find them by iterating (pool is small for now)
             users_resp = sb.auth.admin.list_users()
