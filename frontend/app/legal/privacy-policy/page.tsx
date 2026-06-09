@@ -65,10 +65,17 @@ export default function PrivacyPolicy() {
             <div className="space-y-3">
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-[var(--text-primary)]">JobSynk AI Engine</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(122,184,64,0.12)", color: "#7ab840" }}>Free tier · primary</span>
+                  <span className="font-semibold text-[var(--text-primary)]">Groq (LLaMA 3.3 70B)</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(122,184,64,0.12)", color: "#7ab840" }}>Free tier · primary AI</span>
                 </div>
-                <p>Our proprietary AI model trained on resumes and job descriptions. Runs entirely within JobSynk's infrastructure — your data is never sent to a third party when this model is used.</p>
+                <p>Powers all free-tier AI analysis and feedback. When you use a free-tier AI feature, relevant data (resume text, job description) is sent to Groq's API. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-[#C05800] hover:underline">Groq Privacy Policy</a>. Groq does not use API data to train models.</p>
+              </div>
+              <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-[var(--text-primary)]">sentence-transformers (local embeddings)</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(100,116,139,0.12)", color: "var(--text-muted)" }}>Runs on our servers</span>
+                </div>
+                <p>Used for semantic matching between your resume and job descriptions. Runs entirely within JobSynk's own infrastructure — your data is never sent to a third party for this step.</p>
               </div>
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">
@@ -76,13 +83,6 @@ export default function PrivacyPolicy() {
                   <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(192,88,0,0.12)", color: "#C05800" }}>Pro tier only</span>
                 </div>
                 <p>Used for Pro ATS analysis, resume generation, cover letters, AI interview, and the Ask Claude chat. Data is sent to Anthropic's API. Anthropic's <a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[#C05800] hover:underline">Privacy Policy</a> applies. Anthropic does not use API data to train models.</p>
-              </div>
-              <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-[var(--text-primary)]">Groq (LLaMA 3.3 70B)</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(100,116,139,0.12)", color: "var(--text-muted)" }}>Fallback only</span>
-                </div>
-                <p>Used only as a fallback if the JobSynk AI Engine is temporarily unavailable. Your data is sent to Groq only in this scenario. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-[#C05800] hover:underline">Groq Privacy Policy</a>.</p>
               </div>
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">

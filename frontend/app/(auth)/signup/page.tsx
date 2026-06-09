@@ -101,6 +101,7 @@ export default function SignupPage() {
   const [otpSent,    setOtpSent]    = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
   // Pre-render the invisible reCAPTCHA widget as soon as the phone tab is active.
@@ -270,7 +271,7 @@ export default function SignupPage() {
           className="p-8 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
 
           <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-1">Create your account</h1>
-          <p className="text-[13px] text-[var(--text-secondary)] mb-6">Free forever. No credit card needed.</p>
+          <p className="text-[13px] text-[var(--text-secondary)] mb-6">Free to start. No credit card needed.</p>
 
           {/* Google */}
           <button onClick={handleGoogle}
@@ -283,6 +284,14 @@ export default function SignupPage() {
             </svg>
             Sign up with Google
           </button>
+
+          <p className="text-[11px] text-[var(--text-muted)] text-center mb-5 -mt-2">
+            By continuing with Google you agree to our{" "}
+            <Link href="/legal/terms" className="text-[var(--accent-primary)] hover:underline">Terms of Service</Link>{" "}
+            and{" "}
+            <Link href="/legal/privacy-policy" className="text-[var(--accent-primary)] hover:underline">Privacy Policy</Link>,
+            and allow JobSynk to send you account emails.
+          </p>
 
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] mb-5">
@@ -338,7 +347,20 @@ export default function SignupPage() {
                   </div>
                 </div>
 
-                <button type="submit" disabled={loading}
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={legalAccepted} onChange={(e) => setLegalAccepted(e.target.checked)}
+                      className="mt-0.5 flex-shrink-0 accent-[var(--accent-primary)]" required />
+                    <span className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      I agree to the{" "}
+                      <Link href="/legal/terms" className="text-[var(--accent-primary)] hover:underline" target="_blank">Terms of Service</Link>{" "}
+                      and{" "}
+                      <Link href="/legal/privacy-policy" className="text-[var(--accent-primary)] hover:underline" target="_blank">Privacy Policy</Link>.
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-[var(--text-muted)] pl-5">By signing up, you allow JobSynk to send you account and product emails.</p>
+                </div>
+                <button type="submit" disabled={loading || !legalAccepted}
                   className="w-full py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors disabled:opacity-50">
                   {loading ? "Creating account…" : "Create account"}
                 </button>
@@ -378,7 +400,20 @@ export default function SignupPage() {
                   <p className="text-[11px] text-[var(--text-muted)] mt-1.5">Include country code (e.g. +91 for India)</p>
                 </div>
 
-                <button type="submit" disabled={loading}
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={legalAccepted} onChange={(e) => setLegalAccepted(e.target.checked)}
+                      className="mt-0.5 flex-shrink-0 accent-[var(--accent-primary)]" required />
+                    <span className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      I agree to the{" "}
+                      <Link href="/legal/terms" className="text-[var(--accent-primary)] hover:underline" target="_blank">Terms of Service</Link>{" "}
+                      and{" "}
+                      <Link href="/legal/privacy-policy" className="text-[var(--accent-primary)] hover:underline" target="_blank">Privacy Policy</Link>.
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-[var(--text-muted)] pl-5">By signing up, you allow JobSynk to send you account and product emails.</p>
+                </div>
+                <button type="submit" disabled={loading || !legalAccepted}
                   className="w-full py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors disabled:opacity-50">
                   {loading ? "Sending OTP…" : "Send OTP"}
                 </button>

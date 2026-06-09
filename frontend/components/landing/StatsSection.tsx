@@ -33,7 +33,7 @@ const STATS = [
   },
   {
     value: 0, suffix: "$", label: "Cost to Use", isZero: true,
-    sublabel: "Free forever — no credit card, no subscription",
+    sublabel: "Free plan — 3 analyses/day, no card needed",
     color: "#7ab840", rgb: "122,184,64",
   },
   {
@@ -43,7 +43,7 @@ const STATS = [
   },
   {
     value: 100, suffix: "%", label: "Private by Design",
-    sublabel: "Your resume never sent to OpenAI or third parties",
+    sublabel: "Your data is never sold or shared with advertisers",
     color: "#C05800", rgb: "192,88,0",
   },
 ];

@@ -21,7 +21,7 @@ const HERO_VARIANTS = [
     line1: "Get the interview",
     line2: "your resume",
     line3: "has always deserved",
-    sub: "Paste a job URL. Upload your resume. JobSynk AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free, always.",
+    sub: "Paste a job URL. Upload your resume. JobSynk AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free to start.",
   },
   {
     line1: "Make your resume",
@@ -389,7 +389,7 @@ export default function HeroSection() {
             {[
               { icon: <Shield size={12} />, text: "Your data is never sold or shared with advertisers" },
               { icon: <Zap size={12} />, text: "Full report in under 30 seconds" },
-              { icon: <Sparkles size={12} />, text: "Free forever — no credit card" },
+              { icon: <Sparkles size={12} />, text: "Free plan — no credit card required" },
             ].map((chip) => (
               <div
                 key={chip.text}
@@ -438,7 +438,7 @@ export default function HeroSection() {
             transition={{ delay: 0.6, duration: 0.5 }}
           >
             {[
-              { dot: "#7ab840", text: "Free forever — no credit card required" },
+              { dot: "#7ab840", text: "Free plan — no credit card required" },
               { dot: "#C05800", text: "Your data is never sold or shared" },
               { dot: "#d4aa30", text: "Open source · built in public" },
             ].map(({ dot, text }) => (

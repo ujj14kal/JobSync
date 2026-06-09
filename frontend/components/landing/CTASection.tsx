@@ -100,7 +100,7 @@ export default function CTASection() {
 
           <p className="text-xl text-secondary max-w-2xl mx-auto mb-10">
             Paste a job URL, upload your resume, and get a full AI-powered ATS analysis in under 30 seconds.
-            Free forever. No credit card. No fluff.
+            Free to start. No credit card. No fluff.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
