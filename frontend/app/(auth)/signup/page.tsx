@@ -108,16 +108,16 @@ export default function SignupPage() {
   // a React re-render before the widget finishes mounting, breaking its DOM reference.
   useEffect(() => {
     if (tab !== "phone") {
-      window.recaptchaVerifier?.clear();
+      try { window.recaptchaVerifier?.clear(); } catch {}
       window.recaptchaVerifier = undefined;
       return;
     }
     const verifier = createRecaptchaVerifier("recaptcha-container-signup");
     window.recaptchaVerifier = verifier;
-    verifier.render().catch(() => {}); // pre-render silently; invisible so nothing visible yet
+    verifier.render().catch(() => {});
 
     return () => {
-      verifier.clear();
+      try { verifier.clear(); } catch {}
       window.recaptchaVerifier = undefined;
     };
   }, [tab]);
@@ -128,7 +128,7 @@ export default function SignupPage() {
     setPhone("");
     // Clear old widget; the tab useEffect will recreate it on next render cycle
     if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
+      try { window.recaptchaVerifier.clear(); } catch {}
       window.recaptchaVerifier = undefined;
     }
     // Recreate immediately so the next Send OTP click has a ready verifier
@@ -190,7 +190,7 @@ export default function SignupPage() {
           .grecaptcha?.reset(widgetId);
       }).catch(() => {
         // If reset fails, recreate entirely
-        window.recaptchaVerifier?.clear();
+        try { window.recaptchaVerifier?.clear(); } catch {}
         const v = createRecaptchaVerifier("recaptcha-container-signup");
         window.recaptchaVerifier = v;
         v.render().catch(() => {});
