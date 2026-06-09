@@ -111,30 +111,34 @@ async def phone_login(body: PhoneLoginRequest):
     # 2. Upsert Supabase user (admin API — no password required)
     sb = _supabase_admin()
 
+    # Derive a stable email from the phone so GoTrue doesn't need phone auth enabled.
+    # Phone users never sign in via email — this is just a unique key for Supabase.
+    derived_email = f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
+
     try:
-        # 2. Upsert: try to create; if duplicate phone, fetch the existing user
-        create_payload: dict = {
+        metadata = {
+            "firebase_uid": firebase_uid,
             "phone": phone,
-            "phone_confirm": True,
-            "user_metadata": {
-                "firebase_uid": firebase_uid,
-                "full_name": body.full_name,
-                "career_stage": body.career_stage,
-                "target_role": body.target_role,
-                "auth_provider": "firebase_phone",
-            },
+            "full_name": body.full_name,
+            "career_stage": body.career_stage,
+            "target_role": body.target_role,
+            "auth_provider": "firebase_phone",
         }
         try:
-            new_user = sb.auth.admin.create_user(create_payload)
+            new_user = sb.auth.admin.create_user({
+                "email": derived_email,
+                "email_confirm": True,
+                "user_metadata": metadata,
+            })
             user_id = new_user.id
             logger.info("Created new Supabase user %s for phone %s", user_id, phone)
         except Exception as create_exc:
             err_str = str(create_exc).lower()
             if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
-                raise  # unexpected error — let outer handler return 500
-            # User already exists — find them by iterating (pool is small for now)
+                raise
+            # User already exists — look up by derived email
             users_resp = sb.auth.admin.list_users()
-            existing = next((u for u in users_resp if u.phone == phone), None)
+            existing = next((u for u in users_resp if u.email == derived_email), None)
             if not existing:
                 raise RuntimeError(f"User with phone {phone} not found after duplicate error") from create_exc
             user_id = existing.id
