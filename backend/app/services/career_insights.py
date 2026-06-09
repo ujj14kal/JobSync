@@ -35,7 +35,8 @@ async def get_career_insights(
     Market is encoded into the cache_role key so india/global are stored separately.
     """
     supabase = get_supabase()
-    cache_role = f"{role}|{market}"  # encodes market into cache key, no migration needed
+    # v2 suffix busts any stale cache entries from before the INR scale fix
+    cache_role = f"{role}|{market}|v2"
 
     # ── DB cache ──────────────────────────────────────────────────────────────
     try:
@@ -93,46 +94,54 @@ async def _generate_india_insights(role: str, industry: str) -> dict:
     """
     current_year = datetime.now().year
 
-    prompt = f"""You are a senior HR analyst with access to 2024-{current_year} India job market data from Naukri.com, AmbitionBox, LinkedIn India Talent Insights, and NASSCOM annual reports.
+    prompt = f"""You are a senior HR analyst with deep knowledge of India's {current_year} job market (Naukri.com, AmbitionBox, LinkedIn India, NASSCOM).
 
-Generate accurate, realistic career insights for "{role}" in the Indian {industry} sector. Respond in JSON only — no markdown, no explanation.
+Generate accurate career insights for "{role}" in Indian {industry}. JSON only — no markdown.
 
-Use these Indian market benchmarks:
-- Salaries: metro cities (Bengaluru, Hyderabad, Pune, Chennai, Mumbai, Delhi NCR)
-- Entry = 0-3 yrs experience, Mid = 3-7 yrs, Senior = 7+ yrs
-- Salary values must be in raw Indian Rupees (e.g. 800000 = ₹8L, 2500000 = ₹25L)
-- Top hiring companies must be real companies actively hiring in India
-- Trending skills must reflect actual demand on Naukri/LinkedIn India job postings
-- openings_count = realistic active openings on Naukri + LinkedIn India combined
-- competition_level based on applications-per-opening ratio in India
-- avg_response_rate = % of applications that get a recruiter response in India
+CRITICAL — salary values MUST be in full Indian Rupees (annual CTC), NOT in lakhs, NOT monthly:
+  ✓ CORRECT: entry min=500000  (= ₹5 LPA)
+  ✓ CORRECT: mid   min=1500000 (= ₹15 LPA)
+  ✓ CORRECT: senior min=3000000 (= ₹30 LPA)
+  ✗ WRONG:   entry min=5   (do not write 5 to mean 5 lakhs)
+  ✗ WRONG:   entry min=50000 (do not write monthly figures)
 
-Return exactly this JSON:
+Realistic India metro CTC benchmarks (Bengaluru/Hyderabad/Pune/Mumbai/Delhi NCR):
+  Software Engineer:   entry 500000-900000, mid 900000-2000000,  senior 2000000-5000000
+  Data Scientist:      entry 600000-1200000, mid 1200000-2500000, senior 2500000-6000000
+  Product Manager:     entry 800000-1500000, mid 1500000-3000000, senior 3000000-7000000
+  DevOps/Cloud:        entry 500000-1000000, mid 1000000-2000000, senior 2000000-4500000
+  ML Engineer:         entry 700000-1400000, mid 1400000-3000000, senior 3000000-7000000
+  Frontend Engineer:   entry 400000-800000,  mid 800000-1800000,  senior 1800000-4000000
+  Backend Engineer:    entry 500000-900000,  mid 900000-2000000,  senior 2000000-4500000
+
+Use these as reference anchors and interpolate for "{role}".
+
+Return exactly this JSON (fill every zero/empty field with real data):
 {{
   "role": "{role}",
   "industry": "{industry}",
   "market": "india",
   "currency": "INR",
   "trending_skills": [
-    {{"skill": "", "trend": "rising", "demand_score": 0, "yoy_change": 0}},
-    {{"skill": "", "trend": "rising", "demand_score": 0, "yoy_change": 0}},
-    {{"skill": "", "trend": "stable", "demand_score": 0, "yoy_change": 0}},
-    {{"skill": "", "trend": "rising", "demand_score": 0, "yoy_change": 0}},
-    {{"skill": "", "trend": "stable", "demand_score": 0, "yoy_change": 0}},
-    {{"skill": "", "trend": "declining", "demand_score": 0, "yoy_change": 0}}
+    {{"skill": "", "trend": "rising",   "demand_score": 0, "yoy_change": 0}},
+    {{"skill": "", "trend": "rising",   "demand_score": 0, "yoy_change": 0}},
+    {{"skill": "", "trend": "rising",   "demand_score": 0, "yoy_change": 0}},
+    {{"skill": "", "trend": "stable",   "demand_score": 0, "yoy_change": 0}},
+    {{"skill": "", "trend": "stable",   "demand_score": 0, "yoy_change": 0}},
+    {{"skill": "", "trend": "declining","demand_score": 0, "yoy_change": 0}}
   ],
   "salary_range": {{
     "currency": "INR",
-    "location": "India (metro average)",
-    "entry": {{"min": 0, "max": 0}},
-    "mid": {{"min": 0, "max": 0}},
+    "location": "India (metro avg)",
+    "entry":  {{"min": 0, "max": 0}},
+    "mid":    {{"min": 0, "max": 0}},
     "senior": {{"min": 0, "max": 0}}
   }},
   "job_market": {{
     "openings_count": 0,
     "competition_level": "high",
     "avg_response_rate": 0,
-    "top_ats_systems": ["iCIMS", "Taleo", "Naukri RMS", "Keka", "Darwinbox"]
+    "top_ats_systems": ["Naukri RMS", "Keka", "Darwinbox", "iCIMS", "Workday"]
   }},
   "growth_projection": "",
   "top_companies": [],
@@ -143,7 +152,7 @@ Return exactly this JSON:
   ]
 }}
 
-Fill all zeroes with real data. top_companies = 8-10 real companies actively hiring this role in India right now."""
+top_companies: 8-10 real companies actively hiring this role in India (include Indian IT giants + product companies + MNC India offices)."""
 
     try:
         raw = await groq_call(
@@ -243,7 +252,7 @@ Fill all zeroes with real data. top_companies = 8-10 real global companies activ
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 def _normalize(data: dict) -> dict:
-    """Coerce LLM output fields to expected types."""
+    """Coerce LLM output fields to expected types and fix scale errors."""
     # top_companies — LLM sometimes returns objects
     if "top_companies" in data:
         data["top_companies"] = [
@@ -261,6 +270,34 @@ def _normalize(data: dict) -> dict:
     salary = data.get("salary_range") or {}
     if "location" in salary and not isinstance(salary["location"], str):
         salary["location"] = str(salary["location"])
+
+    # ── INR scale guard ─────────────────────────────────────────────────────
+    # LLMs sometimes return values in lakhs (5 instead of 500000) or monthly.
+    # Heuristic: for INR, a realistic entry-level min is ≥ 300 000 (₹3L).
+    # If entry min < 300 000 and > 0, the LLM used the wrong scale.
+    if data.get("currency") == "INR" or (salary.get("currency") == "INR"):
+        entry_min = (salary.get("entry") or {}).get("min", 0) or 0
+        if 0 < entry_min < 300_000:
+            # Detect scale: < 100 → values are in lakhs (multiply × 100 000)
+            #               100–9999 → values are in thousands (multiply × 1 000)
+            #               10 000–299 999 → values are monthly (multiply × 12)
+            if entry_min < 100:
+                factor = 100_000
+            elif entry_min < 10_000:
+                factor = 1_000
+            else:
+                factor = 12  # monthly → annual
+            logger.warning(
+                "INR salary scale mismatch detected",
+                entry_min=entry_min, factor=factor,
+            )
+            for level in ("entry", "mid", "senior"):
+                bucket = salary.get(level) or {}
+                if bucket.get("min"):
+                    bucket["min"] = int(bucket["min"] * factor)
+                if bucket.get("max"):
+                    bucket["max"] = int(bucket["max"] * factor)
+
     return data
 
 

@@ -243,7 +243,7 @@ export default function InsightsPage() {
                 <div className="flex items-center gap-2 mb-5">
                   <CurrencyIcon className="w-4 h-4 text-emerald-400" />
                   <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                    Salary Ranges · {insight.salary_range.location ?? (market === "india" ? "India" : "United States")}
+                    Salary Ranges · {market === "india" ? "India (metro avg)" : "United States"}
                   </h2>
                   <span className="ml-auto text-[10px] text-[var(--text-muted)]">
                     {market === "india" ? "per annum (CTC)" : "per year (base)"}
