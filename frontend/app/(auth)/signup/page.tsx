@@ -160,7 +160,7 @@ export default function SignupPage() {
     });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Account created! Check your email to verify.");
+    toast.success("Account created! Welcome to JobSynk.");
     router.push("/dashboard");
   }
 
