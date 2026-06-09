@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 // ── Plan data ─────────────────────────────────────────────────────────────────
 const FREE_FEATURES = [
-  "3 ATS analyses per day (Groq AI)",
+  "3 ATS analyses per day (JobSynk AI Engine)",
   "2 lifetime resume builder credits",
   "1 free text interview practice",
   "Job application tracker",
@@ -235,9 +235,9 @@ export default function PricingSection() {
           initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}} transition={{ delay: 0.45 }}>
           <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Why we charge</div>
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-            Free features use <strong>Groq (LLaMA 3.3 70B)</strong> for AI feedback and{" "}
-            <strong>sentence-transformers</strong> for local semantic matching — both run on our
-            infrastructure at no cost to you. Pro features use{" "}
+            ATS scoring is powered by the <strong>JobSynk Neural Scorer</strong> — our custom-trained
+            PyTorch model (6,000 resume-job pairs) that runs entirely on our own servers. AI feedback
+            text is generated via <strong>Groq (LLaMA 3.3 70B)</strong> at no cost. Pro features use{" "}
             <strong>Claude Sonnet by Anthropic</strong> — a frontier LLM that delivers deeper, more
             personalised feedback. It costs us real money per token (~₹4–6 per analysis). Pro pricing
             ensures we can keep the lights on while giving you the best possible quality. We never sell

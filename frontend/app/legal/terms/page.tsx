@@ -40,7 +40,7 @@ export default function TermsOfService() {
                 <li>JobSynk is not liable for any outcomes resulting from the use of AI-generated content.</li>
               </ul>
             </div>
-            <p>Free-tier features use <strong>Groq (LLaMA 3.3 70B)</strong> for AI analysis and feedback — your resume text is sent to Groq's API. Semantic matching uses <strong>sentence-transformers</strong> running within our own infrastructure (no data sent externally for this step). Pro-tier features use <strong>Claude Sonnet by Anthropic</strong>. Voice interview features use <strong>ElevenLabs</strong> for speech synthesis. Use of third-party features is subject to each provider's terms.</p>
+            <p>ATS scoring uses the <strong>JobSynk Neural Scorer</strong> — our custom-trained PyTorch model that runs entirely within JobSynk's own infrastructure (no data sent to any third party for scoring). AI-generated feedback text is produced by <strong>Groq (LLaMA 3.3 70B)</strong> — your resume text is sent to Groq's API for this step. Pro-tier features use <strong>Claude Sonnet by Anthropic</strong>. Voice interview features use <strong>ElevenLabs</strong> for speech synthesis. Use of third-party services is subject to each provider's terms.</p>
           </section>
 
           <section>

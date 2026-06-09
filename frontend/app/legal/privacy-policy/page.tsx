@@ -65,17 +65,17 @@ export default function PrivacyPolicy() {
             <div className="space-y-3">
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-[var(--text-primary)]">Groq (LLaMA 3.3 70B)</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(122,184,64,0.12)", color: "#7ab840" }}>Free tier · primary AI</span>
+                  <span className="font-semibold text-[var(--text-primary)]">JobSynk Neural Scorer</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(122,184,64,0.12)", color: "#7ab840" }}>Free tier · scoring · runs on our servers</span>
                 </div>
-                <p>Powers all free-tier AI analysis and feedback. When you use a free-tier AI feature, relevant data (resume text, job description) is sent to Groq's API. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-[#C05800] hover:underline">Groq Privacy Policy</a>. Groq does not use API data to train models.</p>
+                <p>Our custom-trained PyTorch model (trained on 6,000 resume-job pairs) that produces ATS scores across all 5 dimensions. Runs entirely within JobSynk's own infrastructure — your data is never sent to a third party for scoring.</p>
               </div>
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-[var(--text-primary)]">sentence-transformers (local embeddings)</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(100,116,139,0.12)", color: "var(--text-muted)" }}>Runs on our servers</span>
+                  <span className="font-semibold text-[var(--text-primary)]">Groq (LLaMA 3.3 70B)</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(100,116,139,0.12)", color: "var(--text-muted)" }}>Free tier · feedback text</span>
                 </div>
-                <p>Used for semantic matching between your resume and job descriptions. Runs entirely within JobSynk's own infrastructure — your data is never sent to a third party for this step.</p>
+                <p>Used to generate AI feedback text, bullet rewrites, and recruiter commentary on free-tier analyses. Your resume text is sent to Groq's API for this step. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-[#C05800] hover:underline">Groq Privacy Policy</a>. Groq does not use API data to train models.</p>
               </div>
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center justify-between mb-1">
