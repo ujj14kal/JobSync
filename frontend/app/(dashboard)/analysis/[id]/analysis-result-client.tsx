@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -149,6 +150,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
   const [tracked, setTracked] = useState(false);
+  const { showFeedback } = useFeedback();
 
   async function handleTrackJob() {
     if (!analysis || tracked) return;
@@ -181,7 +183,11 @@ export function AnalysisResultClient({ id }: { id: string }) {
     if (analysis?.status === "complete" || analysis?.status === "failed") {
       setPollingActive(false);
     }
-  }, [analysis?.status]);
+    if (analysis?.status === "complete") {
+      const t = setTimeout(() => showFeedback({ feature: "ats_analysis", analysisId: id }), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [analysis?.status, id, showFeedback]);
 
   if (isLoading) {
     return (

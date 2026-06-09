@@ -46,7 +46,7 @@ const RZP_THEME = {
 const rzpLogo = () =>
   typeof window !== "undefined"
     ? `${window.location.origin}/logo.png`
-    : "https://jobsynk.com/logo.png";
+    : "https://jobsynk.in/logo.png";
 
 interface CheckoutModalProps {
   plan:      string;   // "pro_monthly" | "pro_yearly" | product_id

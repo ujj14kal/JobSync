@@ -6,6 +6,7 @@ import { AuroraBackground } from "@/components/ui/aurora-background";
 import { PrefetchProvider } from "@/components/layout/prefetch-provider";
 import { UpsellProvider } from "@/components/billing/UpsellModal";
 import ChatSidebarClient from "@/components/chat/ChatSidebarClient";
+import { FeedbackProvider } from "@/components/feedback/FeedbackProvider";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default async function DashboardLayout({
   }
 
   return (
+    <FeedbackProvider>
     <UpsellProvider>
       <div className="relative flex h-screen bg-[var(--bg-base)] overflow-hidden">
         {/* Rich ambient aurora background */}
@@ -47,5 +49,6 @@ export default async function DashboardLayout({
         <ChatSidebarClient />
       </div>
     </UpsellProvider>
+    </FeedbackProvider>
   );
 }

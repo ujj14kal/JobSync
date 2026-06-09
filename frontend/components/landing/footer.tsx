@@ -4,6 +4,7 @@ import { Zap, Github } from "lucide-react";
 const LINKS = [
   { label: "Privacy Policy",  href: "/legal/privacy-policy" },
   { label: "Terms of Service", href: "/legal/terms" },
+  { label: "Support",          href: "/support" },
   { label: "Pricing",          href: "/#pricing" },
   { label: "GitHub",           href: "https://github.com/ujj14kal/JobSynk", external: true },
 ];

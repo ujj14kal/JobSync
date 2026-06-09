@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
             <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-3">1. Who we are</h2>
             <p>
               JobSynk ("we", "us", "our") is an AI-powered career platform operated by Ujjwal Kalra
-              ("owner", "operator"), accessible at <strong>jobsynk.com</strong>. By using JobSynk you
+              ("owner", "operator"), accessible at <strong>jobsynk.in</strong>. By using JobSynk you
               agree to this Privacy Policy.
             </p>
             <p className="mt-3">Contact: <a href="mailto:ujj.kalra10@gmail.com" className="text-[#C05800] hover:underline">ujj.kalra10@gmail.com</a></p>
