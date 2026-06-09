@@ -152,7 +152,7 @@ export default function SignupPage() {
     e.preventDefault();
     setLoading(true);
     await supabase.auth.signOut();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -161,6 +161,10 @@ export default function SignupPage() {
     });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
+    if (!data.user) {
+      toast.error("An account with this email already exists. Please sign in instead.");
+      return;
+    }
     toast.success("Account created! Welcome to JobSynk.");
     router.push("/dashboard");
   }
