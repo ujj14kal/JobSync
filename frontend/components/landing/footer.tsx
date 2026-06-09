@@ -69,9 +69,10 @@ export function Footer() {
         style={{ borderColor: "rgba(255,255,255,0.04)" }}
       >
         <p className="text-center text-[10px]" style={{ color: "rgba(100,116,139,0.5)" }}>
-          JobSynk is an AI-powered resume analysis and career platform. &nbsp;·&nbsp;
-          Gmail access is optional and used only to track job application statuses from recruiter emails. &nbsp;·&nbsp;
-          We never sell your data or use it for advertising. &nbsp;·&nbsp;
+          Scoring powered by the <strong style={{ color: "rgba(192,88,0,0.7)" }}>JobSynk AI Engine</strong> — our custom-trained neural model (6,000+ resume-job pairs). &nbsp;·&nbsp;
+          AI feedback via Groq (LLaMA 3.3 70B). &nbsp;·&nbsp;
+          Gmail access optional — used only to track job application statuses. &nbsp;·&nbsp;
+          We never sell your data. &nbsp;·&nbsp;
           <a href="/legal/privacy-policy" className="underline hover:text-white transition-colors">Privacy Policy</a>
           &nbsp;·&nbsp;
           <a href="/legal/terms" className="underline hover:text-white transition-colors">Terms</a>

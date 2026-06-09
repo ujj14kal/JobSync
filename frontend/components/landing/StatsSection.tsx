@@ -28,7 +28,7 @@ function CountUp({ to, suffix = "", prefix = "", decimals = 0, duration = 2.0 }:
 const STATS = [
   {
     value: 5, suffix: "", label: "AI Score Dimensions",
-    sublabel: "ATS · Technical · Semantic · Recruiter · Projects",
+    sublabel: "JobSynk AI Engine · ATS · Technical · Semantic · Recruiter · Projects",
     color: "#C05800", rgb: "192,88,0",
   },
   {
@@ -38,7 +38,7 @@ const STATS = [
   },
   {
     value: 30, suffix: "s", label: "Analysis Time",
-    sublabel: "Full AI report generated in under 30 seconds",
+    sublabel: "Neural scorer + AI feedback — full report in under 30 seconds",
     color: "#d4aa30", rgb: "212,170,48",
   },
   {

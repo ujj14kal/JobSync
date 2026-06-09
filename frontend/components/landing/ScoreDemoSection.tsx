@@ -83,7 +83,7 @@ export default function ScoreDemoSection() {
               }}
             >
               {/* Top bar */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="text-sm font-semibold text-primary">ATS Analysis Report</div>
                   <div className="text-xs text-muted mt-0.5">Senior ML Engineer · Google</div>
@@ -98,6 +98,13 @@ export default function ScoreDemoSection() {
                 >
                   79% Interview
                 </div>
+              </div>
+              {/* Engine attribution */}
+              <div className="flex items-center gap-1.5 mb-4 px-2.5 py-1.5 rounded-lg"
+                style={{ background: "rgba(192,88,0,0.08)", border: "1px solid rgba(192,88,0,0.18)" }}>
+                <Zap size={10} style={{ color: "#d97020" }} />
+                <span className="text-[10px] font-semibold" style={{ color: "#d97020" }}>JobSynk AI Engine</span>
+                <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.6)" }}>· custom neural scorer · runs on our servers</span>
               </div>
 
               {/* Donut */}
@@ -170,16 +177,17 @@ export default function ScoreDemoSection() {
             <div className="mb-6">
               <div className="chip-blue mb-4 inline-flex">
                 <BarChart3 size={12} />
-                ATS Intelligence
+                JobSynk AI Engine
               </div>
               <h2 className="text-4xl font-bold text-primary mb-4">
                 Scores that actually{" "}
                 <span className="gradient-blue">predict outcomes</span>
               </h2>
               <p className="text-secondary text-lg leading-relaxed">
-                Our 8-dimension ATS engine doesn&apos;t just count keywords.
-                It evaluates everything a recruiter looks for in 6 seconds —
-                then tells you exactly how to improve.
+                Our custom-trained neural model — built on 6,000 real resume-job
+                pairs — scores across 5 dimensions, evaluates everything a
+                recruiter looks for in 6 seconds, and runs entirely on our own
+                servers. No black-box APIs for scoring.
               </p>
             </div>
 

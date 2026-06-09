@@ -21,7 +21,7 @@ const FEATURES = [
       "Goes beyond keyword counting — understands context, seniority, and how your experience actually maps to what the job requires.",
     badge: "AI-Powered",
     badgeColor: "#C05800",
-    detail: "Section-level precision · Transferable skill detection · Context-aware",
+    detail: "JobSynk Neural Scorer · Section-level precision · Transferable skill detection · Context-aware",
   },
   {
     icon: Target,
@@ -33,7 +33,7 @@ const FEATURES = [
       "Predicts how likely you are to get shortlisted for a specific role — based on what actually gets people interviews, not guesswork.",
     badge: "Predictive AI",
     badgeColor: "#8c4a18",
-    detail: "Role-specific prediction · Confidence rating · Improves over time",
+    detail: "JobSynk AI Engine · Role-specific prediction · Confidence rating · Improves over time",
   },
   {
     icon: GitBranch,
@@ -54,10 +54,10 @@ const FEATURES = [
     beamTo: "#d4aa30",
     title: "Gets Smarter Over Time",
     description:
-      "Every application outcome in the platform makes the scoring sharper for everyone. The more you use it, the better it gets.",
-    badge: "Adaptive",
+      "The JobSynk AI Engine was trained on 6,000 real resume-job pairs and continues to improve. Every outcome signal sharpens the model for everyone on the platform.",
+    badge: "Adaptive AI",
     badgeColor: "#8c9a20",
-    detail: "Improves with usage · Trend tracking · Keyword insights",
+    detail: "Custom PyTorch model · Trained on real data · Improves with usage",
   },
   {
     icon: Zap,

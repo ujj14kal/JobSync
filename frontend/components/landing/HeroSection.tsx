@@ -351,7 +351,7 @@ export default function HeroSection() {
               }}
             >
               <Sparkles size={14} className="text-[#d97020]" />
-              <span>JobSynk AI — free for students &amp; job seekers</span>
+              <span>Powered by <strong>JobSynk AI Engine</strong> — our custom-trained neural model</span>
             </div>
           </motion.div>
 
