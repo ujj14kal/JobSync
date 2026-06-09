@@ -272,23 +272,28 @@ def _normalize(data: dict) -> dict:
         salary["location"] = str(salary["location"])
 
     # ── INR scale guard ─────────────────────────────────────────────────────
-    # LLMs sometimes return values in lakhs (5 instead of 500000) or monthly.
-    # Heuristic: for INR, a realistic entry-level min is ≥ 300 000 (₹3L).
-    # If entry min < 300 000 and > 0, the LLM used the wrong scale.
-    if data.get("currency") == "INR" or (salary.get("currency") == "INR"):
+    # LLMs frequently confuse: raw rupees vs lakhs vs monthly vs thousands.
+    # Anchor: a realistic Software Engineer entry-level CTC in India is
+    # at least ₹3L (300,000). Anything below that means wrong scale.
+    is_inr = (data.get("currency") == "INR") or (salary.get("currency") == "INR")
+    if is_inr:
         entry_min = (salary.get("entry") or {}).get("min", 0) or 0
         if 0 < entry_min < 300_000:
-            # Detect scale: < 100 → values are in lakhs (multiply × 100 000)
-            #               100–9999 → values are in thousands (multiply × 1 000)
-            #               10 000–299 999 → values are monthly (multiply × 12)
-            if entry_min < 100:
+            # Scale detection:
+            #   < 50        → LLM wrote lakhs (e.g. "5" meaning ₹5L) → × 100 000
+            #   50–999      → LLM wrote thousands (e.g. "500" meaning ₹5L) → × 1 000
+            #   1 000–9 999 → ambiguous thousands → × 100
+            #   10 000–299 999 → monthly figure → × 12
+            if entry_min < 50:
                 factor = 100_000
-            elif entry_min < 10_000:
+            elif entry_min < 1_000:
                 factor = 1_000
+            elif entry_min < 10_000:
+                factor = 100
             else:
                 factor = 12  # monthly → annual
             logger.warning(
-                "INR salary scale mismatch detected",
+                "INR salary scale mismatch — auto-correcting",
                 entry_min=entry_min, factor=factor,
             )
             for level in ("entry", "mid", "senior"):
@@ -297,6 +302,13 @@ def _normalize(data: dict) -> dict:
                     bucket["min"] = int(bucket["min"] * factor)
                 if bucket.get("max"):
                     bucket["max"] = int(bucket["max"] * factor)
+        # Final sanity: if entry max is still less than 100 000 (< ₹1L), clamp to fallback
+        entry_max = (salary.get("entry") or {}).get("max", 0) or 0
+        if 0 < entry_max < 100_000:
+            logger.warning("INR salary still too low after correction — using fallback values")
+            salary["entry"]  = {"min": 500_000,   "max": 1_000_000}
+            salary["mid"]    = {"min": 1_000_000,  "max": 2_200_000}
+            salary["senior"] = {"min": 2_200_000,  "max": 5_000_000}
 
     return data
 

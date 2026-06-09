@@ -108,7 +108,8 @@ export default function InsightsPage() {
       );
       return data as CareerInsight & { market?: string; currency?: string };
     },
-    staleTime: 30 * 60 * 1000,
+    staleTime: 0,          // always refetch fresh from backend on mount
+    gcTime: 5 * 60 * 1000, // keep in memory 5 min so switching tabs is instant
     retry: 2,
   });
 
