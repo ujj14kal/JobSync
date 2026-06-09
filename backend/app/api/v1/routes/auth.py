@@ -155,10 +155,12 @@ async def phone_login(body: PhoneLoginRequest):
             if not existing:
                 raise HTTPException(status_code=409, detail="Email already in use by another account")
             existing_uid = (existing.user_metadata or {}).get("firebase_uid", "")
-            if existing_uid and existing_uid != firebase_uid:
+            if existing_uid != firebase_uid:
+                # Includes the case where existing_uid is "" (no firebase_uid = not a
+                # phone-auth account) — never let a phone signup hijack it.
                 raise HTTPException(
                     status_code=409,
-                    detail="This email is already linked to a different account. Use a different email address.",
+                    detail="This email is already registered. Please use a different email or sign in.",
                 )
             # Same firebase_uid — returning user. Refresh password so sign-in works.
             sb.auth.admin.update_user_by_id(existing.id, {"password": user_password})
