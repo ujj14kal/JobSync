@@ -1,22 +1,14 @@
 """
-AI Feedback Generator — multi-tier inference with Groq as last resort.
+AI Feedback Generator — tiered by plan.
 
-Priority chain (for each request):
-  1. Template feedback (rule-based, zero LLM)  — always fast, no rate limits
-     → Used when: extreme scores (very high/low), high server load, force_template=True
-  2. Ollama (local LLM, unlimited)             — used when Ollama is running
-     → Ideal for self-hosted deployments
-  3. Groq API (cloud fallback, rate-limited)   — only when scores are borderline
-     AND local inference is unavailable AND LLM slot is free
+Free users  → Groq LLaMA 3.3-70b (quality) + 3.1-8b (fast)
+Pro users   → Claude Sonnet (deeper, more specific feedback)
 
-This ensures:
-  - 100 simultaneous users: all get instant template feedback
-  - Medium load: borderline cases get enriched Ollama/Groq feedback
-  - Groq rate limit is practically never hit under normal usage
-
-Model routing (for Groq/Ollama):
-  - generate_recruiter_feedback → quality tier (llama3.3-70b / llama3.2:3b)
-  - generate_bullet_rewrites   → fast tier    (llama3.1-8b  / llama3.2:1b)
+Model routing:
+  - generate_recruiter_feedback        → Groq quality tier  (free)
+  - generate_recruiter_feedback_claude → Claude Sonnet      (pro)
+  - generate_bullet_rewrites           → Groq fast tier     (free)
+  - generate_bullet_rewrites_claude    → Claude Sonnet      (pro)
 """
 from __future__ import annotations
 
@@ -100,6 +92,180 @@ Return JSON with this exact structure:
     except Exception:
         logger.error("LLM recruiter feedback failed", exc_info=True)
         raise
+
+
+# ─── Claude Sonnet feedback (Pro tier) ───────────────────────────────────────
+
+async def generate_recruiter_feedback_claude(
+    resume_text: str,
+    job_text: str,
+    parsed_resume: dict,
+    parsed_job: dict,
+    scores: dict,
+    missing_keywords: list[dict],
+    user_id: str,
+) -> dict:
+    """
+    Pro-tier recruiter feedback powered by Claude Sonnet.
+    Deeper analysis, more specific, richer improvement suggestions.
+    """
+    from app.services.claude_client import claude_complete
+
+    score_line = (
+        f"Overall {scores.get('overall_score', 0)}/100 | "
+        f"ATS {scores.get('ats_score', 0)}/100 | "
+        f"Technical Fit {scores.get('technical_fit_score', 0)}/100 | "
+        f"Semantic {scores.get('semantic_match_score', 0)}/100 | "
+        f"Recruiter {scores.get('recruiter_impression_score', 0)}/100"
+    )
+    missing_str = ", ".join(kw["keyword"] for kw in missing_keywords[:15])
+
+    system = (
+        "You are a senior technical recruiter with 15+ years hiring for top tech companies. "
+        "You give brutally honest, deeply specific feedback. You always reference actual content "
+        "from the resume by name — specific projects, companies, exact technologies, real bullet points. "
+        "Never write generic advice. Every point must be traceable to something in the resume or JD."
+    )
+
+    user_msg = f"""Analyse this resume against this job description. Return JSON only — no markdown.
+
+=== RESUME ===
+{resume_text[:4000]}
+
+=== JOB DESCRIPTION ===
+{job_text[:2500]}
+
+=== ATS SCORES (JobSynk Neural Scorer) ===
+{score_line}
+Missing keywords: {missing_str}
+
+Return this exact JSON structure:
+{{
+  "recruiter_summary": "4-5 sentences: brutally honest, specific assessment of THIS application for THIS role. Name the candidate. Reference specific projects/technologies. State clearly what's missing and what's impressive.",
+  "strengths": [
+    {{"title": "", "description": "reference specific resume content by name", "impact": "high|medium|low"}}
+  ],
+  "weaknesses": [
+    {{"title": "", "description": "specific gap vs JD requirements", "severity": "critical|major|minor", "section": "experience|skills|education|projects"}}
+  ],
+  "skill_gaps": [
+    {{"skill": "", "importance": "critical|important|nice_to_have", "how_to_acquire": "specific actionable path with resource names", "time_to_learn": "realistic estimate", "resources": ["specific course/book/project"]}}
+  ],
+  "improvement_suggestions": [
+    {{"category": "ATS|Skills|Experience|Projects|Format", "title": "", "description": "exactly what to change and why it matters for this role", "priority": "high|medium|low", "action": "precise next step they can take today"}}
+  ]
+}}
+
+Provide 4-6 items per section. Be specific — a candidate should read this and know exactly what to do next."""
+
+    try:
+        raw = await claude_complete(
+            user_id=user_id,
+            feature="ats_feedback",
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=2500,
+            skip_quota_check=True,  # analysis quota already checked upstream
+        )
+        # Claude sometimes wraps in ```json ... ```
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("```", 2)[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.rstrip("`").strip()
+        result = json.loads(text)
+        result["_source"] = "claude-sonnet"
+        return result
+    except json.JSONDecodeError as e:
+        logger.error("Claude returned invalid JSON for recruiter feedback", error=str(e))
+        raise ValueError("AI returned malformed feedback") from e
+    except Exception as e:
+        logger.error("Claude recruiter feedback failed — falling back to Groq", error=str(e))
+        # Fall back to Groq so analysis never fully fails
+        return await generate_recruiter_feedback(
+            resume_text=resume_text,
+            job_text=job_text,
+            parsed_resume=parsed_resume,
+            parsed_job=parsed_job,
+            scores=scores,
+            missing_keywords=missing_keywords,
+        )
+
+
+async def generate_bullet_rewrites_claude(
+    parsed_resume: dict,
+    parsed_job: dict,
+    user_id: str,
+) -> list[dict]:
+    """
+    Pro-tier bullet rewrites powered by Claude Sonnet.
+    More context-aware, role-specific rewrites.
+    """
+    from app.services.claude_client import claude_complete
+
+    bullets_ctx = _collect_bullets(parsed_resume, limit=10)
+    if not bullets_ctx:
+        return []
+
+    job_title = parsed_job.get("title", "Software Engineer")
+    req_skills = ", ".join(parsed_job.get("required_skills", [])[:10])
+    preferred  = ", ".join(parsed_job.get("preferred_skills", [])[:6])
+    bullets_str = "\n".join(
+        f"{i+1}. [{bc['section']}] {bc['bullet']}"
+        for i, bc in enumerate(bullets_ctx)
+    )
+
+    system = (
+        "You are an expert resume writer who specialises in tech roles. "
+        "You rewrite resume bullets to be tighter, more impactful, and optimised for ATS and recruiters. "
+        "You preserve the candidate's actual experience — you never invent metrics or technologies they didn't mention."
+    )
+
+    user_msg = f"""Rewrite these resume bullets for a {job_title} role.
+
+Required skills: {req_skills}
+Preferred: {preferred}
+
+BULLETS:
+{bullets_str}
+
+Rules:
+- Start with a strong action verb (Architected, Reduced, Shipped, Led, Scaled…)
+- Add a real metric where the original implies one (%, $, users, ms latency…)
+- Make it directly relevant to the role's requirements above
+- Keep it under 120 characters
+- Never invent technologies or achievements not in the original
+
+Return JSON only:
+{{"rewrites":[{{"section":"","original":"","rewritten":"","improvement_reason":"specific reason this version is stronger for {job_title}","metrics_added":true|false}}]}}"""
+
+    try:
+        raw = await claude_complete(
+            user_id=user_id,
+            feature="ats_feedback",
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=2000,
+            skip_quota_check=True,
+        )
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("```", 2)[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.rstrip("`").strip()
+        result = json.loads(text)
+        rewrites = result.get("rewrites", [])
+        for r in rewrites:
+            r["_source"] = "claude-sonnet"
+        return rewrites
+    except Exception as e:
+        logger.error("Claude bullet rewrites failed — falling back to Groq", error=str(e))
+        return await generate_bullet_rewrites(
+            parsed_resume=parsed_resume,
+            parsed_job=parsed_job,
+        )
 
 
 # ─── Bullet Rewrites ──────────────────────────────────────────────────────────

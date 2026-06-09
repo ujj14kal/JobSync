@@ -387,10 +387,10 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* JobSynk AI badge row */}
+      {/* Badge row */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
         className="flex flex-wrap items-center gap-2">
-        {/* Always show JobSynk AI as the scorer */}
+        {/* Scoring — always JobSynk Neural Scorer */}
         <span className={cn(
           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
           analysis.scored_by === "jobsync-custom-ai"
@@ -401,7 +401,21 @@ export function AnalysisResultClient({ id }: { id: string }) {
           Scored by JobSynk AI
         </span>
 
-        {/* Fallback badge — only shown when Groq LLM was the actual scorer */}
+        {/* Feedback model badge — Claude for Pro, Groq for free */}
+        {(analysis as any).feedback_model === "claude-sonnet" ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border"
+            style={{ background: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.3)", color: "#a78bfa" }}>
+            <Sparkles className="w-3 h-3" />
+            Feedback by Claude Sonnet · Pro
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/20 text-[var(--text-muted)]">
+            <Brain className="w-3 h-3" />
+            Feedback by JobSynk AI
+          </span>
+        )}
+
+        {/* Fallback badge */}
         {analysis.scored_by === "groq-llm" && (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-amber-400/10 border-amber-400/25 text-amber-400">
             <Sparkles className="w-3 h-3" />
@@ -431,10 +445,20 @@ export function AnalysisResultClient({ id }: { id: string }) {
           className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--accent-subtle)]"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
+            {(analysis as any).feedback_model === "claude-sonnet"
+              ? <Sparkles className="w-4 h-4" style={{ color: "#a78bfa" }} />
+              : <Brain className="w-4 h-4 text-[var(--accent-primary)]" />}
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-              JobSynk AI Recruiter Analysis
+              {(analysis as any).feedback_model === "claude-sonnet"
+                ? "Claude Sonnet Recruiter Analysis"
+                : "JobSynk AI Recruiter Analysis"}
             </span>
+            {(analysis as any).feedback_model === "claude-sonnet" && (
+              <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa" }}>
+                Pro · Claude Sonnet
+              </span>
+            )}
           </div>
           <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
             {analysis.recruiter_summary}
@@ -449,7 +473,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
           <div className="flex items-center gap-2 mb-3">
             <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Reasoning</span>
-            <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
+            <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Neural Scorer</span>
           </div>
           <div className="space-y-2">
             {(Object.entries(analysis.ai_reasoning) as [string, string][])
@@ -610,7 +634,9 @@ export function AnalysisResultClient({ id }: { id: string }) {
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
                 <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Improvement Suggestions</span>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
+                {(analysis as any).feedback_model === "claude-sonnet"
+                  ? <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa" }}>Claude Sonnet · Pro</span>
+                  : <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">JobSynk AI</span>}
               </div>
               {analysis.improvement_suggestions.map((s, i) => (
                 <div
@@ -654,7 +680,9 @@ export function AnalysisResultClient({ id }: { id: string }) {
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-[var(--accent-primary)]" />
                 <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk AI Resume Rewriter</span>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">Powered by JobSynk AI</span>
+                {(analysis as any).feedback_model === "claude-sonnet"
+                  ? <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa" }}>Claude Sonnet · Pro</span>
+                  : <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">JobSynk AI</span>}
               </div>
               <p className="text-[13px] text-[var(--text-secondary)] mb-2">
                 JobSynk AI-rewritten bullet points with stronger verbs, quantified metrics, and role-specific language.

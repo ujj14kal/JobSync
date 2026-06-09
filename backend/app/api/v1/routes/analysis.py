@@ -11,7 +11,13 @@ from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
 from app.services.ats_engine import compute_all_scores
 from app.services.ai_scorer import score_with_ai_timeout
-from app.services.ai_feedback import generate_recruiter_feedback, generate_bullet_rewrites
+from app.services.ai_feedback import (
+    generate_recruiter_feedback,
+    generate_bullet_rewrites,
+    generate_recruiter_feedback_claude,
+    generate_bullet_rewrites_claude,
+)
+from app.services.claude_client import get_user_plan
 from app.services.embedding_service import embed_text
 from app.services.cache_service import (
     get_cached_analysis,
@@ -268,38 +274,62 @@ async def run_analysis(
         ai_weaknesses = ai_result.get("key_weaknesses", [])
         scored_by = ai_result.get("scored_by", "ai")
 
-        # ── LLM feedback (strengths/weaknesses/suggestions/rewrites) ──────────
-        # Run in parallel — feedback uses scores from AI scorer as context
-        # Run feedback + rewrites in parallel with a hard 35s timeout.
-        # If Groq is slow or rate-limited, we return structured fallback
-        # instead of hanging the entire request.
-        feedback_task = asyncio.create_task(
-            generate_recruiter_feedback(
-                resume_text=resume_text,
-                job_text=job_text,
-                parsed_resume=parsed_resume,
-                parsed_job=parsed_job,
-                scores=scores,
-                missing_keywords=missing_keywords,
+        # ── LLM feedback — routed by plan ─────────────────────────────────────
+        # Pro  → Claude Sonnet  (deeper, more specific, 50s timeout)
+        # Free → Groq LLaMA 3.3 (quality tier, 35s timeout)
+        is_pro = (await get_user_plan(user_id)) == "pro"
+        feedback_model = "claude-sonnet" if is_pro else "groq"
+
+        if is_pro:
+            feedback_task = asyncio.create_task(
+                generate_recruiter_feedback_claude(
+                    resume_text=resume_text,
+                    job_text=job_text,
+                    parsed_resume=parsed_resume,
+                    parsed_job=parsed_job,
+                    scores=scores,
+                    missing_keywords=missing_keywords,
+                    user_id=user_id,
+                )
             )
-        )
-        rewrites_task = asyncio.create_task(
-            generate_bullet_rewrites(
-                parsed_resume=parsed_resume,
-                parsed_job=parsed_job,
+            rewrites_task = asyncio.create_task(
+                generate_bullet_rewrites_claude(
+                    parsed_resume=parsed_resume,
+                    parsed_job=parsed_job,
+                    user_id=user_id,
+                )
             )
-        )
+            feedback_timeout = 50.0
+        else:
+            feedback_task = asyncio.create_task(
+                generate_recruiter_feedback(
+                    resume_text=resume_text,
+                    job_text=job_text,
+                    parsed_resume=parsed_resume,
+                    parsed_job=parsed_job,
+                    scores=scores,
+                    missing_keywords=missing_keywords,
+                )
+            )
+            rewrites_task = asyncio.create_task(
+                generate_bullet_rewrites(
+                    parsed_resume=parsed_resume,
+                    parsed_job=parsed_job,
+                )
+            )
+            feedback_timeout = 35.0
 
         try:
             feedback, rewrites = await asyncio.wait_for(
                 asyncio.gather(feedback_task, rewrites_task),
-                timeout=35.0,
+                timeout=feedback_timeout,
             )
         except asyncio.TimeoutError:
             feedback_task.cancel()
             rewrites_task.cancel()
             feedback = {}
             rewrites = []
+            feedback_model = "timeout"
 
         # Merge AI key_strengths/weaknesses with LLM-generated feedback
         strengths = feedback.get("strengths") or [
@@ -324,6 +354,7 @@ async def run_analysis(
             "recruiter_summary": feedback.get("recruiter_summary", ""),
             "ai_reasoning": ai_reasoning,
             "scored_by": scored_by,
+            "feedback_model": feedback_model,
             "hire_recommendation": ai_result.get("hire_recommendation", ""),
             "seniority_match": ai_result.get("seniority_match", ""),
         }
