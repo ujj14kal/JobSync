@@ -269,7 +269,9 @@ export default function InsightsPage() {
                           {formatSalary(range.max, effectiveCurrency)}
                         </div>
                         <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                          {market === "india" ? "lakhs per annum" : "per year"}
+                          {market === "india"
+                            ? (range.min >= 100_000 ? "LPA (lakhs per annum)" : "per annum")
+                            : "per year"}
                         </div>
                       </div>
                     ))}
