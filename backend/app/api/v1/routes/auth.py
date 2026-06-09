@@ -14,6 +14,8 @@ access_token + refresh_token the frontend can call setSession() with.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 from functools import lru_cache
@@ -117,6 +119,14 @@ async def phone_login(body: PhoneLoginRequest):
     user_email = body.email.strip() if body.email and body.email.strip() else \
         f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
 
+    # Derive a stable password from the firebase_uid + secret key.
+    # Never shown to the user — only used server-side to issue a session.
+    user_password = hmac.new(
+        settings.SECRET_KEY.encode(),
+        firebase_uid.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
     try:
         metadata = {
             "firebase_uid": firebase_uid,
@@ -127,30 +137,29 @@ async def phone_login(body: PhoneLoginRequest):
             "auth_provider": "firebase_phone",
         }
         try:
-            new_user = sb.auth.admin.create_user({
+            sb.auth.admin.create_user({
                 "email": user_email,
+                "password": user_password,
                 "email_confirm": True,
                 "user_metadata": metadata,
             })
-            user_id = new_user.id
-            logger.info("Created new Supabase user %s for phone %s", user_id, phone)
+            logger.info("Created new Supabase user for phone %s", phone)
         except Exception as create_exc:
             err_str = str(create_exc).lower()
             if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
                 raise
-            # User already exists — look up by email
-            users_resp = sb.auth.admin.list_users()
-            existing = next((u for u in users_resp if u.email == user_email), None)
-            if not existing:
-                raise RuntimeError(f"User with phone {phone} not found after duplicate error") from create_exc
-            user_id = existing.id
-            logger.info("Found existing Supabase user %s for phone %s", user_id, phone)
+            logger.info("User already exists for phone %s", phone)
 
-        # 3. Create a Supabase session for this user (supabase-py ≥ 2.5)
-        session = sb.auth.admin.create_session(user_id)
+        # Sign in with the derived password to get a real session
+        from supabase import create_client
+        sb_anon = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+        session_resp = sb_anon.auth.sign_in_with_password({"email": user_email, "password": user_password})
+        session = session_resp.session
+        user_id = session_resp.user.id
+
         return SessionResponse(
-            access_token=session.session.access_token,
-            refresh_token=session.session.refresh_token,
+            access_token=session.access_token,
+            refresh_token=session.refresh_token,
             user_id=user_id,
             phone=phone,
         )
