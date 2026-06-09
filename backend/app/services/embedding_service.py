@@ -14,22 +14,24 @@ from __future__ import annotations
 
 import numpy as np
 from pathlib import Path
-from typing import List, Optional
-from sentence_transformers import SentenceTransformer
+from typing import List, Optional, TYPE_CHECKING
 from app.core.config import settings
 import structlog
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = structlog.get_logger()
 
 FINE_TUNED_DIR = Path(__file__).resolve().parent.parent.parent / "models" / "jobsync-embedder-v1"
 STRONG_BASE_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
-# Module-level cache — allow external code to invalidate (embedder_trainer does this)
-_model_instance: Optional[SentenceTransformer] = None
+_model_instance: Optional["SentenceTransformer"] = None
 _model_name_used: str = ""
 
 
-def _load_model() -> SentenceTransformer:
+def _load_model() -> "SentenceTransformer":
+    from sentence_transformers import SentenceTransformer  # deferred — avoids PyTorch import at startup
     """Load model with priority: fine-tuned → strong base → config default."""
     global _model_instance, _model_name_used
 
