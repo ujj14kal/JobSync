@@ -80,8 +80,10 @@ steps:
       - --max-instances=3
       - --timeout=300
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
-      - --set-env-vars=^|^APP_VERSION=$COMMIT_SHA|DEBUG=false|SECRET_KEY=b4a1e968e620500dd27b653d56ec565c78b14827516e1fbeec0384efa2609644|SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co|SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE|MAX_CONCURRENT_ANALYSES=8|MAX_CONCURRENT_LLM_CALLS=3|BACKEND_CORS_ORIGINS=$_CORS_ORIGINS|GOOGLE_CLIENT_ID=329097420297-1vkhlbuo9igbalo7mj30vik5652dm16h.apps.googleusercontent.com|GOOGLE_REDIRECT_URI=https://jobsync-329097420297.asia-south1.run.app/api/v1/gmail/callback|FRONTEND_URL=https://job-sync-gilt.vercel.app
-      - --set-secrets=GROQ_API_KEY=groq-api-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,FIREBASE_SERVICE_ACCOUNT_JSON=firebase-service-account:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest
+      # --update-env-vars: only updates listed vars, preserves all others already
+      # set on Cloud Run (e.g. FIREBASE_SERVICE_ACCOUNT_JSON, RAZORPAY_*, ELEVENLABS_*).
+      # Never use --set-env-vars here — it wipes everything not listed.
+      - --update-env-vars=^|^APP_VERSION=$COMMIT_SHA|DEBUG=false|SECRET_KEY=b4a1e968e620500dd27b653d56ec565c78b14827516e1fbeec0384efa2609644|SUPABASE_URL=https://dzdziagugdcbkictslrt.supabase.co|SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6ZHppYWd1Z2RjYmtpY3RzbHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTcwMjYsImV4cCI6MjA5NTQzMzAyNn0.1nf7Um3PDSZMzHaBmf2bIzgEqzwpClEp1i_leRnLBYE|MAX_CONCURRENT_ANALYSES=8|MAX_CONCURRENT_LLM_CALLS=3|BACKEND_CORS_ORIGINS=$_CORS_ORIGINS|GOOGLE_CLIENT_ID=329097420297-1vkhlbuo9igbalo7mj30vik5652dm16h.apps.googleusercontent.com|GOOGLE_REDIRECT_URI=https://jobsync-329097420297.asia-south1.run.app/api/v1/gmail/callback|FRONTEND_URL=https://jobsynk.in
 
 images:
   - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME:latest
