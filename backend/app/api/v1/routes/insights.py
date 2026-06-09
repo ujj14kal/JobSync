@@ -10,7 +10,11 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 async def get_insights(
     role: str = "Software Engineer",
     industry: str = "Technology",
+    market: str = "global",  # "india" | "global"
     user_id: str = Depends(get_current_user_id),
 ):
-    """Get career insights for a role."""
-    return await get_career_insights(role=role, industry=industry)
+    """Get career insights for a role. market='india' returns INR salaries + Indian data."""
+    market = market.lower().strip()
+    if market not in ("india", "global"):
+        market = "global"
+    return await get_career_insights(role=role, industry=industry, market=market)
