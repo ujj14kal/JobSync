@@ -95,9 +95,10 @@ export default function SignupPage() {
   const [showPass, setShowPass] = useState(false);
 
   // Phone / Firebase state
-  const [phone,   setPhone]   = useState("");
-  const [otp,     setOtp]     = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [phone,      setPhone]      = useState("");
+  const [phoneEmail, setPhoneEmail] = useState("");
+  const [otp,        setOtp]        = useState("");
+  const [otpSent,    setOtpSent]    = useState(false);
 
   const [loading, setLoading] = useState(false);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +220,7 @@ export default function SignupPage() {
         body: JSON.stringify({
           id_token:     idToken,
           phone,
+          email:        phoneEmail,
           full_name:    fullName,
           career_stage: careerStage,
           target_role:  targetRole,
@@ -350,6 +352,16 @@ export default function SignupPage() {
                   careerStage={careerStage} setCareerStage={setCareerStage}
                   targetRole={targetRole} setTargetRole={setTargetRole}
                 />
+
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                    <input type="email" value={phoneEmail} onChange={(e) => setPhoneEmail(e.target.value)}
+                      placeholder="you@example.com" required
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Phone number</label>

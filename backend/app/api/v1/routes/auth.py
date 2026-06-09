@@ -69,6 +69,7 @@ def _supabase_admin():
 class PhoneLoginRequest(BaseModel):
     id_token: str   # Firebase ID token obtained after OTP verification
     phone: str      # E.164 format e.g. +919876543210 (used for display / profile)
+    email: str = ""
     full_name: str = ""
     career_stage: str = ""
     target_role: str = ""
@@ -111,9 +112,10 @@ async def phone_login(body: PhoneLoginRequest):
     # 2. Upsert Supabase user (admin API — no password required)
     sb = _supabase_admin()
 
-    # Derive a stable email from the phone so GoTrue doesn't need phone auth enabled.
-    # Phone users never sign in via email — this is just a unique key for Supabase.
-    derived_email = f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
+    # Use real email if provided; fall back to a derived key so GoTrue doesn't
+    # need phone auth enabled. Derived email is never shown or emailed to the user.
+    user_email = body.email.strip() if body.email and body.email.strip() else \
+        f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
 
     try:
         metadata = {
@@ -126,7 +128,7 @@ async def phone_login(body: PhoneLoginRequest):
         }
         try:
             new_user = sb.auth.admin.create_user({
-                "email": derived_email,
+                "email": user_email,
                 "email_confirm": True,
                 "user_metadata": metadata,
             })
@@ -136,9 +138,9 @@ async def phone_login(body: PhoneLoginRequest):
             err_str = str(create_exc).lower()
             if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
                 raise
-            # User already exists — look up by derived email
+            # User already exists — look up by email
             users_resp = sb.auth.admin.list_users()
-            existing = next((u for u in users_resp if u.email == derived_email), None)
+            existing = next((u for u in users_resp if u.email == user_email), None)
             if not existing:
                 raise RuntimeError(f"User with phone {phone} not found after duplicate error") from create_exc
             user_id = existing.id
