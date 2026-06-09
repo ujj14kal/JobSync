@@ -148,12 +148,21 @@ async def phone_login(body: PhoneLoginRequest):
             err_str = str(create_exc).lower()
             if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
                 raise
-            # User exists but may have been created without a password — set it now
+            # Email already exists — only allow sign-in if it belongs to THIS firebase_uid.
+            # If a different user owns this email, reject to prevent account hijacking.
             users_resp = sb.auth.admin.list_users()
             existing = next((u for u in users_resp if u.email == user_email), None)
-            if existing:
-                sb.auth.admin.update_user_by_id(existing.id, {"password": user_password})
-                logger.info("Updated password for existing user %s", existing.id)
+            if not existing:
+                raise HTTPException(status_code=409, detail="Email already in use by another account")
+            existing_uid = (existing.user_metadata or {}).get("firebase_uid", "")
+            if existing_uid and existing_uid != firebase_uid:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This email is already linked to a different account. Use a different email address.",
+                )
+            # Same firebase_uid — returning user. Refresh password so sign-in works.
+            sb.auth.admin.update_user_by_id(existing.id, {"password": user_password})
+            logger.info("Returning phone user %s — refreshed password", existing.id)
 
         # Sign in with the derived password to get a real session
         from supabase import create_client
