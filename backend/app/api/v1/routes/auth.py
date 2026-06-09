@@ -223,7 +223,7 @@ async def google_login(body: GoogleLoginRequest):
                     "auth_provider": "firebase_google",
                 },
             })
-            user_id = new_user.id
+            user_id = new_user.user.id
             logger.info("Created new Supabase user %s for email %s", user_id, email)
         except Exception as create_exc:
             err_str = str(create_exc).lower()
