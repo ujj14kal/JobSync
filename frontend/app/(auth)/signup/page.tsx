@@ -151,6 +151,7 @@ export default function SignupPage() {
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    await supabase.auth.signOut();
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -209,6 +210,7 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
+    await supabase.auth.signOut();
     try {
       const credential = await window.confirmationResult.confirm(otp);
       const idToken = await credential.user!.getIdToken();

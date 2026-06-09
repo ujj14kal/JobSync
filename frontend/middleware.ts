@@ -51,8 +51,10 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthPage =
-    pathname.startsWith("/login") || pathname.startsWith("/signup");
+  // Only redirect logged-in users away from /login.
+  // /signup is intentionally excluded — users should be able to create a new
+  // account even if they already have a session (the signup handler signs out first).
+  const isAuthPage = pathname.startsWith("/login");
 
   const isDashboard =
     pathname.startsWith("/dashboard") ||
