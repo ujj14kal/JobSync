@@ -148,7 +148,12 @@ async def phone_login(body: PhoneLoginRequest):
             err_str = str(create_exc).lower()
             if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
                 raise
-            logger.info("User already exists for phone %s", phone)
+            # User exists but may have been created without a password — set it now
+            users_resp = sb.auth.admin.list_users()
+            existing = next((u for u in users_resp if u.email == user_email), None)
+            if existing:
+                sb.auth.admin.update_user_by_id(existing.id, {"password": user_password})
+                logger.info("Updated password for existing user %s", existing.id)
 
         # Sign in with the derived password to get a real session
         from supabase import create_client
