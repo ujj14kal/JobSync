@@ -30,23 +30,47 @@ logger = logging.getLogger(__name__)
 _INPUT_COST_PER_TOKEN  = 3.0  / 1_000_000   # $3/MTok
 _OUTPUT_COST_PER_TOKEN = 15.0 / 1_000_000   # $15/MTok
 
-# Monthly feature limits for Pro users (matches config + DB)
+# Monthly feature limits for Pro subscription users
 FEATURE_LIMITS: dict[str, str] = {
-    "ats":              "ats_count",
+    "ats_feedback":     "ats_count",
     "resume":           "resume_count",
     "cover_letter":     "cover_count",
     "interview":        "interview_text_count",
     "voice":            "interview_voice_count",
     "chat":             None,  # tracked by chat_tokens, not count
+    # legacy keys kept for backwards compat
+    "ats":              "ats_count",
 }
 
 FEATURE_CAP: dict[str, int] = {
-    "ats":          settings.PRO_MONTHLY_ATS,
-    "resume":       settings.PRO_MONTHLY_RESUMES,
-    "cover_letter": settings.PRO_MONTHLY_COVERS,
-    "interview":    settings.PRO_MONTHLY_INTERVIEWS,
-    "voice":        settings.PRO_MONTHLY_VOICE,
-    # chat capped by PRO_MONTHLY_CHAT_TOKENS in token count, not call count
+    "ats_feedback":  settings.PRO_MONTHLY_ATS,
+    "ats":           settings.PRO_MONTHLY_ATS,
+    "resume":        settings.PRO_MONTHLY_RESUMES,
+    "cover_letter":  settings.PRO_MONTHLY_COVERS,
+    "interview":     settings.PRO_MONTHLY_INTERVIEWS,
+    "voice":         settings.PRO_MONTHLY_VOICE,
+}
+
+# feature → credit_type in user_credits table
+# (matches PRODUCTS dict in payments.py)
+FEATURE_TO_CREDIT_TYPE: dict[str, str] = {
+    "ats_feedback":  "ats_deep",
+    "ats":           "ats_deep",
+    "resume":        "resume",
+    "cover_letter":  "cover_letter",
+    "interview":     "interview_text",
+    "voice":         "interview_voice",
+}
+
+# Human-readable labels for the warning message
+FEATURE_LABELS: dict[str, str] = {
+    "ats_feedback":  "ATS Deep Analysis",
+    "ats":           "ATS Deep Analysis",
+    "resume":        "Resume Builder",
+    "cover_letter":  "Cover Letter",
+    "interview":     "AI Interview (Text)",
+    "voice":         "AI Interview (Voice)",
+    "chat":          "Ask Claude Chat",
 }
 
 
@@ -108,28 +132,111 @@ async def get_monthly_usage(user_id: str) -> dict:
     }
 
 
-async def check_feature_quota(user_id: str, feature: str) -> tuple[bool, str]:
-    """
-    Returns (allowed: bool, message: str).
-    Checks plan + monthly limit for the given feature.
-    """
-    plan = await get_user_plan(user_id)
-    if plan != "pro":
-        return False, "This feature requires a Pro subscription (₹299/month or ₹2,499/year)."
-
-    col = FEATURE_LIMITS.get(feature)
-    cap = FEATURE_CAP.get(feature)
-    if col is None or cap is None:
-        return True, ""  # chat or uncapped feature
-
-    usage = await get_monthly_usage(user_id)
-    current = usage.get(col, 0)
-    if current >= cap:
-        return False, (
-            f"You've reached your monthly limit of {cap} {feature.replace('_', ' ')} "
-            "uses. Limit resets on the 1st of next month."
+async def get_user_credits(user_id: str, credit_type: str) -> int:
+    """Returns remaining credits for the given credit_type, or 0."""
+    supabase = get_supabase()
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.table("user_credits")
+            .select("credits_remaining")
+            .eq("user_id", user_id)
+            .eq("credit_type", credit_type)
+            .gt("credits_remaining", 0)
+            .limit(1)
+            .execute()
         )
-    return True, ""
+        if result.data:
+            return int(result.data[0]["credits_remaining"])
+    except Exception as e:
+        logger.warning("get_user_credits failed (non-fatal): %s", e)
+    return 0
+
+
+async def consume_credit(user_id: str, credit_type: str) -> bool:
+    """
+    Atomically decrements credits_remaining by 1 (if > 0).
+    Calls the consume_user_credit Postgres function to avoid race conditions.
+    Returns True on success.
+    """
+    supabase = get_supabase()
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.rpc("consume_user_credit", {
+                "p_user_id": user_id,
+                "p_credit_type": credit_type,
+            }).execute()
+        )
+        return True
+    except Exception as e:
+        logger.warning("consume_credit failed (non-fatal): %s", e)
+        return False
+
+
+async def check_feature_quota(
+    user_id: str,
+    feature: str,
+) -> tuple[bool, str]:
+    """
+    Credit-aware quota check. Returns (allowed: bool, message: str).
+
+    Decision tree:
+    1. Pro subscription  → allowed if within monthly limit
+    2. Credits for THIS feature → allowed, consume 1 credit
+    3. Credits for a DIFFERENT feature → blocked, show specific warning
+    4. No sub, no credits → upgrade prompt
+    """
+    # ── 1. Check Pro subscription ────────────────────────────────────────────
+    plan = await get_user_plan(user_id)
+    if plan == "pro":
+        col = FEATURE_LIMITS.get(feature)
+        cap = FEATURE_CAP.get(feature)
+        if col is None or cap is None:
+            return True, ""  # uncapped (e.g. chat)
+        usage = await get_monthly_usage(user_id)
+        current = usage.get(col, 0)
+        if current >= cap:
+            return False, (
+                f"You've reached your monthly limit of {cap} "
+                f"{FEATURE_LABELS.get(feature, feature)} uses. "
+                "Limit resets on the 1st of next month."
+            )
+        return True, ""
+
+    # ── 2 & 3. Check one-time credits ───────────────────────────────────────
+    requested_credit_type = FEATURE_TO_CREDIT_TYPE.get(feature)
+
+    # Check if user has credits for THIS feature
+    if requested_credit_type:
+        this_credits = await get_user_credits(user_id, requested_credit_type)
+        if this_credits > 0:
+            # Consume 1 credit and allow
+            await consume_credit(user_id, requested_credit_type)
+            return True, ""
+
+    # Check if user has credits for ANY OTHER feature (so we can show a helpful warning)
+    all_credit_types = set(FEATURE_TO_CREDIT_TYPE.values())
+    for other_credit_type in all_credit_types:
+        if other_credit_type == requested_credit_type:
+            continue
+        other_count = await get_user_credits(user_id, other_credit_type)
+        if other_count > 0:
+            # Find a human-readable label for what they paid for
+            other_feature_label = next(
+                (FEATURE_LABELS[f] for f, ct in FEATURE_TO_CREDIT_TYPE.items() if ct == other_credit_type),
+                other_credit_type.replace("_", " ").title(),
+            )
+            current_feature_label = FEATURE_LABELS.get(feature, feature.replace("_", " ").title())
+            return False, (
+                f"You have {other_count} {other_feature_label} credit{'s' if other_count != 1 else ''} remaining. "
+                f"Claude is available only for {other_feature_label}. "
+                f"{current_feature_label} runs on our free AI model."
+            )
+
+    # ── 4. No sub, no credits ────────────────────────────────────────────────
+    return False, (
+        "This feature requires a Pro subscription (₹299/month or ₹2,499/year) "
+        "or a one-time credit pack."
+    )
 
 
 # ── Token logging ─────────────────────────────────────────────────────────────

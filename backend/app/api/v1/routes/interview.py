@@ -29,7 +29,12 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
-from app.services.claude_client import get_user_plan
+from app.services.claude_client import (
+    get_user_plan,
+    get_user_credits,
+    consume_credit,
+    claude_complete,
+)
 from app.services.groq_limiter import groq_call
 
 # ── In-memory voice session tracker ──────────────────────────────────────────
@@ -151,9 +156,9 @@ async def start_interview(
         "mixed":       "a mix of behavioral, technical, and situational",
     }.get(body.interview_type, "mixed")
 
-    resume_section = f"\n=== CANDIDATE'S RESUME ===\n{resume_text[:3000]}\n" if resume_text else ""
+    resume_section = f"\n=== CANDIDATE'S RESUME ===\n{resume_text[:3500]}\n" if resume_text else ""
 
-    prompt = (
+    prompt_content = (
         f"Generate {body.num_questions} {type_hint} interview questions for a "
         f"{body.experience_level}-level {body.role} position.\n"
         f"{resume_section}\n"
@@ -166,22 +171,47 @@ async def start_interview(
         '"ideal_points": ["what a strong answer covers"]}]'
     )
 
+    # Route to Claude for Pro or interview_text credit holders
+    is_pro = (await get_user_plan(user_id)) == "pro"
+    interview_credits = 0 if is_pro else await get_user_credits(user_id, "interview_text")
+    use_claude = is_pro or interview_credits > 0
+
+    if use_claude and not is_pro:
+        await consume_credit(user_id, "interview_text")
+
     try:
-        raw = await groq_call(
-            model=settings.GROQ_FAST_MODEL,
-            messages=[
-                {"role": "system", "content": INTERVIEW_SYSTEM},
-                {"role": "user",   "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=1800,
-            json_mode=True,
-            use_cache=False,
-        )
-        questions = json.loads(raw)
+        if use_claude:
+            raw = await claude_complete(
+                user_id=user_id,
+                feature="interview",
+                system=INTERVIEW_SYSTEM,
+                messages=[{"role": "user", "content": prompt_content}],
+                max_tokens=2200,
+                skip_quota_check=True,
+            )
+            model_used = "claude-sonnet"
+        else:
+            raw = await groq_call(
+                model=settings.GROQ_FAST_MODEL,
+                messages=[
+                    {"role": "system", "content": INTERVIEW_SYSTEM},
+                    {"role": "user",   "content": prompt_content},
+                ],
+                temperature=0.7,
+                max_tokens=1800,
+                json_mode=True,
+                use_cache=False,
+            )
+            model_used = "groq"
+
+        questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
-        return {"questions": questions[:body.num_questions], "role": body.role}
+        return {
+            "questions": questions[:body.num_questions],
+            "role": body.role,
+            "_model": model_used,
+        }
     except Exception as e:
         logger.error("Interview question generation failed", exc_info=e)
         raise HTTPException(status_code=502, detail="Could not generate questions")
@@ -243,19 +273,40 @@ async def start_hirevue_interview(
         '"ideal_points": ["what a strong answer covers"]}]'
     )
 
+    # Route to Claude for Pro or interview_text credit holders
+    is_pro = (await get_user_plan(user_id)) == "pro"
+    interview_credits = 0 if is_pro else await get_user_credits(user_id, "interview_text")
+    use_claude = is_pro or interview_credits > 0
+
+    if use_claude and not is_pro:
+        await consume_credit(user_id, "interview_text")
+
     try:
-        raw = await groq_call(
-            model=settings.GROQ_MODEL,  # use full model for better personalization
-            messages=[
-                {"role": "system", "content": INTERVIEW_SYSTEM},
-                {"role": "user",   "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=2400,
-            json_mode=True,
-            use_cache=False,
-        )
-        questions = json.loads(raw)
+        if use_claude:
+            raw = await claude_complete(
+                user_id=user_id,
+                feature="interview",
+                system=INTERVIEW_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=2800,
+                skip_quota_check=True,
+            )
+            model_used = "claude-sonnet"
+        else:
+            raw = await groq_call(
+                model=settings.GROQ_MODEL,  # use full model for better personalization
+                messages=[
+                    {"role": "system", "content": INTERVIEW_SYSTEM},
+                    {"role": "user",   "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=2400,
+                json_mode=True,
+                use_cache=False,
+            )
+            model_used = "groq"
+
+        questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
 
@@ -264,6 +315,7 @@ async def start_hirevue_interview(
             "role": body.role,
             "company": body.company,
             "resume_loaded": bool(resume_text),
+            "_model": model_used,
         }
     except Exception as e:
         logger.error("HireVue question generation failed", exc_info=e)
@@ -386,19 +438,9 @@ async def text_to_speech(
             # Within an active session window — no need to consume another credit
             pass
         else:
-            # Need to open a new session — consume 1 voice credit
-            supabase = get_supabase()
-            credit = await asyncio.to_thread(
-                lambda: supabase.table("user_credits")
-                .select("id, credits_remaining")
-                .eq("user_id", user_id)
-                .eq("credit_type", "interview_voice")
-                .gt("credits_remaining", 0)
-                .order("created_at")
-                .limit(1)
-                .execute()
-            )
-            if not credit.data:
+            # Need to open a new session — consume 1 voice credit atomically
+            voice_credits = await get_user_credits(user_id, "interview_voice")
+            if voice_credits <= 0:
                 raise HTTPException(
                     status_code=403,
                     detail=(
@@ -407,17 +449,10 @@ async def text_to_speech(
                         "Upgrade at /settings."
                     ),
                 )
-            # Atomically decrement the credit
-            row = credit.data[0]
-            await asyncio.to_thread(
-                lambda: supabase.table("user_credits")
-                .update({"credits_remaining": row["credits_remaining"] - 1})
-                .eq("id", row["id"])
-                .execute()
-            )
+            await consume_credit(user_id, "interview_voice")
             # Open session window — free TTS calls for the next 90 min
             _voice_sessions[user_id] = now + _VOICE_SESSION_TTL
-            logger.info("Voice session opened for user %s (credit consumed)", user_id)
+            logger.info("Voice session opened for user %s (credit consumed, remaining: ~%d)", user_id, voice_credits - 1)
 
     text = body.text[:300].strip()  # hard cap: 300 chars per TTS call
     if not text:

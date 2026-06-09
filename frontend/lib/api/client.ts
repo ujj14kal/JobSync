@@ -24,6 +24,14 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Custom error class so callers can distinguish credit warnings
+export class CreditWarningError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CreditWarningError";
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -31,6 +39,26 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== "undefined") {
       window.location.href = "/login?reason=session_expired";
       return Promise.reject(new Error("Session expired. Redirecting to login…"));
+    }
+
+    // 403 from Claude quota check → show credit warning toast globally
+    if (error.response?.status === 403 && typeof window !== "undefined") {
+      const detail =
+        error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "";
+      // Detect the "credits for different service" message from check_feature_quota
+      const isCreditWarning =
+        typeof detail === "string" &&
+        detail.includes("credit") &&
+        detail.includes("Claude is available only for");
+
+      if (isCreditWarning) {
+        window.dispatchEvent(
+          new CustomEvent("jobsync:credit-warning", { detail })
+        );
+        return Promise.reject(new CreditWarningError(detail));
+      }
     }
 
     // Network error (no response at all)

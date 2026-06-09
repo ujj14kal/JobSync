@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,27 @@ const persister = createSyncStoragePersister({
   throttleTime: 1000,
 });
 
+// Global listener for Claude credit warning events (fired by apiClient interceptor)
+function CreditWarningListener() {
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent<string>).detail;
+      toast.warning(msg, {
+        duration: 8000,
+        style: {
+          background: "rgba(234,179,8,0.12)",
+          border: "1px solid rgba(234,179,8,0.4)",
+          color: "#fef08a",
+        },
+        icon: "⚡",
+      });
+    };
+    window.addEventListener("jobsync:credit-warning", handler);
+    return () => window.removeEventListener("jobsync:credit-warning", handler);
+  }, []);
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PersistQueryClientProvider
@@ -40,6 +62,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
+      <CreditWarningListener />
       {children}
       <Toaster
         theme="dark"

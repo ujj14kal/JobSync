@@ -17,7 +17,7 @@ from app.services.ai_feedback import (
     generate_recruiter_feedback_claude,
     generate_bullet_rewrites_claude,
 )
-from app.services.claude_client import get_user_plan
+from app.services.claude_client import get_user_plan, get_user_credits, consume_credit
 from app.services.embedding_service import embed_text
 from app.services.cache_service import (
     get_cached_analysis,
@@ -274,13 +274,21 @@ async def run_analysis(
         ai_weaknesses = ai_result.get("key_weaknesses", [])
         scored_by = ai_result.get("scored_by", "ai")
 
-        # ── LLM feedback — routed by plan ─────────────────────────────────────
-        # Pro  → Claude Sonnet  (deeper, more specific, 50s timeout)
-        # Free → Groq LLaMA 3.3 (quality tier, 35s timeout)
+        # ── LLM feedback — routed by plan / credits ───────────────────────────
+        # Pro subscription → Claude Sonnet (within monthly limit)
+        # ats_deep credit  → Claude Sonnet (consume 1 credit)
+        # Free / no credits → Groq LLaMA 3.3 (quality tier)
         is_pro = (await get_user_plan(user_id)) == "pro"
-        feedback_model = "claude-sonnet" if is_pro else "groq"
+        ats_credits = 0 if is_pro else await get_user_credits(user_id, "ats_deep")
+        use_claude = is_pro or ats_credits > 0
 
-        if is_pro:
+        if use_claude and not is_pro:
+            # Consume one ats_deep credit atomically before calling Claude
+            await consume_credit(user_id, "ats_deep")
+
+        feedback_model = "claude-sonnet" if use_claude else "groq"
+
+        if use_claude:
             feedback_task = asyncio.create_task(
                 generate_recruiter_feedback_claude(
                     resume_text=resume_text,

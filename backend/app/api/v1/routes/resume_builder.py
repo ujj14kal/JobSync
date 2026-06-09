@@ -25,6 +25,8 @@ from app.services.claude_client import (
     claude_complete,
     get_user_plan,
     get_monthly_usage,
+    get_user_credits,
+    consume_credit,
 )
 from app.services.groq_limiter import groq_call
 
@@ -1039,32 +1041,16 @@ async def generate_resume(
     usage = await get_monthly_usage(user_id)
     used  = usage.get("resume_count", 0)
 
-    # ── Check for purchased resume_pack credits (non-Pro) ────────────────────
+    # ── Check for purchased resume credits (non-Pro) ─────────────────────────
+    # credit_type stored in DB is "resume" (set by payments.py PRODUCTS["resume_pack"]["type"])
     using_credit = False
     if plan != "pro":
-        sb = get_supabase()
-        credit = await asyncio.to_thread(
-            lambda: sb.table("user_credits")
-            .select("id, credits_remaining")
-            .eq("user_id", user_id)
-            .eq("credit_type", "resume_pack")
-            .gt("credits_remaining", 0)
-            .order("created_at")
-            .limit(1)
-            .execute()
-        )
-        if credit.data:
-            # Consume 1 credit and unlock Claude for this generation
-            row = credit.data[0]
-            await asyncio.to_thread(
-                lambda: sb.table("user_credits")
-                .update({"credits_remaining": row["credits_remaining"] - 1})
-                .eq("id", row["id"])
-                .execute()
-            )
+        resume_credits = await get_user_credits(user_id, "resume")
+        if resume_credits > 0:
+            await consume_credit(user_id, "resume")
             using_credit = True
             plan = "pro"  # treat as Pro for this request
-            logger.info("Resume pack credit consumed for user %s (remaining: %d)", user_id, row["credits_remaining"] - 1)
+            logger.info("Resume credit consumed for user %s (remaining: ~%d)", user_id, resume_credits - 1)
 
     if plan == "pro":
         if not using_credit and used >= PRO_RESUME_LIMIT:
