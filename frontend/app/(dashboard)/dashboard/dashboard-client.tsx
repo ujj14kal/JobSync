@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
 import { resumeApi } from "@/lib/api/resume";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
+import { settingsApi } from "@/lib/api/settings";
 import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -205,12 +206,22 @@ const cardItem   = { hidden: { opacity: 0, y: 20, scale: 0.97 }, show: { opacity
 const listItem   = { hidden: { opacity: 0, x: -12 },             show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 28 } } };
 
 export function DashboardClient({ user }: { user: SupabaseUser | null }) {
-  const name = user?.user_metadata?.full_name?.split(" ")[0] ?? "there";
+  const metaName = user?.user_metadata?.full_name?.split(" ")[0];
 
   // Defer React Query cache-driven content to after mount to prevent hydration mismatch.
   // The persisted cache resolves synchronously on the client before React hydrates.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Fallback: if user_metadata lacks full_name (phone signups), pull from user_profiles
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: settingsApi.getProfile,
+    enabled: !metaName,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const name = metaName || profile?.full_name?.split(" ")[0] || "there";
 
   const { data: analyses, isLoading: analysesLoading } = useQuery({
     queryKey: ["analyses"],

@@ -162,8 +162,12 @@ async def phone_login(body: PhoneLoginRequest):
                     status_code=409,
                     detail="This email is already registered. Please use a different email or sign in.",
                 )
-            # Same firebase_uid — returning user. Refresh password so sign-in works.
-            sb.auth.admin.update_user_by_id(existing.id, {"password": user_password})
+            # Same firebase_uid — returning user. Refresh password and backfill full_name if missing.
+            existing_meta = existing.user_metadata or {}
+            update_payload: dict = {"password": user_password}
+            if body.full_name and not existing_meta.get("full_name"):
+                update_payload["user_metadata"] = {**existing_meta, "full_name": body.full_name}
+            sb.auth.admin.update_user_by_id(existing.id, update_payload)
             logger.info("Returning phone user %s — refreshed password", existing.id)
 
         # Sign in with the derived password to get a real session
@@ -172,6 +176,17 @@ async def phone_login(body: PhoneLoginRequest):
         session_resp = sb_anon.auth.sign_in_with_password({"email": user_email, "password": user_password})
         session = session_resp.session
         user_id = session_resp.user.id
+
+        # Upsert user_profiles so the settings page shows the name immediately
+        if body.full_name:
+            try:
+                sb.table("user_profiles").upsert(
+                    {"id": user_id, "full_name": body.full_name},
+                    on_conflict="id",
+                    ignore_duplicates=False,
+                ).execute()
+            except Exception:
+                pass  # non-critical, don't fail login
 
         return SessionResponse(
             access_token=session.access_token,
