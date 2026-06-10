@@ -1,4 +1,4 @@
-"""Mentor discovery and recommendation endpoints."""
+"""Mentor discovery endpoints."""
 from __future__ import annotations
 
 from typing import Optional
@@ -7,11 +7,7 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
-from app.services.mentor_finder import (
-    find_mentors_for_analysis, rank_mentors,
-    fetch_unstop_mentors as scrape_unstop_mentors,
-    _platform_card,
-)
+from app.services.mentor_finder import find_mentors_for_analysis, _platform_card
 
 router = APIRouter(prefix="/mentors", tags=["mentors"])
 
@@ -24,24 +20,14 @@ class MentorSearchRequest(BaseModel):
     platform: Optional[str] = None
 
 
-class UnstopDiscoverRequest(BaseModel):
-    target_role: str
-    target_company: Optional[str] = None
-    skills: list[str] = []
-
-
 @router.get("/recommendations/{analysis_id}")
 async def get_mentor_recommendations(
     analysis_id: str,
     country: Optional[str] = None,
     user_id: str = Depends(get_current_user_id),
 ):
-    """
-    Get personalized mentor recommendations based on an analysis.
-    """
     supabase = get_supabase()
 
-    # Get analysis details
     analysis = (
         supabase.table("analyses")
         .select("*, job_descriptions(*)")
@@ -58,12 +44,10 @@ async def get_mentor_recommendations(
     job = a.get("job_descriptions") or {}
     parsed_job = job.get("parsed_data", {})
 
-    # Extract context
     target_role = parsed_job.get("title", "Software Engineer")
     target_company = job.get("company_name", "")
     skill_gaps = [sg["skill"] for sg in (a.get("skill_gaps") or [])[:5]]
 
-    # Get user profile for career stage
     profile = (
         supabase.table("user_profiles")
         .select("career_stage")
@@ -73,7 +57,6 @@ async def get_mentor_recommendations(
     )
     career_stage = profile.data.get("career_stage", "entry") if profile.data else "entry"
 
-    # Find mentors (country drives region-specific results)
     mentors = await find_mentors_for_analysis(
         target_role=target_role,
         target_company=target_company,
@@ -82,7 +65,6 @@ async def get_mentor_recommendations(
         analysis_embedding=a.get("embedding") or [],
         country=country or "",
     )
-
     return mentors
 
 
@@ -91,61 +73,14 @@ async def search_mentors(
     request: MentorSearchRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Generic mentor search."""
-    supabase = get_supabase()
-
-    # Try DB first
-    query = supabase.table("mentors").select("*").limit(50)
-
-    if request.platform and request.platform != "All":
-        query = query.eq("platform", request.platform.lower())
-
-    result = query.execute()
-    mentors = result.data or []
-
     role = request.role or "Software Engineer"
     skills = request.skills or []
 
-    if not mentors:
-        scraped = await scrape_unstop_mentors(role=role, skills=skills)
-        mentors.extend(scraped)
-
-    # Add platform suggestion cards for platforms with no scraped data
-    has_adplist = any(m.get("platform") == "adplist" for m in mentors)
-    has_unstop = any(m.get("platform") == "unstop" for m in mentors)
-    if not has_adplist:
-        mentors.append(_platform_card("adplist", role, skills))
-    if not has_unstop:
-        mentors.append(_platform_card("unstop", role, skills))
-    mentors.append(_platform_card("linkedin", role, skills))
-
-    ranked = rank_mentors(
-        mentors=mentors,
+    mentors = await find_mentors_for_analysis(
         target_role=role,
         target_company=request.company or "",
         skill_gaps=skills,
         career_stage=request.career_stage or "entry",
+        analysis_embedding=[],
     )
-    return ranked[:25]
-
-
-@router.post("/discover/unstop")
-async def discover_unstop_mentors(
-    request: UnstopDiscoverRequest,
-    user_id: str = Depends(get_current_user_id),
-):
-    """Discover mentors from Unstop for a specific role."""
-    mentors = await scrape_unstop_mentors(
-        role=request.target_role,
-        skills=request.skills,
-    )
-
-    ranked = rank_mentors(
-        mentors=mentors,
-        target_role=request.target_role,
-        target_company=request.target_company or "",
-        skill_gaps=request.skills,
-        career_stage="entry",
-    )
-
-    return ranked
+    return mentors

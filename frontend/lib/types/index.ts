@@ -209,7 +209,7 @@ export interface Mentor {
   name: string;
   title: string;
   company: string;
-  platform: "unstop" | "adplist" | "linkedin" | "mentorcruise" | "toptal" | "other";
+  platform: "unstop" | "adplist" | "linkedin" | "mentorcruise" | "topmate" | "toptal" | "other";
   profile_url: string;
   search_url?: string;       // always-valid platform search URL (fallback)
   is_generated?: boolean;    // true = AI-generated (should not appear anymore)
