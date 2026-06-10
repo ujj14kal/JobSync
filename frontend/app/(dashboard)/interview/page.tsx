@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api/client";
 import { chatApi } from "@/lib/api/chat";
+import { CheckoutModal } from "@/components/billing/CheckoutModal";
 import {
   Mic, MicOff, ChevronRight, CheckCircle2, AlertCircle,
   RotateCcw, Sparkles, Brain, Loader2, ArrowRight,
@@ -382,7 +383,7 @@ function AnalysisScreen({
 export default function InterviewPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const { data: status } = useQuery({
+  const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ["chat-status"],
     queryFn: chatApi.getStatus,
     staleTime: 60_000,
@@ -391,6 +392,7 @@ export default function InterviewPage() {
   const isPro = mounted && status?.is_pro === true;
   const hasInterviewCredits = mounted && (status?.interview_credits ?? 0) > 0;
   const canStartInterview = isPro || hasInterviewCredits;
+  const [showBuySession, setShowBuySession] = useState(false);
 
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
@@ -801,8 +803,7 @@ export default function InterviewPage() {
 
   async function startInterview() {
     if (!canStartInterview) {
-      // No Pro plan and no purchased session — go straight to per-session buy, no upsell modal
-      window.location.href = "https://jobsynk.in/billing?session=interview";
+      setShowBuySession(true);
       return;
     }
     setPhase("analyzing");
@@ -1428,6 +1429,20 @@ export default function InterviewPage() {
           </motion.div>
         )}
 
+      </AnimatePresence>
+
+      {/* Per-session purchase — ₹149 via Razorpay */}
+      <AnimatePresence>
+        {showBuySession && (
+          <CheckoutModal
+            plan="interview_text"
+            onClose={() => setShowBuySession(false)}
+            onSuccess={() => {
+              setShowBuySession(false);
+              refetchStatus();
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
   );

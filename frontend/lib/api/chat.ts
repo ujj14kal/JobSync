@@ -11,6 +11,7 @@ export const chatApi = {
       chat_tokens_remaining: number;
       pct_used: number;
       warning: boolean;
+      interview_credits: number;
     };
   },
 
