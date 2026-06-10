@@ -38,7 +38,6 @@ const PRO_FEATURES = [
   "5 AI resume generations (Sonnet)",
   "3 AI cover letters (Sonnet)",
   "2 text AI interviews (Sonnet)",
-  "1 voice AI interview (ElevenLabs)",
   "Ask Claude chat assistant",
   "PDF report exports",
   "Priority processing",

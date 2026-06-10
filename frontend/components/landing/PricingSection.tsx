@@ -25,7 +25,6 @@ const PRO_FEATURES = [
   { label: "5 AI resume generations",          highlight: false },
   { label: "3 AI cover letters/month",         highlight: false },
   { label: "2 text AI interviews/month",       highlight: false },
-  { label: "1 voice interview (ElevenLabs)",   highlight: true  },
   { label: "Ask Claude chat assistant",        highlight: true  },
   { label: "PDF report exports",               highlight: false },
   { label: "Claude Sonnet for everything",     highlight: true  },
@@ -37,7 +36,7 @@ const INDIVIDUAL = [
   { id: "resume_pack",     label: "Resume Pack",               price: "₹299", per: "10 generations",   icon: Sparkles },
   { id: "cover_letter",    label: "Cover Letter",              price: "₹99",  per: "per letter",       icon: TrendingUp },
   { id: "interview_text",  label: "AI Interview (Text)",       price: "₹149", per: "per session",      icon: MessageSquare },
-  { id: "interview_voice", label: "AI Interview (Voice)",      price: "₹349", per: "ElevenLabs + Sonnet", icon: Zap },
+  { id: "interview_voice", label: "AI Interview (Voice)",      price: "₹149", per: "ElevenLabs + Sonnet", icon: Zap },
 ];
 
 export default function PricingSection() {

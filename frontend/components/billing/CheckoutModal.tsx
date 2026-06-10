@@ -60,7 +60,7 @@ const PLAN_LABELS: Record<string, { label: string; amount: string; desc: string 
   resume_pack: { label: "Resume Pack",    amount: "₹299",        desc: "10 AI resume generations" },
   cover_letter:{ label: "Cover Letter",   amount: "₹99",         desc: "1 AI cover letter (Sonnet)" },
   interview_text: { label: "AI Interview (Text)",  amount: "₹149", desc: "1 full text interview session" },
-  interview_voice:{ label: "AI Interview (Voice)", amount: "₹349", desc: "1 voice interview (ElevenLabs + Sonnet)" },
+  interview_voice:{ label: "AI Interview (Voice)", amount: "₹149", desc: "1 voice interview (ElevenLabs + Sonnet)" },
   ats_deep:    { label: "ATS Deep Analysis", amount: "₹59",      desc: "1 Claude Sonnet ATS analysis" },
 };
 

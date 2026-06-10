@@ -70,15 +70,15 @@ class Settings(BaseSettings):
     # Cost breakdown per Pro user worst-case (₹299/month revenue):
     #   Resume × 5  : Claude Sonnet ~₹27.50  (5 × 4K output + 2K input)
     #   Chat 50K tok: Claude Sonnet ~₹25.00
-    #   Voice × 1   : ElevenLabs   ~₹28.00  (1 session × 3K chars)
+    #   Voice: credit-only purchase at ₹149/session (cost ~₹28, margin ~81%)
     #   Everything else (ATS, interviews, covers): Groq = ₹0.00 (free tier)
     #   ─────────────────────────────────────────────────────
-    #   Total worst-case AI cost: ~₹80   →  margin ~73% on ₹299
+    #   Total worst-case AI cost (Claude only): ~₹116  →  margin ~61% on ₹299
     PRO_MONTHLY_ATS: int = 15           # Groq → free; limit is fair-use cap only
     PRO_MONTHLY_RESUMES: int = 5        # Claude → ~₹27.50 total
     PRO_MONTHLY_COVERS: int = 5         # Groq → free; bumped from 3 (more generous)
     PRO_MONTHLY_INTERVIEWS: int = 10    # Groq → free; bumped from 2 (more generous)
-    PRO_MONTHLY_VOICE: int = 2          # ElevenLabs → ~₹56 total; bumped from 1
+    PRO_MONTHLY_VOICE: int = 0          # Voice is a credit-only purchase (₹149/session), not included in Pro
     PRO_MONTHLY_CHAT_TOKENS: int = 50000   # Claude → ~₹25 worst-case (~35-40 msgs)
 
     # Embeddings
