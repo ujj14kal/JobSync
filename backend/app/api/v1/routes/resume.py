@@ -2,14 +2,45 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.core.security import get_current_user_id
+from app.core.config import settings
 from app.db.supabase_client import get_supabase
 from app.services.resume_parser import extract_text, parse_resume
 from app.services.embedding_service import embed_text
 
 router = APIRouter(prefix="/resume", tags=["resume"])
+
+
+async def _extract_name_with_llm(text: str) -> str | None:
+    """Use Groq to extract candidate name from the first ~500 chars of resume text."""
+    try:
+        from app.services.groq_limiter import groq_call
+        snippet = text[:500].strip()
+        raw = await groq_call(
+            model=settings.GROQ_FAST_MODEL,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Extract the full name of the job candidate from this resume header. "
+                    "Reply with ONLY the name (e.g. 'Jane Doe'). "
+                    "If you cannot find a name, reply with 'UNKNOWN'.\n\n"
+                    f"{snippet}"
+                ),
+            }],
+            temperature=0,
+            max_tokens=20,
+        )
+        name = raw.strip().strip('"').strip("'")
+        if name and name.upper() != "UNKNOWN" and len(name) < 60:
+            # Sanity: looks like a real name (letters + spaces only)
+            if re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ\s\-\.\']+$", name):
+                return name
+    except Exception:
+        pass
+    return None
 
 ALLOWED_TYPES = {
     "application/pdf",
@@ -97,6 +128,12 @@ async def upload_resume(
             return None
 
     parsed_data, embedding = await asyncio.gather(_parse(), _embed())
+
+    # If regex couldn't extract the name, try LLM fallback
+    if not parsed_data.get("contact", {}).get("name"):
+        llm_name = await _extract_name_with_llm(raw_text)
+        if llm_name:
+            parsed_data.setdefault("contact", {})["name"] = llm_name
 
     # Deactivate previous + insert new in sequence (ordering matters)
     await asyncio.to_thread(

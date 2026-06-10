@@ -135,13 +135,22 @@ def extract_metadata_from_html(html: str, url: str = "") -> dict:
             title = m.group(1).strip()
             company = m.group(2).strip()
 
-    # 4. h1 page heading as last resort (Lever / Ashby / Workday)
+    # 4. h1 page heading as last resort — only trusted on known job board domains
     if not title:
-        for h1 in soup.find_all("h1"):
-            text = h1.get_text(strip=True)
-            if 5 < len(text) < 120:
-                title = text
-                break
+        trusted_domains = {
+            "linkedin.com", "indeed.com", "greenhouse.io", "lever.co",
+            "ashbyhq.com", "workday.com", "myworkdayjobs.com", "icims.com",
+            "taleo.net", "smartrecruiters.com", "jobvite.com", "workable.com",
+            "breezy.hr", "bamboohr.com", "recruitee.com", "dover.com",
+            "rippling.com", "wellfound.com", "naukri.com", "internshala.com",
+        }
+        parsed_host = urlparse(url).netloc.lower().lstrip("www.")
+        if any(parsed_host == d or parsed_host.endswith("." + d) for d in trusted_domains):
+            for h1 in soup.find_all("h1"):
+                text = h1.get_text(strip=True)
+                if 5 < len(text) < 120:
+                    title = text
+                    break
 
     logger.debug("Metadata fallback result", title=title, company=company)
     return {"title": title, "company": company}
@@ -514,6 +523,39 @@ async def extract_job_details_with_llm(
         }
 
 
+# ─── URL Validator ───────────────────────────────────────────────────────────
+
+_JOB_DOMAINS = {
+    "linkedin.com", "indeed.com", "greenhouse.io", "lever.co",
+    "ashbyhq.com", "workday.com", "myworkdayjobs.com", "icims.com",
+    "taleo.net", "smartrecruiters.com", "jobvite.com", "workable.com",
+    "breezy.hr", "bamboohr.com", "recruitee.com", "dover.com",
+    "rippling.com", "wellfound.com", "naukri.com", "internshala.com",
+    "glassdoor.com", "monster.com", "dice.com", "ziprecruiter.com",
+    "angel.co", "ycombinator.com", "greenhouse.io", "jobs.lever.co",
+}
+_JOB_PATH_KEYWORDS = {
+    "/jobs/", "/careers/", "/job/", "/opening/", "/openings/",
+    "/positions/", "/vacancy/", "/vacancies/", "/apply/",
+    "/job-detail/", "/job-posting/", "/role/",
+}
+
+
+def is_job_url(url: str) -> bool:
+    """Return True only if the URL looks like a genuine job posting page."""
+    try:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().lstrip("www.")
+        path = parsed.path.lower()
+        if any(host == d or host.endswith("." + d) for d in _JOB_DOMAINS):
+            return True
+        if any(kw in path for kw in _JOB_PATH_KEYWORDS):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ─── Main Entry Point ────────────────────────────────────────────────────────
 
 async def search_and_scrape_job(
@@ -539,6 +581,11 @@ async def search_and_scrape_job(
         title=job_title,
         direct_url=direct_url,
     )
+
+    # Reject non-job URLs immediately to prevent fake JD generation
+    if direct_url and not is_job_url(direct_url):
+        logger.warning("URL does not appear to be a job posting — skipping", url=direct_url)
+        return None
 
     raw_text: Optional[str] = None
     source_url: Optional[str] = None
@@ -653,14 +700,13 @@ async def search_and_scrape_job(
             "source_url": source_url,
         }
 
-    # ── Last resort: synthetic JD from metadata ──────────────────────────────
-    # Uses the page title as the role anchor so we never default to "Software Engineer"
-    fallback_title = eff_title or job_title
-    if not fallback_title:
-        logger.warning("No title detected from URL — cannot generate synthetic JD")
-        return None
-
-    return await generate_synthetic_job(eff_company, fallback_title, direct_url or "")
+    # No real job content could be extracted — do not fabricate a JD
+    logger.warning(
+        "Could not extract real job content from URL — aborting",
+        url=direct_url,
+        title=eff_title,
+    )
+    return None
 
 
 async def generate_synthetic_job(company: str, job_title: str, url: str = "") -> dict:
