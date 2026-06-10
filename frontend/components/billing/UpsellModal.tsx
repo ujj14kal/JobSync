@@ -17,9 +17,7 @@ import { CheckoutModal } from "./CheckoutModal";
 
 // ── Context ───────────────────────────────────────────────────────────────────
 interface UpsellOptions {
-  feature:   string;        // e.g. "Resume Builder"
-  onProceed: () => void;
-  strict?:   boolean;       // true = no "Not this time", no dismiss — payment required
+  feature: string;   // e.g. "Resume Builder"
 }
 
 interface UpsellContextValue {
@@ -63,10 +61,9 @@ export function UpsellProvider({ children }: { children: ReactNode }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Backdrop — strict mode: clicking outside does nothing */}
             <motion.div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={opts.strict ? undefined : close}
+              onClick={close}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             />
@@ -86,15 +83,12 @@ export function UpsellProvider({ children }: { children: ReactNode }) {
                 style={{ background: "linear-gradient(135deg,rgba(192,88,0,0.12),rgba(113,54,0,0.06))" }}
               >
                 <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 30% 50%,rgba(192,88,0,0.15),transparent 60%)" }} />
-                {/* X button hidden in strict mode — user must pay to proceed */}
-                {!opts.strict && (
-                  <button
-                    onClick={close}
-                    className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
-                  >
-                    <X className="w-4 h-4 text-[var(--text-muted)]" />
-                  </button>
-                )}
+                <button
+                  onClick={close}
+                  className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-4 h-4 text-[var(--text-muted)]" />
+                </button>
                 <div className="flex items-center gap-2 mb-2 relative">
                   <img src="/logo.png" alt="JobSynk" className="w-8 h-8 object-contain" />
                   <span className="text-[12px] font-semibold text-[#C05800] uppercase tracking-wider">Upgrade to Pro</span>
@@ -168,15 +162,6 @@ export function UpsellProvider({ children }: { children: ReactNode }) {
                 </div>
               </div>
 
-              {/* Not this time — always shown now; per-session purchase path */}
-              <div className="px-6 pb-6 text-center">
-                <button
-                  onClick={() => { close(); opts.onProceed(); }}
-                  className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline underline-offset-2 transition-colors"
-                >
-                  Not this time — continue with individual purchase
-                </button>
-              </div>
             </motion.div>
           </motion.div>
         )}

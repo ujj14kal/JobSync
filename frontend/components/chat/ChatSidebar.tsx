@@ -167,9 +167,8 @@ export function ChatSidebar() {
   }, [open, isPro]);
 
   const handleOpen = useCallback(() => {
-    // If we have status loaded and user is not pro — strict upsell (no dismiss, no "not this time")
     if (status !== undefined && !isPro) {
-      showUpsell({ feature: "Ask Claude Chat", onProceed: () => {}, strict: true });
+      showUpsell({ feature: "Ask Claude Chat" });
       return;
     }
     setOpen(true);
@@ -177,7 +176,7 @@ export function ChatSidebar() {
 
   const handleUpgradeFromPanel = useCallback(() => {
     setOpen(false);
-    showUpsell({ feature: "Ask Claude Chat", onProceed: () => {}, strict: true });
+    showUpsell({ feature: "Ask Claude Chat" });
   }, [showUpsell]);
 
   const handleSend = useCallback(async () => {
@@ -185,7 +184,7 @@ export function ChatSidebar() {
     if (!text || streaming) return;
 
     if (!isPro) {
-      showUpsell({ feature: "Ask Claude Chat", onProceed: () => {}, strict: true });
+      showUpsell({ feature: "Ask Claude Chat" });
       return;
     }
 
