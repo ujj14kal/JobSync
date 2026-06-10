@@ -51,8 +51,12 @@ async def search_job(
         datetime.now(timezone.utc) - timedelta(hours=settings.JOB_CACHE_TTL_HOURS)
     ).isoformat()
 
+    def _cache_is_good(row: dict) -> bool:
+        """Skip cached records that have empty/useless parsed_data (bad old scrapes)."""
+        pd = row.get("parsed_data") or {}
+        return bool(pd.get("title") or pd.get("required_skills") or pd.get("responsibilities"))
+
     if request.job_url:
-        # Cache by source URL for direct-URL searches
         cached = (
             supabase.table("job_descriptions")
             .select("*")
@@ -61,7 +65,7 @@ async def search_job(
             .limit(1)
             .execute()
         )
-        if cached.data:
+        if cached.data and _cache_is_good(cached.data[0]):
             return cached.data[0]
     elif request.job_title:
         cached = (
@@ -73,7 +77,7 @@ async def search_job(
             .limit(1)
             .execute()
         )
-        if cached.data:
+        if cached.data and _cache_is_good(cached.data[0]):
             return cached.data[0]
 
     # Scrape

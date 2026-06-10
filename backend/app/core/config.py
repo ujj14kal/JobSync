@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # HuggingFace (optional)
     HUGGINGFACE_API_KEY: str = ""
 
+    # Scraping helpers (both free tiers, optional but improve hit rate significantly)
+    FIRECRAWL_API_KEY: str = ""   # firecrawl.dev — free 500 pages/month
+    JINA_API_KEY: str = ""        # jina.ai — free, removes rate limits on r.jina.ai
+
     # Google OAuth (Gmail sync — free)
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

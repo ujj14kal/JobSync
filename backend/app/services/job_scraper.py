@@ -284,24 +284,70 @@ def _clean_jina_markdown(text: str) -> str:
     return result.strip()
 
 
+async def scrape_url_with_firecrawl(url: str) -> Optional[tuple[str, dict]]:
+    """
+    Use Firecrawl (firecrawl.dev) to scrape a URL into clean markdown.
+    Free tier: 500 pages/month. Only runs if FIRECRAWL_API_KEY is set.
+    Returns (content_text, metadata_dict) or None.
+    """
+    if not settings.FIRECRAWL_API_KEY:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.post(
+                "https://api.firecrawl.dev/v1/scrape",
+                headers={
+                    "Authorization": f"Bearer {settings.FIRECRAWL_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "url": url,
+                    "formats": ["markdown"],
+                    "onlyMainContent": True,
+                    "excludeTags": ["nav", "header", "footer", "aside", ".cookie", ".banner"],
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                text = (data.get("data") or {}).get("markdown", "").strip()
+                if text and len(text) > 300 and not _is_blocked_page(text):
+                    meta = {"title": "", "company": ""}
+                    page_meta = (data.get("data") or {}).get("metadata", {})
+                    raw_title = page_meta.get("title", "") or page_meta.get("ogTitle", "")
+                    if raw_title:
+                        m = re.match(r"^(.+?)\s+(?:at|@)\s+(.+?)(?:\s*[\|\-]|$)", raw_title, re.IGNORECASE)
+                        if m:
+                            meta["title"] = m.group(1).strip()
+                            meta["company"] = m.group(2).strip()
+                        else:
+                            meta["title"] = raw_title
+                    logger.info("Firecrawl success", url=url, chars=len(text))
+                    return _clean_jina_markdown(text), meta
+    except Exception as e:
+        logger.warning("Firecrawl failed", url=url, error=str(e))
+    return None
+
+
 async def scrape_url_with_jina(url: str) -> Optional[tuple[str, dict]]:
     """
     Use Jina AI Reader (r.jina.ai) to extract clean markdown from any URL.
-    Free, no API key needed, handles JS rendering and basic bot protection.
+    Free, no API key needed; set JINA_API_KEY for higher rate limits.
     Returns (content_text, metadata_dict) or None.
     """
     try:
         jina_url = f"https://r.jina.ai/{url}"
+        headers: dict = {
+            "Accept": "text/plain, text/markdown",
+            "X-Return-Format": "markdown",
+            "X-Remove-Selector": "header,footer,nav,.cookie-banner,.newsletter,#cookie-policy",
+            "X-Target-Selector": "main,article,[class*='job-description'],[class*='description'],[id*='job']",
+        }
+        if settings.JINA_API_KEY:
+            headers["Authorization"] = f"Bearer {settings.JINA_API_KEY}"
         async with httpx.AsyncClient(
             timeout=25,
             follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "text/plain, text/markdown",
-                "X-Return-Format": "markdown",
-                "X-Remove-Selector": "header,footer,nav,.cookie-banner,.newsletter,#cookie-policy",
-                "X-Target-Selector": "main,article,[class*='job-description'],[class*='description'],[id*='job']",
-            },
+            headers=headers,
         ) as client:
             resp = await client.get(jina_url)
             if resp.status_code == 200:
@@ -343,11 +389,21 @@ async def scrape_url_with_httpx(url: str) -> Optional[str]:
             follow_redirects=True,
             headers={
                 "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
                 ),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Cache-Control": "no-cache",
+                "sec-ch-ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "document",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "none",
+                "upgrade-insecure-requests": "1",
             },
         ) as client:
             resp = await client.get(url)
@@ -762,6 +818,9 @@ async def search_and_scrape_job(
         async def _try_jina():
             return await scrape_url_with_jina(url)
 
+        async def _try_firecrawl():
+            return await scrape_url_with_firecrawl(url)
+
         async def _try_playwright():
             html = await scrape_url_with_playwright(url, timeout=20)
             if html:
@@ -777,13 +836,14 @@ async def search_and_scrape_job(
                     _try_linkedin(),
                     _try_httpx(),
                     _try_jina(),
+                    _try_firecrawl(),
                     _try_playwright(),
                     return_exceptions=True,
                 ),
-                timeout=28.0,
+                timeout=30.0,
             )
         except asyncio.TimeoutError:
-            results = [None, None, None, None]
+            results = [None, None, None, None, None]
 
         for res in results:
             if res and not isinstance(res, Exception):
@@ -796,14 +856,22 @@ async def search_and_scrape_job(
                     logger.info("Scrape success", strategy="parallel-race", chars=len(raw_text))
                     break
 
-        # Sequential Jina retry if parallel race came up empty (e.g. Jina was slow)
+        # Sequential fallbacks if parallel race came up empty
         if not raw_text:
-            logger.info("Parallel race missed — retrying with Jina Reader", url=url)
-            jina_result = await scrape_url_with_jina(url)
-            if jina_result:
-                raw_text, metadata = jina_result
-                source_url = url
-                logger.info("Jina retry succeeded", chars=len(raw_text))
+            logger.info("Parallel race missed — trying sequential fallbacks", url=url)
+            for fallback_fn, label in [
+                (lambda: scrape_url_with_jina(url), "Jina-retry"),
+                (lambda: scrape_url_with_firecrawl(url), "Firecrawl-retry"),
+            ]:
+                try:
+                    result = await fallback_fn()
+                    if result:
+                        raw_text, metadata = result
+                        source_url = url
+                        logger.info(f"{label} succeeded", chars=len(raw_text))
+                        break
+                except Exception:
+                    pass
 
         if not raw_text:
             logger.warning("All URL strategies failed", url=url)
