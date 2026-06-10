@@ -234,7 +234,8 @@ async def _try_neural_scoring(
 
                 diff = (r_t - j_t).abs()
                 prod = r_t * j_t
-                hc   = torch.tensor([_hc_features(r_np, j_np, resume_text, job_text)], dtype=torch.float32)
+                import numpy as _np_
+                hc   = torch.from_numpy(_np_.array([_hc_features(r_np, j_np, resume_text, job_text)], dtype=_np_.float32))
                 x    = torch.cat([r_t, j_t, diff, prod, hc], dim=1)
                 return scorer(x).squeeze(0).tolist()
 
