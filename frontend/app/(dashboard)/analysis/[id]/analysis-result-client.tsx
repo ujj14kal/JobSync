@@ -20,6 +20,7 @@ import {
   Brain,
   Sparkles,
   FileText,
+  TrendingUp,
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
@@ -379,43 +380,25 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* Badge row */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
-        className="flex flex-wrap items-center gap-2">
-        {/* Scoring — always JobSynk Neural Scorer */}
-        <span className={cn(
-          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
-          analysis.scored_by === "jobsync-custom-ai"
-            ? "bg-[#d4aa30]/10 border-[#d4aa30]/20 text-[#d4aa30]"
-            : "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
-        )}>
-          <Brain className="w-3 h-3" />
-          Scored by JobSynk AI
-        </span>
-
-        {/* Feedback model badge — Claude for Pro, Groq for free */}
-        {(analysis as any).feedback_model === "claude-sonnet" ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border"
-            style={{ background: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.3)", color: "#a78bfa" }}>
-            <Sparkles className="w-3 h-3" />
-            Feedback by Claude Sonnet · Pro
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-[var(--accent-muted)] border-[var(--accent-primary)]/20 text-[var(--text-muted)]">
-            <Brain className="w-3 h-3" />
-            Feedback by JobSynk AI
-          </span>
-        )}
-
-        {/* Fallback badge */}
-        {analysis.scored_by === "groq-llm" && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-amber-400/10 border-amber-400/25 text-amber-400">
-            <Sparkles className="w-3 h-3" />
-            Fallback Mechanism Applied
-          </span>
-        )}
-
-      </motion.div>
+      {/* Interview chance */}
+      {(() => {
+        const s = analysis.scores;
+        const prob = Math.min(100, Math.round(
+          (s.overall_score * 0.40 + (s.technical_fit_score ?? 50) * 0.35 + (s.recruiter_impression_score ?? 50) * 0.25) * 0.82
+        ));
+        const color = prob >= 60 ? "#10b981" : prob >= 40 ? "#3b82f6" : prob >= 25 ? "#f59e0b" : "#ef4444";
+        const label = prob >= 60 ? "Good chance" : prob >= 40 ? "Moderate chance" : prob >= 25 ? "Low chance" : "Unlikely";
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
+            className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border text-[12px] font-medium"
+            style={{ background: `${color}14`, borderColor: `${color}30`, color }}>
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{prob}% Interview Chance</span>
+            <span className="opacity-60 font-normal">·</span>
+            <span className="opacity-75 font-normal">{label}</span>
+          </motion.div>
+        );
+      })()}
 
       {/* Recruiter summary */}
       {analysis.recruiter_summary && (
