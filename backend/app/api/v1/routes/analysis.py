@@ -85,11 +85,11 @@ async def create_analysis(
             supabase.table("analyses")
             .select("*")
             .eq("id", existing_id)
-            .single()
+            .limit(1)
             .execute()
         )
         if result.data:
-            return {**result.data, "cached": True}
+            return {**result.data[0], "cached": True}
 
     # ── 2. Per-user daily quota ────────────────────────────────────────────────
     analyses_today = await get_user_analyses_today(user_id)
@@ -126,7 +126,7 @@ async def create_analysis(
         .select("*")
         .eq("id", request.resume_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not resume.data:
@@ -136,7 +136,7 @@ async def create_analysis(
         supabase.table("job_descriptions")
         .select("*")
         .eq("id", request.job_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not job.data:
@@ -190,8 +190,8 @@ async def create_analysis(
     background_tasks.add_task(
         run_analysis,
         analysis_id=analysis_id,
-        resume_data=resume.data,
-        job_data=job.data,
+        resume_data=resume.data[0],
+        job_data=job.data[0],
         user_id=user_id,
     )
 

@@ -128,11 +128,12 @@ async def update_application(
             .select("status, status_history")
             .eq("id", application_id)
             .eq("user_id", user_id)
-            .single()
+            .limit(1)
             .execute()
         )
-        if current.data and current.data.get("status") != updates["status"]:
-            history = current.data.get("status_history") or []
+        current_row = current.data[0] if current.data else None
+        if current_row and current_row.get("status") != updates["status"]:
+            history = current_row.get("status_history") or []
             history.append({"status": updates["status"], "timestamp": _now_iso()})
             updates["status_history"] = history
 

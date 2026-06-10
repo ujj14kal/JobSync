@@ -55,7 +55,7 @@ async def get_settings(user_id: str = Depends(get_current_user_id)):
         supabase.table("user_settings")
         .select("*")
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
 
@@ -65,7 +65,7 @@ async def get_settings(user_id: str = Depends(get_current_user_id)):
         insert_result = supabase.table("user_settings").insert(defaults).execute()
         return insert_result.data[0] if insert_result.data else defaults
 
-    return result.data
+    return result.data[0]
 
 
 @router.patch("")
@@ -102,12 +102,12 @@ async def get_profile(user_id: str = Depends(get_current_user_id)):
         supabase.table("user_profiles")
         .select("*")
         .eq("id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
     if not result.data:
         raise HTTPException(404, detail="Profile not found")
-    return result.data
+    return result.data[0]
 
 
 @router.patch("/profile")

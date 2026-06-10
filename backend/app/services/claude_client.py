@@ -138,15 +138,17 @@ async def get_user_credits(user_id: str, credit_type: str) -> int:
     try:
         result = await asyncio.to_thread(
             lambda: supabase.table("user_credits")
-            .select("credits_remaining")
+            .select("credits_total, credits_used")
             .eq("user_id", user_id)
             .eq("credit_type", credit_type)
-            .gt("credits_remaining", 0)
-            .limit(1)
             .execute()
         )
         if result.data:
-            return int(result.data[0]["credits_remaining"])
+            remaining = sum(
+                max(0, row["credits_total"] - row["credits_used"])
+                for row in result.data
+            )
+            return remaining
     except Exception as e:
         logger.warning("get_user_credits failed (non-fatal): %s", e)
     return 0

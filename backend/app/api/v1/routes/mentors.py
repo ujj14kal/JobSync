@@ -33,14 +33,14 @@ async def get_mentor_recommendations(
         .select("*, job_descriptions(*)")
         .eq("id", analysis_id)
         .eq("user_id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
 
     if not analysis.data:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    a = analysis.data
+    a = analysis.data[0]
     job = a.get("job_descriptions") or {}
     parsed_job = job.get("parsed_data", {})
 
@@ -52,10 +52,10 @@ async def get_mentor_recommendations(
         supabase.table("user_profiles")
         .select("career_stage")
         .eq("id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
-    career_stage = profile.data.get("career_stage", "entry") if profile.data else "entry"
+    career_stage = profile.data[0].get("career_stage", "entry") if profile.data else "entry"
 
     mentors = await find_mentors_for_analysis(
         target_role=target_role,
