@@ -128,9 +128,14 @@ async def search_job(
     parsed["company"] = resolved_company
     parsed["title"] = resolved_title or "Job Posting"
 
-    # Generate embedding from role + required skills
-    embed_input = f"{resolved_title} {resolved_company} {' '.join(parsed.get('required_skills', []))[:400]}"
-    embedding = embed_text(embed_input)
+    # Generate embedding from role + required skills (non-fatal if model fails)
+    try:
+        embed_input = f"{resolved_title} {resolved_company} {' '.join(parsed.get('required_skills', []))[:400]}"
+        embedding = embed_text(embed_input)
+    except Exception as e:
+        import structlog
+        structlog.get_logger().warning("Embedding failed — saving job without vector", error=str(e))
+        embedding = None
 
     # Save to DB
     record = {
