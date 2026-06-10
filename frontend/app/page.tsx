@@ -6,7 +6,7 @@ import LandingSections from "@/components/landing/LandingSections";
 export const metadata: Metadata = {
   title: "JobSynk — Your Entire Job Search, Handled.",
   description:
-    "JobSynk is a free AI career platform. Paste a job URL, upload your resume, and get an instant ATS score, keyword gap analysis, and AI-rewritten bullet points in under 30 seconds.",
+    "Paste the job URL. Upload your resume. Know your chances in 30 seconds — ATS score, missing keywords, and AI-rewritten bullets for that exact role. The only tool that works straight from a link.",
 };
 
 export default function LandingPage() {

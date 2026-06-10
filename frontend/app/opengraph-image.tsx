@@ -114,7 +114,7 @@ export default function OGImage() {
             marginBottom: 52,
           }}
         >
-          ATS scoring · Resume builder · Skill gap AI · Interview prep
+          Paste the job URL · Upload your resume · Know your chances in 30s
         </div>
 
         {/* Pill badges */}

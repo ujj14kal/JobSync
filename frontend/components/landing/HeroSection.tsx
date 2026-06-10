@@ -21,37 +21,37 @@ const HERO_VARIANTS = [
     line1: "Get the interview",
     line2: "your resume",
     line3: "has always deserved",
-    sub: "Paste a job URL. Upload your resume. JobSynk AI scores it across 5 dimensions, finds every missing keyword, rewrites weak bullets, and shows you exactly what to improve — all in under 30 seconds. Free to start.",
+    sub: "Paste the job URL. Upload your resume. JobSynk tells you your exact chances in 30 seconds — score, missing keywords, rewritten bullets. No other tool does this from a link.",
   },
   {
     line1: "Make your resume",
     line2: "impossible",
     line3: "to overlook",
-    sub: "JobSynk AI reads every job posting like a recruiter, then tells you precisely how to match it — keyword by keyword, bullet by bullet. Stand out before a human even opens your file.",
+    sub: "Paste the job link, upload your resume — JobSynk AI reads the actual posting and tells you precisely how to match it, keyword by keyword. Know your chances before you even hit apply.",
   },
   {
     line1: "Land your dream role",
     line2: "with AI working",
     line3: "in your corner",
-    sub: "Upload your resume. JobSynk AI compares it to the job in real time — scoring every section, surfacing skill gaps, and rewriting weak bullets so recruiters see your best self first.",
+    sub: "Paste a job URL. Upload your resume. JobSynk scores your fit against the real job requirements in real time — no copy-pasting, no guesswork, just your chances in 30 seconds.",
   },
   {
     line1: "Turn your resume",
     line2: "into your strongest",
     line3: "career asset",
-    sub: "JobSynk AI does in seconds what recruiters do in years — matching you to the right roles, highlighting your strengths, and giving you a clear path to more interviews.",
+    sub: "Most tools make you copy-paste the job description. JobSynk just needs the URL — paste the link, upload your resume, and get a full AI report in under 30 seconds. Free to start.",
   },
   {
     line1: "See exactly how to",
     line2: "make recruiters",
     line3: "say yes",
-    sub: "Paste a job link, upload your resume, and get a full AI report in under 30 seconds — score, missing keywords, improved bullets, and the one thing that will move you to the top of the pile.",
+    sub: "Paste the job link. Upload your resume. Know your chances in 30 seconds — with a score, every missing keyword, and AI-rewritten bullets tailored to that specific role.",
   },
   {
     line1: "Beat the ATS and",
     line2: "let your talent",
     line3: "shine through",
-    sub: "Most resumes never reach a human. JobSynk AI makes sure yours does — by scoring your resume against the actual job requirements and showing you exactly how to clear every filter.",
+    sub: "Paste the job URL, upload your resume — JobSynk scrapes the posting and scores your fit against what the role actually requires. The only tool that works straight from a link.",
   },
 ] as const;
 

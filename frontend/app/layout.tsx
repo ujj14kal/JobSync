@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s · JobSynk",
   },
   description:
-    "Optimize your resume with AI-powered ATS analysis, semantic scoring, and recruiter-grade feedback. Land your dream job faster.",
+    "Paste the job URL. Upload your resume. Know your chances in 30 seconds — ATS score, missing keywords, and AI-rewritten bullets tailored to that exact role. Free to start.",
   keywords: [
     "resume optimizer",
     "ATS score",
@@ -36,14 +36,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: "JobSynk — Your Entire Job Search, Handled.",
     description:
-      "Optimize your resume with AI-powered ATS analysis and recruiter feedback.",
+      "Paste the job URL. Upload your resume. Know your chances in 30 seconds.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: "JobSynk — Your Entire Job Search, Handled.",
-    description: "AI-powered resume optimizer and ATS scorer.",
+    description: "Paste the job URL. Upload your resume. Know your chances in 30 seconds.",
   },
   robots: { index: true, follow: true },
   verification: {
