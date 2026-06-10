@@ -89,5 +89,6 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
   diskSizeGb: 50
+  machineType: E2_MEDIUM
 
 timeout: 1800s
