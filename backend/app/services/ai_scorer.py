@@ -172,8 +172,15 @@ async def _try_neural_scoring(
         import torch
         import re as _re
 
+        # On cold starts the model loads in a background thread — wait up to 25s
+        # so the neural engine wins the race instead of immediately falling back to Groq.
         if not is_loaded():
-            return None
+            for _ in range(25):
+                await asyncio.sleep(1.0)
+                if is_loaded():
+                    break
+            if not is_loaded():
+                return None
 
         scorer = get_scorer()
         if scorer is None:
