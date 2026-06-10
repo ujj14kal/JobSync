@@ -171,46 +171,28 @@ async def start_interview(
         '"ideal_points": ["what a strong answer covers"]}]'
     )
 
-    # Route to Claude for Pro or interview_text credit holders
-    is_pro = (await get_user_plan(user_id)) == "pro"
-    interview_credits = 0 if is_pro else await get_user_credits(user_id, "interview_text")
-    use_claude = is_pro or interview_credits > 0
-
-    if use_claude and not is_pro:
-        await consume_credit(user_id, "interview_text")
+    # Interview is pay-per-session only — Pro plan does not include it
+    interview_credits = await get_user_credits(user_id, "interview_text")
+    if interview_credits <= 0:
+        raise HTTPException(status_code=402, detail="No interview credits. Purchase a session at ₹149.")
+    await consume_credit(user_id, "interview_text")
 
     try:
-        if use_claude:
-            raw = await claude_complete(
-                user_id=user_id,
-                feature="interview",
-                system=INTERVIEW_SYSTEM,
-                messages=[{"role": "user", "content": prompt_content}],
-                max_tokens=2200,
-                skip_quota_check=True,
-            )
-            model_used = "claude-sonnet"
-        else:
-            raw = await groq_call(
-                model=settings.GROQ_FAST_MODEL,
-                messages=[
-                    {"role": "system", "content": INTERVIEW_SYSTEM},
-                    {"role": "user",   "content": prompt_content},
-                ],
-                temperature=0.7,
-                max_tokens=1800,
-                json_mode=True,
-                use_cache=False,
-            )
-            model_used = "groq"
-
+        raw = await claude_complete(
+            user_id=user_id,
+            feature="interview",
+            system=INTERVIEW_SYSTEM,
+            messages=[{"role": "user", "content": prompt_content}],
+            max_tokens=2200,
+            skip_quota_check=True,
+        )
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
         return {
             "questions": questions[:body.num_questions],
             "role": body.role,
-            "_model": model_used,
+            "_model": "claude-sonnet",
         }
     except Exception as e:
         logger.error("Interview question generation failed", exc_info=e)
@@ -273,39 +255,21 @@ async def start_hirevue_interview(
         '"ideal_points": ["what a strong answer covers"]}]'
     )
 
-    # Route to Claude for Pro or interview_text credit holders
-    is_pro = (await get_user_plan(user_id)) == "pro"
-    interview_credits = 0 if is_pro else await get_user_credits(user_id, "interview_text")
-    use_claude = is_pro or interview_credits > 0
-
-    if use_claude and not is_pro:
-        await consume_credit(user_id, "interview_text")
+    # Interview is pay-per-session only — Pro plan does not include it
+    interview_credits = await get_user_credits(user_id, "interview_text")
+    if interview_credits <= 0:
+        raise HTTPException(status_code=402, detail="No interview credits. Purchase a session at ₹149.")
+    await consume_credit(user_id, "interview_text")
 
     try:
-        if use_claude:
-            raw = await claude_complete(
-                user_id=user_id,
-                feature="interview",
-                system=INTERVIEW_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2800,
-                skip_quota_check=True,
-            )
-            model_used = "claude-sonnet"
-        else:
-            raw = await groq_call(
-                model=settings.GROQ_MODEL,  # use full model for better personalization
-                messages=[
-                    {"role": "system", "content": INTERVIEW_SYSTEM},
-                    {"role": "user",   "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=2400,
-                json_mode=True,
-                use_cache=False,
-            )
-            model_used = "groq"
-
+        raw = await claude_complete(
+            user_id=user_id,
+            feature="interview",
+            system=INTERVIEW_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2800,
+            skip_quota_check=True,
+        )
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
@@ -315,7 +279,7 @@ async def start_hirevue_interview(
             "role": body.role,
             "company": body.company,
             "resume_loaded": bool(resume_text),
-            "_model": model_used,
+            "_model": "claude-sonnet",
         }
     except Exception as e:
         logger.error("HireVue question generation failed", exc_info=e)

@@ -391,7 +391,7 @@ export default function InterviewPage() {
   });
   const isPro = mounted && status?.is_pro === true;
   const hasInterviewCredits = mounted && (status?.interview_credits ?? 0) > 0;
-  const canStartInterview = isPro || hasInterviewCredits;
+  const canStartInterview = hasInterviewCredits;
   const [showBuySession, setShowBuySession] = useState(false);
 
   const [phase,       setPhase]       = useState<Phase>("setup");

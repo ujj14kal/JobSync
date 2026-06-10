@@ -24,7 +24,6 @@ const PRO_FEATURES = [
   { label: "15 ATS analyses/month",           highlight: false },
   { label: "5 AI resume generations",          highlight: false },
   { label: "3 AI cover letters/month",         highlight: false },
-  { label: "2 text AI interviews/month",       highlight: false },
   { label: "Ask Claude chat assistant",        highlight: true  },
   { label: "PDF report exports",               highlight: false },
   { label: "Claude Sonnet for everything",     highlight: true  },
