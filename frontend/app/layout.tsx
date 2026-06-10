@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "JobSynk — AI Career Platform",
+    default: "JobSynk — Your Entire Job Search, Handled.",
     template: "%s · JobSynk",
   },
   description:
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   authors: [{ name: "JobSynk" }],
   creator: "JobSynk",
   openGraph: {
-    title: "JobSynk — AI Career Platform",
+    title: "JobSynk — Your Entire Job Search, Handled.",
     description:
       "Optimize your resume with AI-powered ATS analysis and recruiter feedback.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "JobSynk — AI Career Platform",
+    title: "JobSynk — Your Entire Job Search, Handled.",
     description: "AI-powered resume optimizer and ATS scorer.",
   },
   robots: { index: true, follow: true },

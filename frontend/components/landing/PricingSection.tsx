@@ -229,21 +229,6 @@ export default function PricingSection() {
           </motion.div>
         </div>
 
-        {/* Cost transparency */}
-        <motion.div className="max-w-2xl mx-auto p-6 rounded-3xl text-center"
-          style={{ background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.05)" }}
-          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}} transition={{ delay: 0.45 }}>
-          <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Why we charge</div>
-          <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-            ATS scoring is powered by the <strong>JobSynk Neural Scorer</strong> — our custom-trained
-            PyTorch model (6,000 resume-job pairs) that runs entirely on our own servers. AI feedback
-            text is generated via <strong>Groq (LLaMA 3.3 70B)</strong> at no cost. Pro features use{" "}
-            <strong>Claude Sonnet by Anthropic</strong> — a frontier LLM that delivers deeper, more
-            personalised feedback. It costs us real money per token (~₹4–6 per analysis). Pro pricing
-            ensures we can keep the lights on while giving you the best possible quality. We never sell
-            your data.
-          </p>
-        </motion.div>
       </div>
 
       {/* Checkout modal */}

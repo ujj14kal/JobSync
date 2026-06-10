@@ -4,7 +4,7 @@ import HeroSection from "@/components/landing/HeroSection";
 import LandingSections from "@/components/landing/LandingSections";
 
 export const metadata: Metadata = {
-  title: "JobSynk — AI-Powered Resume Analyzer & ATS Scorer",
+  title: "JobSynk — Your Entire Job Search, Handled.",
   description:
     "JobSynk is a free AI career platform. Paste a job URL, upload your resume, and get an instant ATS score, keyword gap analysis, and AI-rewritten bullet points in under 30 seconds.",
 };
