@@ -217,6 +217,48 @@ async def scrape_linkedin_guest_api(url: str) -> Optional[tuple[str, dict]]:
 
 # ─── HTTP / Playwright Scrapers ──────────────────────────────────────────────
 
+async def scrape_url_with_jina(url: str) -> Optional[tuple[str, dict]]:
+    """
+    Use Jina AI Reader (r.jina.ai) to extract clean markdown from any URL.
+    Free, no API key needed, handles JS rendering and basic bot protection.
+    Returns (content_text, metadata_dict) or None.
+    """
+    try:
+        jina_url = f"https://r.jina.ai/{url}"
+        async with httpx.AsyncClient(
+            timeout=25,
+            follow_redirects=True,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "text/plain, text/markdown",
+                "X-Return-Format": "markdown",
+                "X-Remove-Selector": "header,footer,nav,.cookie-banner,.newsletter",
+            },
+        ) as client:
+            resp = await client.get(jina_url)
+            if resp.status_code == 200:
+                text = resp.text.strip()
+                if len(text) > 300:
+                    # Jina returns markdown — extract title/company from the first few lines
+                    meta = {"title": "", "company": ""}
+                    for line in text.splitlines()[:20]:
+                        line = line.strip().lstrip("#").strip()
+                        if not line:
+                            continue
+                        m = re.match(r"^(.+?)\s+(?:at|@)\s+(.+)$", line, re.IGNORECASE)
+                        if m:
+                            meta["title"] = m.group(1).strip()
+                            meta["company"] = m.group(2).strip()
+                            break
+                        if not meta["title"] and 5 < len(line) < 120:
+                            meta["title"] = line
+                    logger.info("Jina Reader success", url=url, chars=len(text))
+                    return text, meta
+    except Exception as e:
+        logger.warning("Jina Reader failed", url=url, error=str(e))
+    return None
+
+
 async def scrape_url_with_httpx(url: str) -> Optional[str]:
     """Lightweight HTTP scrape for non-JS pages (Greenhouse, Lever, static career pages)."""
     try:
@@ -612,8 +654,11 @@ async def search_and_scrape_job(
                     return content, meta
             return None
 
+        async def _try_jina():
+            return await scrape_url_with_jina(url)
+
         async def _try_playwright():
-            html = await scrape_url_with_playwright(url, timeout=12)
+            html = await scrape_url_with_playwright(url, timeout=20)
             if html:
                 meta = extract_metadata_from_html(html, url)
                 content = extract_job_content_from_html(html, url)
@@ -626,28 +671,37 @@ async def search_and_scrape_job(
                 asyncio.gather(
                     _try_linkedin(),
                     _try_httpx(),
+                    _try_jina(),
                     _try_playwright(),
                     return_exceptions=True,
                 ),
-                timeout=10.0,
+                timeout=28.0,
             )
         except asyncio.TimeoutError:
-            results = [None, None, None]
+            results = [None, None, None, None]
 
         for res in results:
             if res and not isinstance(res, Exception):
                 if isinstance(res, tuple):
                     raw_text, metadata = res
                 else:
-                    # LinkedIn returns (text, meta) tuple
                     raw_text, metadata = res if isinstance(res, tuple) else (None, {})
                 if raw_text:
                     source_url = url
                     logger.info("Scrape success", strategy="parallel-race", chars=len(raw_text))
                     break
 
+        # Sequential Jina retry if parallel race came up empty (e.g. Jina was slow)
         if not raw_text:
-            logger.warning("All URL strategies failed — using synthetic fallback", url=url)
+            logger.info("Parallel race missed — retrying with Jina Reader", url=url)
+            jina_result = await scrape_url_with_jina(url)
+            if jina_result:
+                raw_text, metadata = jina_result
+                source_url = url
+                logger.info("Jina retry succeeded", chars=len(raw_text))
+
+        if not raw_text:
+            logger.warning("All URL strategies failed", url=url)
 
     # ── Strategy 1: Job-ID based company career URLs (legacy path) ──────────
     if not raw_text and job_id and company_name:
