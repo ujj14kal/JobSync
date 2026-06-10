@@ -415,17 +415,6 @@ export function AnalysisResultClient({ id }: { id: string }) {
           </span>
         )}
 
-        {/* Hire recommendation */}
-        {analysis.hire_recommendation && (
-          <span className={cn(
-            "px-2.5 py-1 rounded-full text-[11px] font-medium border",
-            analysis.hire_recommendation.includes("Yes") ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
-              : analysis.hire_recommendation.includes("No") ? "bg-red-400/10 border-red-400/20 text-red-400"
-              : "bg-amber-400/10 border-amber-400/20 text-amber-400"
-          )}>
-            {analysis.hire_recommendation}
-          </span>
-        )}
       </motion.div>
 
       {/* Recruiter summary */}
