@@ -159,16 +159,22 @@ def extract_metadata_from_html(html: str, url: str = "") -> dict:
 # ─── LinkedIn Guest API ──────────────────────────────────────────────────────
 
 def _linkedin_job_id(url: str) -> Optional[str]:
-    """Extract job ID from a LinkedIn jobs URL."""
-    # /jobs/view/1234567890/ or ?currentJobId=1234567890
-    m = re.search(r"/jobs/view/(\d+)", url)
+    """Extract job ID from any LinkedIn jobs URL variant."""
+    # /jobs/view/1234567890/ or /comm/jobs/view/1234567890 (tracking links)
+    m = re.search(r"/jobs/view/(?:[^/]+?-)?(\d{7,})", url)
     if m:
         return m.group(1)
+    # ?currentJobId=… or ?jobId=…
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
-    for key in ("currentJobId", "jobId"):
+    for key in ("currentJobId", "jobId", "job_id"):
         if key in qs:
             return qs[key][0]
+    # /jobs/collections/…?currentJobId=… already covered above
+    # jobPosting numeric slug at end: linkedin.com/jobs/view/title-at-co-1234567890
+    m2 = re.search(r"-(\d{7,})/?$", url.split("?")[0])
+    if m2:
+        return m2.group(1)
     return None
 
 
@@ -217,6 +223,67 @@ async def scrape_linkedin_guest_api(url: str) -> Optional[tuple[str, dict]]:
 
 # ─── HTTP / Playwright Scrapers ──────────────────────────────────────────────
 
+_LOGIN_SIGNALS = [
+    "sign in to", "log in to", "create an account", "join linkedin",
+    "sign up", "verify you're human", "access denied", "403 forbidden",
+    "please enable javascript", "captcha", "robot check",
+    "you have been blocked", "cloudflare", "just a moment",
+]
+
+_JOB_SIGNALS = [
+    "responsibilities", "requirements", "qualifications", "skills",
+    "experience", "job description", "about the role", "what you'll do",
+    "we are looking", "we're looking", "apply now", "job type",
+    "full-time", "part-time", "benefits", "compensation",
+]
+
+
+def _is_blocked_page(text: str) -> bool:
+    """Return True if the extracted text looks like a login wall or bot block."""
+    lower = text.lower()[:2000]
+    signal_hits = sum(1 for s in _LOGIN_SIGNALS if s in lower)
+    return signal_hits >= 2
+
+
+def _clean_jina_markdown(text: str) -> str:
+    """
+    Strip Jina markdown noise: navigation links, cookie banners, repeated
+    short lines. Keeps sections that contain job-relevant content.
+    """
+    lines = text.splitlines()
+    cleaned = []
+    for line in lines:
+        stripped = line.strip()
+        # Drop bare markdown links with no context (nav items)
+        if re.match(r"^\[.{1,40}\]\(http", stripped) and len(stripped) < 80:
+            continue
+        # Drop very short lines that are just menu items / separators
+        if len(stripped) < 4 and stripped not in ("", "-", "*"):
+            continue
+        cleaned.append(line)
+
+    result = "\n".join(cleaned)
+
+    # Try to focus on the job-relevant section of the page
+    lower = result.lower()
+    job_anchors = [
+        "responsibilities", "requirements", "qualifications",
+        "about the role", "about this role", "job description",
+        "what you'll do", "what we're looking for",
+    ]
+    best_start = len(result)
+    for anchor in job_anchors:
+        idx = lower.find(anchor)
+        if 0 < idx < best_start:
+            best_start = idx
+
+    # If a job anchor exists, keep 500 chars of context before it + everything after
+    if best_start < len(result) * 0.8:
+        result = result[max(0, best_start - 500):]
+
+    return result.strip()
+
+
 async def scrape_url_with_jina(url: str) -> Optional[tuple[str, dict]]:
     """
     Use Jina AI Reader (r.jina.ai) to extract clean markdown from any URL.
@@ -232,28 +299,37 @@ async def scrape_url_with_jina(url: str) -> Optional[tuple[str, dict]]:
                 "User-Agent": "Mozilla/5.0",
                 "Accept": "text/plain, text/markdown",
                 "X-Return-Format": "markdown",
-                "X-Remove-Selector": "header,footer,nav,.cookie-banner,.newsletter",
+                "X-Remove-Selector": "header,footer,nav,.cookie-banner,.newsletter,#cookie-policy",
+                "X-Target-Selector": "main,article,[class*='job-description'],[class*='description'],[id*='job']",
             },
         ) as client:
             resp = await client.get(jina_url)
             if resp.status_code == 200:
-                text = resp.text.strip()
-                if len(text) > 300:
-                    # Jina returns markdown — extract title/company from the first few lines
-                    meta = {"title": "", "company": ""}
-                    for line in text.splitlines()[:20]:
-                        line = line.strip().lstrip("#").strip()
-                        if not line:
-                            continue
-                        m = re.match(r"^(.+?)\s+(?:at|@)\s+(.+)$", line, re.IGNORECASE)
-                        if m:
-                            meta["title"] = m.group(1).strip()
-                            meta["company"] = m.group(2).strip()
-                            break
-                        if not meta["title"] and 5 < len(line) < 120:
-                            meta["title"] = line
-                    logger.info("Jina Reader success", url=url, chars=len(text))
-                    return text, meta
+                raw = resp.text.strip()
+                if not raw or len(raw) < 300:
+                    return None
+                # Reject login walls and bot-blocked pages
+                if _is_blocked_page(raw):
+                    logger.warning("Jina returned login/block page", url=url)
+                    return None
+                text = _clean_jina_markdown(raw)
+                if len(text) < 200:
+                    return None
+                # Extract title/company from first meaningful heading
+                meta = {"title": "", "company": ""}
+                for line in text.splitlines()[:30]:
+                    line = line.strip().lstrip("#").strip()
+                    if not line or len(line) < 4:
+                        continue
+                    m = re.match(r"^(.+?)\s+(?:at|@)\s+(.+)$", line, re.IGNORECASE)
+                    if m:
+                        meta["title"] = m.group(1).strip()
+                        meta["company"] = m.group(2).strip()
+                        break
+                    if not meta["title"] and 5 < len(line) < 120:
+                        meta["title"] = line
+                logger.info("Jina Reader success", url=url, chars=len(text))
+                return text, meta
     except Exception as e:
         logger.warning("Jina Reader failed", url=url, error=str(e))
     return None
@@ -513,20 +589,24 @@ async def extract_job_details_with_llm(
     hint_block = ""
     if hint_title or hint_company:
         hint_block = (
-            f"The job listing is for the role \"{hint_title}\" "
-            f"at company \"{hint_company}\". "
-            "Use these as the primary title/company values — do not invent a different role.\n\n"
+            f"IMPORTANT: This job is titled \"{hint_title}\" at \"{hint_company}\". "
+            "Always use these exact values for title and company — never substitute a different role.\n\n"
         )
 
-    # Pass up to 6000 chars — enough to capture full JD including requirements section
     prompt = (
         f"{hint_block}"
-        f"Extract structured job info from this listing.\n"
+        "You are a job description parser. Extract every piece of structured information "
+        "from the text below, even if the text is noisy, partial, or mixed with page chrome.\n"
+        "Rules:\n"
+        "- title: the exact job role name (e.g. 'Product Manager', 'Backend Engineer', 'Data Analyst')\n"
+        "- required_skills: concrete skills/technologies explicitly required (strings, no duplicates)\n"
+        "- tech_stack: specific tools/frameworks/languages mentioned\n"
+        "- If a field has no data in the text, return [] or '' — never invent data\n"
+        "- Even if the text is partial, extract what is present\n\n"
         f"URL: {url}\n\n"
-        f"Text:\n{raw_text[:6000]}\n\n"
-        "Return JSON only — be precise about the job title (e.g. 'Product Manager', "
-        "'Software Engineer', 'Data Scientist') and required_skills vs tech_stack:\n"
-        '{"title":"","company":"","location":"","job_type":"Full-time","experience_level":"Mid",'
+        f"Text (first 8000 chars):\n{raw_text[:8000]}\n\n"
+        "Return JSON only:\n"
+        '{"title":"","company":"","location":"","job_type":"","experience_level":"",'
         '"salary_range":null,"requirements":[],"responsibilities":[],"required_skills":[],'
         '"preferred_skills":[],"qualifications":[],"tech_stack":[],"keywords":[],"about_company":""}'
     )
@@ -740,7 +820,20 @@ async def search_and_scrape_job(
     eff_title = metadata.get("title") or job_title or ""
     eff_company = metadata.get("company") or company_name or ""
 
-    # ── Parse with LLM if we have text ──────────────────────────────────────
+    # ── Parse with LLM if we have real job content ──────────────────────────
+    # Discard pages that look like login walls even if they passed earlier checks
+    if raw_text and _is_blocked_page(raw_text):
+        logger.warning("Extracted text looks like a login/block page — discarding")
+        raw_text = None
+
+    # Require at least one job-related keyword in the text
+    if raw_text:
+        lower_sample = raw_text.lower()[:3000]
+        job_signal_count = sum(1 for s in _JOB_SIGNALS if s in lower_sample)
+        if job_signal_count == 0:
+            logger.warning("No job signals in extracted text — discarding", url=direct_url)
+            raw_text = None
+
     if raw_text and len(raw_text) >= 150:
         parsed = await extract_job_details_with_llm(
             raw_text=raw_text,
