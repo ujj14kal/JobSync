@@ -108,9 +108,21 @@ async def search_job(
         or ""
     ).strip()
 
+    # If the LLM couldn't identify a job title or any required skills,
+    # the page content isn't actually a job posting.
+    has_skills = bool(parsed.get("required_skills") or parsed.get("responsibilities"))
+    if not resolved_title and not has_skills:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Could not identify a job posting on that page. "
+                "Make sure the URL links directly to a single job listing, not a search results page."
+            ),
+        )
+
     # Back-fill into parsed_data so front-end confirm card always shows both
     parsed["company"] = resolved_company
-    parsed["title"] = resolved_title
+    parsed["title"] = resolved_title or "Job Posting"
 
     # Generate embedding from role + required skills
     embed_input = f"{resolved_title} {resolved_company} {' '.join(parsed.get('required_skills', []))[:400]}"
