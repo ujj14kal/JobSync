@@ -10,7 +10,7 @@ import Link from "next/link";
 import TiltCard from "@/components/ui/TiltCard";
 import { MagicCard } from "@/components/ui/magic-card";
 import {
-  ArrowRight, BarChart2, FileText, Users,
+  ArrowRight, BarChart2, FileText,
   TrendingUp, Upload, Plus, Clock, Briefcase,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -188,7 +188,7 @@ function JobStatCard({ label, value, color, rgb }: { label: string; value: strin
 const quickActions = [
   { href: "/analysis", icon: BarChart2,  label: "New ATS Analysis", description: "Match resume to a job", accent: "indigo"  },
   { href: "/resume",   icon: Upload,     label: "Upload Resume",    description: "Add or update your resume", accent: "violet"  },
-  { href: "/mentors",  icon: Users,      label: "Find Mentors",     description: "Get matched with experts", accent: "amber"   },
+  { href: "/jobs",     icon: Briefcase,  label: "Job Tracker",      description: "Track your applications", accent: "amber"   },
   { href: "/insights", icon: TrendingUp, label: "Career Insights",  description: "Market trends & salary data", accent: "emerald" },
 ];
 

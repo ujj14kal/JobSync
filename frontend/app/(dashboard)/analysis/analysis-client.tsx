@@ -79,7 +79,6 @@ export function AnalysisClient() {
                 "Skill gap analysis",
                 "JobSynk AI recruiter-style feedback",
                 "JobSynk AI bullet point rewrites",
-                "AI-matched mentor recommendations",
               ].map((item) => (
                 <li
                   key={item}

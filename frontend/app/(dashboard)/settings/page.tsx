@@ -281,7 +281,6 @@ export default function SettingsPage() {
               {[
                 { key: "email_notifications" as const, label: "Email notifications", desc: "Receive emails about your account activity" },
                 { key: "analysis_notifications" as const, label: "Analysis complete", desc: "Notify when ATS analysis finishes" },
-                { key: "mentor_notifications" as const, label: "Mentor recommendations", desc: "Get notified when new mentors match your profile" },
                 { key: "weekly_digest" as const, label: "Weekly digest", desc: "Summary of your activity and job market trends" },
                 { key: "marketing_emails" as const, label: "Product updates", desc: "News about new features and improvements" },
               ].map(({ key, label, desc }) => (
@@ -446,7 +445,7 @@ export default function SettingsPage() {
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] space-y-5">
               <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Privacy & Data</h2>
               {[
-                { key: "profile_public" as const, label: "Public profile", desc: "Allow mentors to see your profile for better matching" },
+                { key: "profile_public" as const, label: "Public profile", desc: "Allow JobSynk to use your profile for personalised recommendations" },
                 { key: "share_analytics" as const, label: "Share analytics", desc: "Help improve JobSynk with anonymous usage data" },
               ].map(({ key, label, desc }) => (
                 <div key={key} className="flex items-center justify-between">

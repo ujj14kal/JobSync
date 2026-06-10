@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "keywords" | "feedback" | "rewrite" | "mentors";
+type Tab = "overview" | "keywords" | "feedback" | "rewrite";
 
 // ── Analysis progress steps UI ────────────────────────────────────────────────
 const PIPELINE_STEPS = [
@@ -277,7 +277,6 @@ export function AnalysisResultClient({ id }: { id: string }) {
     { id: "keywords", label: "Keywords & Gaps" },
     { id: "feedback", label: "Recruiter Feedback" },
     { id: "rewrite", label: "Bullet Rewrites" },
-    { id: "mentors", label: "Mentor Matches" },
   ] as const;
 
   return (
@@ -376,13 +375,6 @@ export function AnalysisResultClient({ id }: { id: string }) {
           >
             <Wand2 className="w-3.5 h-3.5" />
             Improve resume
-          </Link>
-          <Link
-            href="/mentors"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap"
-          >
-            <Users className="w-3.5 h-3.5" />
-            Find mentors
           </Link>
         </div>
       </motion.div>
@@ -729,22 +721,22 @@ export function AnalysisResultClient({ id }: { id: string }) {
             </div>
           )}
 
-          {tab === "mentors" && (
-            <div className="text-center py-12">
-              <Users className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
-              <p className="text-[14px] text-[var(--text-secondary)] mb-4">
-                Get mentor recommendations tailored to this analysis
-              </p>
-              <Link
-                href="/mentors"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
-              >
-                Find my mentors <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Human help nudge */}
+      <div className="mt-2 px-4 py-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex items-center gap-3">
+        <Users className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
+        <p className="text-[12px] text-[var(--text-muted)] leading-relaxed">
+          Want guidance from a real person?{" "}
+          <a href="https://adplist.org" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">ADPList</a>
+          {" · "}
+          <a href="https://topmate.io/explore/category/tech" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">Topmate</a>
+          {" · "}
+          <a href="https://mentorcruise.com" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">MentorCruise</a>
+          {" "}have real mentors you can book directly.
+        </p>
+      </div>
     </div>
   );
 }

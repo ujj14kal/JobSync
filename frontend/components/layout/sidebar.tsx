@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   BarChart2,
   FileText,
-  Users,
   Sparkles,
   TrendingUp,
   ChevronLeft,
@@ -51,11 +50,6 @@ const navItems = [
     href: "/improve",
     icon: Sparkles,
     label: "Improve",
-  },
-  {
-    href: "/mentors",
-    icon: Users,
-    label: "Mentors",
   },
   {
     href: "/jobs",
