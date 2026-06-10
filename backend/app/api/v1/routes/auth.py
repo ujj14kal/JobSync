@@ -202,16 +202,18 @@ async def phone_login(body: PhoneLoginRequest):
         session = session_resp.session
         user_id = session_resp.user.id
 
-        # Upsert user_profiles so the settings page shows the name immediately
-        if body.full_name:
-            try:
-                sb.table("user_profiles").upsert(
-                    {"id": user_id, "full_name": body.full_name},
-                    on_conflict="id",
-                    ignore_duplicates=False,
-                ).execute()
-            except Exception:
-                pass  # non-critical, don't fail login
+        # Upsert user_profiles — always write phone; backfill name if provided
+        try:
+            profile_data: dict = {"id": user_id, "phone": phone}
+            if body.full_name:
+                profile_data["full_name"] = body.full_name
+            sb.table("user_profiles").upsert(
+                profile_data,
+                on_conflict="id",
+                ignore_duplicates=False,
+            ).execute()
+        except Exception:
+            pass  # non-critical, don't fail login
 
         return SessionResponse(
             access_token=session.access_token,
