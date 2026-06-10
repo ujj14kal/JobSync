@@ -116,8 +116,9 @@ async def phone_login(body: PhoneLoginRequest):
 
     # Use real email if provided; fall back to a derived key so GoTrue doesn't
     # need phone auth enabled. Derived email is never shown or emailed to the user.
-    user_email = body.email.strip() if body.email and body.email.strip() else \
-        f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
+    real_email = body.email.strip() if body.email and body.email.strip() else ""
+    derived_email = f"{phone.lstrip('+').replace(' ', '')}@phone.jobsynk.in"
+    user_email = real_email or derived_email
 
     # Derive a stable password from the firebase_uid + secret key.
     # Never shown to the user — only used server-side to issue a session.
@@ -128,15 +129,64 @@ async def phone_login(body: PhoneLoginRequest):
     ).hexdigest()
 
     try:
-        metadata = {
-            "firebase_uid": firebase_uid,
-            "phone": phone,
-            "full_name": body.full_name,
-            "career_stage": body.career_stage,
-            "target_role": body.target_role,
-            "auth_provider": "firebase_phone",
-        }
-        try:
+        # Pre-flight: scan for conflicts before attempting create_user.
+        # list_users() is the only way to search by metadata in Supabase admin API.
+        all_users = sb.auth.admin.list_users()
+
+        # Find any existing account that owns this firebase_uid (= this phone number verified by Firebase)
+        own_account = next(
+            (u for u in all_users if (u.user_metadata or {}).get("firebase_uid") == firebase_uid),
+            None,
+        )
+
+        if own_account:
+            # Returning user — refresh password, backfill full_name, and sign in.
+            existing_meta = own_account.user_metadata or {}
+            update_payload: dict = {"password": user_password}
+            if body.full_name and not existing_meta.get("full_name"):
+                update_payload["user_metadata"] = {**existing_meta, "full_name": body.full_name}
+            sb.auth.admin.update_user_by_id(own_account.id, update_payload)
+            # Make sure sign_in uses the email on the existing account (may differ from derived)
+            user_email = own_account.email or user_email
+            logger.info("Returning phone user %s — refreshed password", own_account.id)
+        else:
+            # New user — check for conflicts first.
+
+            # 1. Phone conflict: another account already has this phone in metadata.
+            phone_conflict = next(
+                (u for u in all_users
+                 if (u.user_metadata or {}).get("phone") == phone
+                 and (u.user_metadata or {}).get("firebase_uid") != firebase_uid),
+                None,
+            )
+            if phone_conflict:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An account with this phone number already exists. Please sign in instead.",
+                )
+
+            # 2. Email conflict: real email provided and already taken by a different account.
+            if real_email:
+                email_conflict = next(
+                    (u for u in all_users
+                     if u.email == real_email
+                     and (u.user_metadata or {}).get("firebase_uid") != firebase_uid),
+                    None,
+                )
+                if email_conflict:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="An account with this email ID already exists. Please sign in instead.",
+                    )
+
+            metadata = {
+                "firebase_uid": firebase_uid,
+                "phone": phone,
+                "full_name": body.full_name,
+                "career_stage": body.career_stage,
+                "target_role": body.target_role,
+                "auth_provider": "firebase_phone",
+            }
             sb.auth.admin.create_user({
                 "email": user_email,
                 "password": user_password,
@@ -144,31 +194,6 @@ async def phone_login(body: PhoneLoginRequest):
                 "user_metadata": metadata,
             })
             logger.info("Created new Supabase user for phone %s", phone)
-        except Exception as create_exc:
-            err_str = str(create_exc).lower()
-            if not any(kw in err_str for kw in ("already", "duplicate", "exists", "database error")):
-                raise
-            # Email already exists — only allow sign-in if it belongs to THIS firebase_uid.
-            # If a different user owns this email, reject to prevent account hijacking.
-            users_resp = sb.auth.admin.list_users()
-            existing = next((u for u in users_resp if u.email == user_email), None)
-            if not existing:
-                raise HTTPException(status_code=409, detail="Email already in use by another account")
-            existing_uid = (existing.user_metadata or {}).get("firebase_uid", "")
-            if existing_uid != firebase_uid:
-                # Includes the case where existing_uid is "" (no firebase_uid = not a
-                # phone-auth account) — never let a phone signup hijack it.
-                raise HTTPException(
-                    status_code=409,
-                    detail="This email is already registered. Please use a different email or sign in.",
-                )
-            # Same firebase_uid — returning user. Refresh password and backfill full_name if missing.
-            existing_meta = existing.user_metadata or {}
-            update_payload: dict = {"password": user_password}
-            if body.full_name and not existing_meta.get("full_name"):
-                update_payload["user_metadata"] = {**existing_meta, "full_name": body.full_name}
-            sb.auth.admin.update_user_by_id(existing.id, update_payload)
-            logger.info("Returning phone user %s — refreshed password", existing.id)
 
         # Sign in with the derived password to get a real session
         from supabase import create_client

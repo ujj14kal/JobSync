@@ -160,9 +160,18 @@ export default function SignupPage() {
       },
     });
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("user already")) {
+        toast.error("An account with this email ID already exists. Please sign in instead.");
+      } else {
+        toast.error(error.message);
+      }
+      return;
+    }
+    // Supabase returns data.user = null (no error) when email is already registered
     if (!data.user) {
-      toast.error("An account with this email already exists. Please sign in instead.");
+      toast.error("An account with this email ID already exists. Please sign in instead.");
       return;
     }
     toast.success("Account created! Welcome to JobSynk.");
