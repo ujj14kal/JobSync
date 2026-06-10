@@ -203,10 +203,19 @@ def _load_v2_minilm(tok_data: dict, torch, nn) -> bool:
     logger.info("Loading v2 MiniLM model", model_name=model_name)
 
     try:
-        from sentence_transformers import SentenceTransformer
-        _sentence_model = SentenceTransformer(model_name)
-        _sentence_model.eval()
-        logger.info("MiniLM loaded", model=model_name, emb_dim=emb_dim)
+        # Reuse the model already loaded by embedding_service (avoids loading it twice).
+        # embedding_service._load_model() runs in parallel warm-start, so by the time
+        # we reach here it is usually already in memory.
+        from app.services import embedding_service as _emb_svc
+        shared = _emb_svc._model_instance
+        if shared is not None:
+            _sentence_model = shared
+            logger.info("Reusing sentence model from embedding service", model=model_name)
+        else:
+            from sentence_transformers import SentenceTransformer
+            _sentence_model = SentenceTransformer(model_name)
+            _sentence_model.eval()
+            logger.info("MiniLM loaded fresh", model=model_name, emb_dim=emb_dim)
     except Exception as e:
         logger.error("Failed to load sentence-transformers model", error=str(e))
         return False
