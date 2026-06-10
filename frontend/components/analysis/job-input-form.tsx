@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, FileText,
-  Loader2, AlertCircle, Clock, RefreshCw, Link,
+  Loader2, AlertCircle, Clock, RefreshCw, Link, Zap, CheckCircle2,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
 import { resumeApi } from "@/lib/api/resume";
+import { chatApi } from "@/lib/api/chat";
+import { CheckoutModal } from "@/components/billing/CheckoutModal";
 import type { Analysis, JobDescription } from "@/lib/types";
 import { toast } from "sonner";
 import { ServiceStatusBadge } from "./service-status-badge";
@@ -26,9 +28,12 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
   const [step, setStep] = useState<Step>("form");
   const [foundJob, setFoundJob] = useState<JobDescription | null>(null);
   const [searchProgress, setSearchProgress] = useState(0);
+  const [showBuyAts, setShowBuyAts] = useState(false);
 
   const [retryCountdown, setRetryCountdown] = useState(CAPACITY_RETRY_AFTER);
   const [capacityInfo, setCapacityInfo] = useState<{ active: number; max: number } | null>(null);
+
+  const qc = useQueryClient();
 
   const { data: serviceStatus } = useQuery({
     queryKey: ["service-status"],
@@ -37,6 +42,17 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
     staleTime: 8_000,
     retry: false,
   });
+
+  const { data: userStatus } = useQuery({
+    queryKey: ["chat-status"],
+    queryFn: chatApi.getStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const isPro = userStatus?.is_pro === true;
+  const atsCredits = userStatus?.ats_deep_credits ?? 0;
+  const hasClaudeTier = isPro || atsCredits > 0;
 
   const { data: resumes } = useQuery({
     queryKey: ["resumes"],
@@ -463,6 +479,37 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         </p>
       </div>
 
+      {/* Claude Sonnet quality tier banner */}
+      {userStatus && (
+        <div
+          className="flex items-center justify-between px-3 py-2 rounded-xl border text-[12px]"
+          style={hasClaudeTier
+            ? { background: "rgba(122,184,64,0.06)", borderColor: "rgba(122,184,64,0.25)", color: "var(--text-secondary)" }
+            : { background: "rgba(192,88,0,0.06)", borderColor: "rgba(192,88,0,0.2)", color: "var(--text-secondary)" }
+          }
+        >
+          <span className="flex items-center gap-1.5">
+            {hasClaudeTier
+              ? <CheckCircle2 className="w-3.5 h-3.5 text-[#7ab840]" />
+              : <Zap className="w-3.5 h-3.5 text-[#C05800]" />
+            }
+            {hasClaudeTier
+              ? isPro ? "Scored by Claude Sonnet · Pro" : `Scored by Claude Sonnet · ${atsCredits} credit${atsCredits !== 1 ? "s" : ""} remaining`
+              : "Scored by JobSynk AI Engine (free)"
+            }
+          </span>
+          {!hasClaudeTier && (
+            <button
+              type="button"
+              onClick={() => setShowBuyAts(true)}
+              className="text-[#C05800] font-medium hover:underline underline-offset-2 whitespace-nowrap ml-2"
+            >
+              Upgrade to Claude Sonnet — ₹59
+            </button>
+          )}
+        </div>
+      )}
+
       <button
         type="submit"
         disabled={!activeResume || !jobUrl.trim().startsWith("http")}
@@ -471,6 +518,16 @@ export function JobInputForm({ onAnalysisStarted }: JobInputFormProps) {
         <Search className="w-4 h-4" />
         Extract &amp; analyze job
       </button>
+
+      <AnimatePresence>
+        {showBuyAts && (
+          <CheckoutModal
+            plan="ats_deep"
+            onClose={() => setShowBuyAts(false)}
+            onSuccess={() => { setShowBuyAts(false); qc.invalidateQueries({ queryKey: ["chat-status"] }); }}
+          />
+        )}
+      </AnimatePresence>
     </form>
   );
 }

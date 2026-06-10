@@ -12,6 +12,8 @@ export const chatApi = {
       pct_used: number;
       warning: boolean;
       interview_credits: number;
+      interview_voice_credits: number;
+      ats_deep_credits: number;
     };
   },
 

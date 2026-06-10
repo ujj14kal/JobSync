@@ -55,13 +55,12 @@ interface CheckoutModalProps {
 }
 
 const PLAN_LABELS: Record<string, { label: string; amount: string; desc: string }> = {
-  pro_monthly: { label: "Pro Monthly",    amount: "₹299/month",  desc: "Cancel anytime" },
-  pro_yearly:  { label: "Pro Yearly",     amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
-  resume_pack: { label: "Resume Pack",    amount: "₹299",        desc: "10 AI resume generations" },
-  cover_letter:{ label: "Cover Letter",   amount: "₹99",         desc: "1 AI cover letter (Sonnet)" },
-  interview_text: { label: "AI Interview (Text)",  amount: "₹149", desc: "1 full text interview session" },
-  interview_voice:{ label: "AI Interview (Voice)", amount: "₹149", desc: "1 voice interview (ElevenLabs + Sonnet)" },
-  ats_deep:    { label: "ATS Deep Analysis", amount: "₹59",      desc: "1 Claude Sonnet ATS analysis" },
+  pro_monthly:     { label: "Pro Monthly",           amount: "₹299/month",  desc: "Cancel anytime" },
+  pro_yearly:      { label: "Pro Yearly",            amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
+  resume_pack:     { label: "Resume Builder Pack",   amount: "₹299",        desc: "10 AI resume generations" },
+  interview_text:  { label: "AI Interview (Text)",   amount: "₹149",        desc: "1 full text interview session" },
+  interview_voice: { label: "AI Interview (Voice)",  amount: "₹149",        desc: "1 voice interview — ElevenLabs + Sonnet" },
+  ats_deep:        { label: "ATS Deep Analysis",     amount: "₹59",         desc: "1 Claude Sonnet ATS analysis" },
 };
 
 type Stage = "loading" | "ready" | "processing" | "success" | "error";

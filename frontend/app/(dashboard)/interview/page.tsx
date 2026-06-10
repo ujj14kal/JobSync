@@ -391,8 +391,10 @@ export default function InterviewPage() {
   });
   const isPro = mounted && status?.is_pro === true;
   const hasInterviewCredits = mounted && (status?.interview_credits ?? 0) > 0;
+  const hasVoiceCredits = mounted && (status?.interview_voice_credits ?? 0) > 0;
   const canStartInterview = hasInterviewCredits;
   const [showBuySession, setShowBuySession] = useState(false);
+  const [showBuyVoice, setShowBuyVoice] = useState(false);
 
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
@@ -1010,10 +1012,13 @@ export default function InterviewPage() {
                         Free ∞
                       </button>
                       <button
-                        onClick={() => setUseElevenLabs(true)}
+                        onClick={() => {
+                          if (!hasVoiceCredits) { setShowBuyVoice(true); return; }
+                          setUseElevenLabs(true);
+                        }}
                         className={`px-3 py-1.5 transition-colors font-medium ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
                       >
-                        ✨ ElevenLabs
+                        ✨ ElevenLabs {!hasVoiceCredits && mounted ? "· ₹149" : ""}
                       </button>
                     </div>
                   </div>
@@ -1431,16 +1436,24 @@ export default function InterviewPage() {
 
       </AnimatePresence>
 
-      {/* Per-session purchase — ₹149 via Razorpay */}
+      {/* Per-session purchase — ₹149 */}
       <AnimatePresence>
         {showBuySession && (
           <CheckoutModal
             plan="interview_text"
             onClose={() => setShowBuySession(false)}
-            onSuccess={() => {
-              setShowBuySession(false);
-              refetchStatus();
-            }}
+            onSuccess={() => { setShowBuySession(false); refetchStatus(); }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Voice session purchase — ₹149 */}
+      <AnimatePresence>
+        {showBuyVoice && (
+          <CheckoutModal
+            plan="interview_voice"
+            onClose={() => setShowBuyVoice(false)}
+            onSuccess={() => { setShowBuyVoice(false); refetchStatus(); setUseElevenLabs(true); }}
           />
         )}
       </AnimatePresence>

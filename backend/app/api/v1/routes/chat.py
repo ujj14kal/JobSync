@@ -59,16 +59,22 @@ async def chat_status(user_id: str = Depends(get_current_user_id)):
     usage = await get_monthly_usage(user_id)
     chat_tokens = usage.get("chat_tokens", 0)
     remaining = max(0, settings.PRO_MONTHLY_CHAT_TOKENS - chat_tokens)
-    interview_credits = await get_user_credits(user_id, "interview_text")
+    interview_credits, interview_voice_credits, ats_deep_credits = await asyncio.gather(
+        get_user_credits(user_id, "interview_text"),
+        get_user_credits(user_id, "interview_voice"),
+        get_user_credits(user_id, "ats_deep"),
+    )
     return {
-        "plan":             plan,
-        "is_pro":           plan == "pro",
-        "chat_tokens_used": chat_tokens,
-        "chat_tokens_limit": settings.PRO_MONTHLY_CHAT_TOKENS,
-        "chat_tokens_remaining": remaining,
-        "pct_used":         round(chat_tokens / settings.PRO_MONTHLY_CHAT_TOKENS * 100, 1),
-        "warning":          remaining < 5000,
-        "interview_credits": interview_credits,
+        "plan":                    plan,
+        "is_pro":                  plan == "pro",
+        "chat_tokens_used":        chat_tokens,
+        "chat_tokens_limit":       settings.PRO_MONTHLY_CHAT_TOKENS,
+        "chat_tokens_remaining":   remaining,
+        "pct_used":                round(chat_tokens / settings.PRO_MONTHLY_CHAT_TOKENS * 100, 1),
+        "warning":                 remaining < 5000,
+        "interview_credits":       interview_credits,
+        "interview_voice_credits": interview_voice_credits,
+        "ats_deep_credits":        ats_deep_credits,
     }
 
 

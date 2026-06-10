@@ -27,11 +27,10 @@ logger = logging.getLogger(__name__)
 
 # ── Price catalogue (paise = ₹ × 100) ────────────────────────────────────────
 PRODUCTS = {
-    "ats_deep":          {"label": "ATS Deep Analysis",       "amount": 5900,  "credits": 1,  "type": "ats_deep"},
-    "resume_pack":       {"label": "Resume Builder Pack (10)", "amount": 29900, "credits": 10, "type": "resume"},
-    "cover_letter":      {"label": "Cover Letter",            "amount": 9900,  "credits": 1,  "type": "cover_letter"},
-    "interview_text":    {"label": "AI Interview (Text)",     "amount": 14900, "credits": 1,  "type": "interview_text"},
-    "interview_voice":   {"label": "AI Interview (Voice)",    "amount": 14900, "credits": 1,  "type": "interview_voice"},
+    "ats_deep":        {"label": "ATS Deep Analysis",       "amount": 5900,  "credits": 1,  "type": "ats_deep"},
+    "resume_pack":     {"label": "Resume Builder Pack (10)", "amount": 29900, "credits": 10, "type": "resume"},
+    "interview_text":  {"label": "AI Interview (Text)",     "amount": 14900, "credits": 1,  "type": "interview_text"},
+    "interview_voice": {"label": "AI Interview (Voice)",    "amount": 14900, "credits": 1,  "type": "interview_voice"},
 }
 
 SUBSCRIPTIONS = {

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Zap, Crown, Sparkles, X,
-  Brain, Shield, TrendingUp, MessageSquare,
+  Brain, Shield, MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { CheckoutModal } from "@/components/billing/CheckoutModal";
@@ -31,11 +31,10 @@ const PRO_FEATURES = [
 ];
 
 const INDIVIDUAL = [
-  { id: "ats_deep",        label: "ATS Deep Analysis",         price: "₹59",  per: "per analysis",     icon: Brain },
-  { id: "resume_pack",     label: "Resume Pack",               price: "₹299", per: "10 generations",   icon: Sparkles },
-  { id: "cover_letter",    label: "Cover Letter",              price: "₹99",  per: "per letter",       icon: TrendingUp },
-  { id: "interview_text",  label: "AI Interview (Text)",       price: "₹149", per: "per session",      icon: MessageSquare },
-  { id: "interview_voice", label: "AI Interview (Voice)",      price: "₹149", per: "ElevenLabs + Sonnet", icon: Zap },
+  { id: "ats_deep",        label: "ATS Deep Analysis",    price: "₹59",  per: "per analysis",        icon: Brain },
+  { id: "resume_pack",     label: "Resume Pack",          price: "₹299", per: "10 generations",      icon: Sparkles },
+  { id: "interview_text",  label: "AI Interview (Text)",  price: "₹149", per: "per session",         icon: MessageSquare },
+  { id: "interview_voice", label: "AI Interview (Voice)", price: "₹149", per: "ElevenLabs + Sonnet", icon: Zap },
 ];
 
 export default function PricingSection() {
