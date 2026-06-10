@@ -7,4 +7,4 @@ ALTER TABLE public.mentors
 
 ALTER TABLE public.mentors
   ADD CONSTRAINT mentors_platform_check
-  CHECK (platform IN ('unstop', 'adplist', 'linkedin', 'mentorcruise', 'topmate', 'toptal', 'other'));
+  CHECK (platform IN ('unstop', 'adplist', 'linkedin', 'mentorcruise', 'topmate', 'toptal', 'preplaced', 'idreamcareer', 'mentro', 'other'));

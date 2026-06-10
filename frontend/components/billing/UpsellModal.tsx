@@ -169,25 +169,17 @@ export function UpsellProvider({ children }: { children: ReactNode }) {
                 </div>
               </div>
 
-              {/* Not this time — hidden in strict mode (e.g. Claude chat) */}
-              {!opts.strict && (
-                <div className="px-6 pb-6 text-center">
-                  <button
-                    onClick={() => { close(); opts.onProceed(); }}
-                    className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline underline-offset-2 transition-colors"
-                  >
-                    Not this time — continue with individual purchase
-                  </button>
-                </div>
-              )}
-              {/* Strict mode: locked footer */}
-              {opts.strict && (
-                <div className="px-6 pb-6 text-center">
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    This feature requires an active Pro subscription.
-                  </p>
-                </div>
-              )}
+              {/* Not this time — always shown now; per-session purchase path */}
+              <div className="px-6 pb-6 text-center">
+                <button
+                  onClick={() => { close(); opts.onProceed(); }}
+                  className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline underline-offset-2 transition-colors"
+                >
+                  {opts.feature === "AI Interview"
+                    ? "Just this once — buy 1 session for ₹149"
+                    : "Not this time — continue with individual purchase"}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

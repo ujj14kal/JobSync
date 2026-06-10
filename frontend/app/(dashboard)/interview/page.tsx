@@ -801,7 +801,13 @@ export default function InterviewPage() {
 
   async function startInterview() {
     if (!isPro) {
-      showUpsell({ feature: "AI Interview", onProceed: () => {}, strict: true });
+      showUpsell({
+        feature: "AI Interview",
+        onProceed: () => {
+          // "Not this time" → direct per-session purchase (₹149)
+          window.open("https://jobsynk.in/billing?session=interview", "_self");
+        },
+      });
       return;
     }
     setPhase("analyzing");

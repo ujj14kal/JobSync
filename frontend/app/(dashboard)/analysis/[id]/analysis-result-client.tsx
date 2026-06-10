@@ -151,7 +151,9 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
   const [tracked, setTracked] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { showFeedback } = useFeedback();
+  useEffect(() => setMounted(true), []);
 
   async function handleTrackJob() {
     if (!analysis || tracked) return;
@@ -380,11 +382,11 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* Interview chance */}
-      {(() => {
+      {/* Interview chance — client-only to avoid SSR/hydration mismatch on old analyses */}
+      {mounted && (() => {
         const s = analysis.scores;
         const prob = Math.min(100, Math.round(
-          (s.overall_score * 0.40 + (s.technical_fit_score ?? 50) * 0.35 + (s.recruiter_impression_score ?? 50) * 0.25) * 0.82
+          ((s.overall_score ?? 0) * 0.40 + (s.technical_fit_score ?? s.overall_score ?? 50) * 0.35 + (s.recruiter_impression_score ?? s.overall_score ?? 50) * 0.25) * 0.82
         ));
         const color = prob >= 60 ? "#10b981" : prob >= 40 ? "#3b82f6" : prob >= 25 ? "#f59e0b" : "#ef4444";
         const label = prob >= 60 ? "Good chance" : prob >= 40 ? "Moderate chance" : prob >= 25 ? "Low chance" : "Unlikely";
