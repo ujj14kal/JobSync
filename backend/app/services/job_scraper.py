@@ -360,26 +360,51 @@ async def scrape_url_with_httpx(url: str) -> Optional[str]:
 
 async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[str]:
     """
-    Full Playwright scrape for JavaScript-heavy pages (Indeed, Workday, company career portals).
-    Waits for content to appear, clicks "Show more" expansions.
+    Full Playwright scrape with stealth mode — bypasses bot detection on Indeed,
+    Glassdoor, Workday, and company career portals.
     """
     try:
         from playwright.async_api import async_playwright
+        try:
+            from playwright_stealth import stealth_async
+            _stealth_available = True
+        except ImportError:
+            _stealth_available = False
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor",
+                ],
             )
             context = await browser.new_context(
                 user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
                 ),
                 viewport={"width": 1440, "height": 900},
                 locale="en-US",
+                timezone_id="America/New_York",
+                # Mimic a real browser environment
+                java_script_enabled=True,
+                accept_downloads=False,
+                extra_http_headers={
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "sec-ch-ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": '"Windows"',
+                },
             )
             page = await context.new_page()
+            # Apply stealth patches — removes webdriver flag, fixes navigator props, etc.
+            if _stealth_available:
+                await stealth_async(page)
 
             # Block heavy resources
             await page.route(
