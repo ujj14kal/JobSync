@@ -37,7 +37,6 @@ const PRO_FEATURES = [
   "15 Claude Sonnet ATS analyses/month",
   "5 AI resume generations (Sonnet)",
   "3 AI cover letters (Sonnet)",
-  "2 text AI interviews (Sonnet)",
   "Ask Claude chat assistant",
   "PDF report exports",
   "Priority processing",
@@ -175,9 +174,7 @@ export function UpsellProvider({ children }: { children: ReactNode }) {
                   onClick={() => { close(); opts.onProceed(); }}
                   className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline underline-offset-2 transition-colors"
                 >
-                  {opts.feature === "AI Interview"
-                    ? "Just this once — buy 1 session for ₹149"
-                    : "Not this time — continue with individual purchase"}
+                  Not this time — continue with individual purchase
                 </button>
               </div>
             </motion.div>
