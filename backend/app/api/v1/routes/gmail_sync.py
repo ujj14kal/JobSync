@@ -432,11 +432,10 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
         )
         since_days = max(7, min(30, delta.days + 1))  # 7–30 days on subsequent syncs
 
-    import logging as _log
-    _log.warning(f"[gmail_sync] since_days={since_days} last_synced={last_synced} apps={len(applications)}")
+    print(f"[gmail_sync] since_days={since_days} last_synced={last_synced} apps={len(applications)}", flush=True)
 
     emails = await _fetch_job_emails(access_token, since_days=since_days)
-    _log.warning(f"[gmail_sync] fetched {len(emails)} emails: {[e['subject'][:60] for e in emails]}")
+    print(f"[gmail_sync] fetched {len(emails)} emails: {[e['subject'][:60] for e in emails]}", flush=True)
     if not emails:
         supabase.table("gmail_connections").update({
             "last_synced_at": datetime.now(timezone.utc).isoformat()
@@ -444,7 +443,7 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
         return {"updates": [], "suggestions": [], "emails_checked": 0, "message": "No job-related emails found"}
 
     classifications = await _classify_emails(emails)
-    _log.warning(f"[gmail_sync] classifications: {classifications}")
+    print(f"[gmail_sync] classifications: {classifications}", flush=True)
 
     STATUS_ORDER = ["saved", "applied", "screening", "interviewing", "offer", "rejected", "withdrawn"]
 
