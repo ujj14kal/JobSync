@@ -128,8 +128,22 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
         "subject:\"you have been selected\" OR subject:\"welcome to\" OR "
         "subject:\"your application\" OR subject:\"job offer\" OR "
         "subject:\"appointment letter\" OR subject:shortlisted OR "
-        "subject:\"next round\" OR subject:\"move forward\""
-        ")"
+        "subject:\"next round\" OR subject:\"move forward\" OR "
+        "subject:\"documents required\" OR subject:\"document verification\" OR "
+        "subject:intern OR subject:internship OR subject:\"quick interaction\" OR "
+        "subject:\"final round\" OR subject:hired OR subject:recruited"
+        ") "
+        # Exclude marketing noise and non-recruitment senders
+        "-from:internshala.com "
+        "-from:codingninjas.com "
+        "-from:coding-ninjas.com "
+        "-from:agoda.com "
+        "-from:agoda-emails.com "
+        "-from:linkedin.com "
+        "-from:noreply@linkedin.com "
+        "-from:jobs-noreply@linkedin.com "
+        "-from:tripadvisor.com "
+        "-from:quora.com"
     )
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -215,10 +229,10 @@ Return a JSON array. Each element:
 Extraction rules:
 - Include ANY email that is clearly about a job application (company/recruiter → candidate).
 - Extract company name from: sender email domain (e.g. @boat-lifestyle.com → boAt), email body/subject mentions.
-- For offer: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome aboard", "welcome to the team", "congratulations on your selection" all indicate offer.
+- For offer: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome aboard", "welcome to the team", "congratulations on your selection", "documents required" (pre-joining document collection), "document verification" all indicate offer.
 - For rejected: "unfortunately", "not moving forward", "not selected", "other candidates", "not shortlisted".
-- For interview: "interview scheduled", "next round", "technical interview", "HR round", "please join".
-- For screening: "shortlisted", "initial screen", "assessment", "online test".
+- For interview: "interview scheduled", "next round", "technical interview", "HR round", "please join", "quick interaction", calendar invites from a recruiter/company for a meeting.
+- For screening: "shortlisted", "initial screen", "assessment", "online test", "intern" (shortlisting for internship).
 - Do NOT require the company to be from any pre-defined list — extract it from the email itself.
 - Only include items where confidence >= 0.65 and company is not null and status != "other".
 - If nothing qualifies, return [].
@@ -405,19 +419,17 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
         .execute()
     )
     applications = apps_res.data or []
-    if not applications:
-        return {"updates": [], "message": "No job applications to match against"}
 
     # Determine look-back window.
     # Always scan at least 7 days so an email that arrived between two
     # same-day syncs is never missed (delta.days would be 0 → window was 1 day).
     last_synced = conn_res.data.get("last_synced_at")
-    since_days = 14
+    since_days = 30  # default: 30 days on first sync to catch recent history
     if last_synced:
         delta = datetime.now(timezone.utc) - datetime.fromisoformat(
             last_synced.replace("Z", "+00:00")
         )
-        since_days = max(7, min(30, delta.days + 1))
+        since_days = max(7, min(30, delta.days + 1))  # 7–30 days on subsequent syncs
 
     emails = await _fetch_job_emails(access_token, since_days=since_days)
     if not emails:
