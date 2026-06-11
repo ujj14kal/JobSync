@@ -87,8 +87,17 @@ export interface GmailSyncUpdate {
   subject: string;
 }
 
+export interface GmailNewApplication {
+  id?: string;
+  company: string;
+  job_title: string;
+  new_status: AppStatus;
+  subject: string;
+}
+
 export interface GmailSyncResult {
   updates: GmailSyncUpdate[];
+  new_applications: GmailNewApplication[];
   emails_checked: number;
   message: string;
 }

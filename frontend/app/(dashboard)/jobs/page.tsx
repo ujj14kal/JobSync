@@ -505,12 +505,16 @@ function GmailBanner({
       qc.invalidateQueries({ queryKey: ["job-application-stats"] });
       qc.invalidateQueries({ queryKey: ["gmail-status"] });
       onSyncComplete(result.updates);
-      if (result.updates.length === 0) {
+      const newApps = result.new_applications ?? [];
+      if (result.updates.length === 0 && newApps.length === 0) {
         toast.info("Inbox checked — no new status changes found");
       } else {
         result.updates.forEach((u) =>
-          toast.success(`${u.company} → ${u.new_status}`, {
-            description: u.subject,
+          toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
+        );
+        newApps.forEach((a) =>
+          toast.success(`Added: ${a.company} (${a.new_status})`, {
+            description: `Auto-detected from email · ${a.subject}`,
           })
         );
       }
@@ -662,11 +666,15 @@ export default function JobTrackerPage() {
           qc.invalidateQueries({ queryKey: ["job-applications"] });
           qc.invalidateQueries({ queryKey: ["job-application-stats"] });
           qc.invalidateQueries({ queryKey: ["gmail-status"] });
-          if (result.updates.length > 0) {
-            result.updates.forEach((u) =>
-              toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
-            );
-          }
+          const newApps = result.new_applications ?? [];
+          result.updates.forEach((u) =>
+            toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
+          );
+          newApps.forEach((a) =>
+            toast.success(`Added: ${a.company} (${a.new_status})`, {
+              description: `Auto-detected from email · ${a.subject}`,
+            })
+          );
         } catch { /* silent */ }
       }, 1500);
       // Clean up the URL param
@@ -780,10 +788,8 @@ export default function JobTrackerPage() {
       {/* Gmail auto-tracking banner */}
       <GmailBanner
         onSyncComplete={(updates) => {
-          if (updates.length > 0) {
-            qc.invalidateQueries({ queryKey: ["job-applications"] });
-            qc.invalidateQueries({ queryKey: ["job-application-stats"] });
-          }
+          qc.invalidateQueries({ queryKey: ["job-applications"] });
+          qc.invalidateQueries({ queryKey: ["job-application-stats"] });
         }}
       />
 

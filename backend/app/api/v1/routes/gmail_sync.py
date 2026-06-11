@@ -183,26 +183,21 @@ GROQ_STATUS_MAP = {
     "withdrawn":         "withdrawn",
 }
 
-async def _classify_emails(
-    emails: list[dict],
-    job_companies: list[str],
-) -> list[dict]:
+async def _classify_emails(emails: list[dict]) -> list[dict]:
     """
     Call Groq to classify each email into a job status update.
-    Returns list of { email_index, company, status, confidence, subject }.
+    Extracts company directly from the email — no pre-defined company list needed.
+    Returns list of {email_index, company, job_title, status, confidence, subject}.
     """
-    if not emails or not job_companies or not settings.GROQ_API_KEY:
+    if not emails or not settings.GROQ_API_KEY:
         return []
 
-    companies_csv = ", ".join(job_companies[:30])
     emails_block = "\n\n".join(
         f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\nSnippet: {e['snippet']}"
-        for i, e in enumerate(emails[:25])  # increased from 15
+        for i, e in enumerate(emails[:25])
     )
 
-    prompt = f"""You parse job application emails to extract status updates.
-
-The user has applied to these companies: {companies_csv}
+    prompt = f"""You are parsing job application emails. Extract status updates from any company.
 
 Emails to analyse:
 {emails_block}
@@ -210,18 +205,22 @@ Emails to analyse:
 Return a JSON array. Each element:
 {{
   "email_index": <1-based int>,
-  "company": "<company from user's list that best matches this email, or null>",
+  "company": "<company/organisation name extracted from the email — from the sender domain, body, or subject>",
+  "job_title": "<job role mentioned in email, or null if not clear>",
   "status": "<one of: applied_confirmed | screening | interview_scheduled | offer | rejected | other>",
   "confidence": <0.0-1.0>,
   "subject": "<email subject>"
 }}
 
-Rules:
-- Include only emails clearly about a job application (company/recruiter → candidate).
-- Match company using flexible substring matching — "boAt", "Boat", "BOAT", "boAt Lifestyle" should all match "boat". Ignore case, hyphens, spaces, and "Ltd/Inc/Pvt" suffixes.
-- For offer status: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome to the team", "congratulations on your selection" all indicate an offer.
-- For rejected status: "unfortunately", "not moving forward", "not selected", "other candidates" all indicate rejection.
-- Only include items where confidence >= 0.65 and company is not null.
+Extraction rules:
+- Include ANY email that is clearly about a job application (company/recruiter → candidate).
+- Extract company name from: sender email domain (e.g. @boat-lifestyle.com → boAt), email body/subject mentions.
+- For offer: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome aboard", "welcome to the team", "congratulations on your selection" all indicate offer.
+- For rejected: "unfortunately", "not moving forward", "not selected", "other candidates", "not shortlisted".
+- For interview: "interview scheduled", "next round", "technical interview", "HR round", "please join".
+- For screening: "shortlisted", "initial screen", "assessment", "online test".
+- Do NOT require the company to be from any pre-defined list — extract it from the email itself.
+- Only include items where confidence >= 0.65 and company is not null and status != "other".
 - If nothing qualifies, return [].
 """
 
@@ -230,7 +229,7 @@ Rules:
             model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=800,
+            max_tokens=900,
             json_mode=True,
             use_cache=False,
         )
@@ -238,7 +237,6 @@ Rules:
         if isinstance(parsed, list):
             return parsed
         if isinstance(parsed, dict):
-            # Groq sometimes wraps in { "results": [...] }
             for key in ("results", "emails", "items", "data"):
                 if isinstance(parsed.get(key), list):
                     return parsed[key]
@@ -426,13 +424,14 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
         supabase.table("gmail_connections").update({
             "last_synced_at": datetime.now(timezone.utc).isoformat()
         }).eq("user_id", user_id).execute()
-        return {"updates": [], "message": "No job-related emails found"}
+        return {"updates": [], "new_applications": [], "message": "No job-related emails found"}
 
-    job_companies = [a["company"] for a in applications if a.get("company")]
-    classifications = await _classify_emails(emails, job_companies)
+    classifications = await _classify_emails(emails)
 
-    # Apply updates
+    STATUS_ORDER = ["saved", "applied", "screening", "interviewing", "offer", "rejected", "withdrawn"]
+
     updates_made: list[dict] = []
+    new_applications: list[dict] = []
     now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     for item in classifications:
@@ -446,50 +445,95 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
             continue
 
         matched_app = _match_company(detected_company, applications)
-        if not matched_app:
-            continue
 
-        # Don't downgrade status (e.g., don't go offer → screening)
-        STATUS_ORDER = ["saved", "applied", "screening", "interviewing", "offer", "rejected", "withdrawn"]
-        current_idx = STATUS_ORDER.index(matched_app["status"]) if matched_app["status"] in STATUS_ORDER else 0
-        new_idx     = STATUS_ORDER.index(new_status) if new_status in STATUS_ORDER else 0
+        if matched_app:
+            # ── Update existing application ───────────────────────────────
+            current_idx = STATUS_ORDER.index(matched_app["status"]) if matched_app["status"] in STATUS_ORDER else 0
+            new_idx     = STATUS_ORDER.index(new_status) if new_status in STATUS_ORDER else 0
 
-        # Allow rejected/withdrawn at any point, otherwise only upgrade
-        if new_status not in ("rejected", "withdrawn") and new_idx <= current_idx:
-            continue
+            # Only upgrade, except rejected/withdrawn can come at any point
+            if new_status not in ("rejected", "withdrawn") and new_idx <= current_idx:
+                continue
 
-        # Append to status_history
-        history = matched_app.get("status_history") or []
-        history.append({
-            "status":    new_status,
-            "timestamp": now_iso,
-            "note":      f"Auto-detected via Gmail: {item.get('subject', '')[:60]}",
-        })
+            history = matched_app.get("status_history") or []
+            history.append({
+                "status":    new_status,
+                "timestamp": now_iso,
+                "note":      f"Auto-detected via Gmail: {item.get('subject', '')[:60]}",
+            })
 
-        supabase.table("job_applications").update({
-            "status":         new_status,
-            "status_history": history,
-        }).eq("id", matched_app["id"]).eq("user_id", user_id).execute()
+            supabase.table("job_applications").update({
+                "status":         new_status,
+                "status_history": history,
+            }).eq("id", matched_app["id"]).eq("user_id", user_id).execute()
 
-        updates_made.append({
-            "company":    matched_app["company"],
-            "old_status": matched_app["status"],
-            "new_status": new_status,
-            "subject":    item.get("subject", ""),
-        })
+            updates_made.append({
+                "company":    matched_app["company"],
+                "old_status": matched_app["status"],
+                "new_status": new_status,
+                "subject":    item.get("subject", ""),
+            })
 
-        # Update local list so we don't double-process the same app
-        matched_app["status"] = new_status
+            matched_app["status"] = new_status
+
+        else:
+            # ── Auto-create new application for unknown company ───────────
+            # Only create if confidence is high enough — avoid noisy entries
+            confidence = item.get("confidence", 0)
+            if confidence < 0.75:
+                continue
+
+            # Don't create duplicates within the same sync run
+            already_creating = any(
+                _normalize(a["company"]) == _normalize(detected_company)
+                for a in new_applications
+            )
+            if already_creating:
+                continue
+
+            job_title = item.get("job_title") or "Position"
+            note_text = f"Auto-added via Gmail sync: {item.get('subject', '')[:80]}"
+
+            res = supabase.table("job_applications").insert({
+                "user_id":        user_id,
+                "company":        detected_company,
+                "job_title":      job_title,
+                "status":         new_status,
+                "notes":          note_text,
+                "status_history": [{
+                    "status":    new_status,
+                    "timestamp": now_iso,
+                    "note":      note_text,
+                }],
+            }).execute()
+
+            created = res.data[0] if res.data else {}
+            new_applications.append({
+                "id":         created.get("id"),
+                "company":    detected_company,
+                "job_title":  job_title,
+                "new_status": new_status,
+                "subject":    item.get("subject", ""),
+            })
+            # Add to local list to avoid double-processing
+            applications.append({
+                "id": created.get("id"),
+                "company": detected_company,
+                "status": new_status,
+                "status_history": [],
+            })
 
     # Mark sync time
     supabase.table("gmail_connections").update({
         "last_synced_at": now_iso,
     }).eq("user_id", user_id).execute()
 
+    total = len(updates_made) + len(new_applications)
     return {
-        "updates": updates_made,
-        "emails_checked": len(emails),
-        "message": f"{len(updates_made)} job(s) updated automatically",
+        "updates":          updates_made,
+        "new_applications": new_applications,
+        "emails_checked":   len(emails),
+        "message":          f"{total} job(s) updated — {len(updates_made)} existing, {len(new_applications)} new",
     }
 
 
