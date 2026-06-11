@@ -45,4 +45,14 @@ export const billingApi = {
     const { data } = await apiClient.post("/payments/cancel-subscription");
     return data;
   },
+
+  scheduleUpgrade: async (): Promise<{
+    subscription_id: string;
+    razorpay_key_id: string;
+    starts_at: string;
+    starts_at_label: string;
+  }> => {
+    const { data } = await apiClient.post("/payments/schedule-upgrade");
+    return data;
+  },
 };

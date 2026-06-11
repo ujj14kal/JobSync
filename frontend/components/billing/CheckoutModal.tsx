@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { billingApi } from "@/lib/api/billing";
 import { toast } from "sonner";
 
@@ -55,12 +55,13 @@ interface CheckoutModalProps {
 }
 
 const PLAN_LABELS: Record<string, { label: string; amount: string; desc: string }> = {
-  pro_monthly:     { label: "Pro Monthly",           amount: "₹299/month",  desc: "Cancel anytime" },
-  pro_yearly:      { label: "Pro Yearly",            amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
-  resume_pack:     { label: "Resume Builder Pack",   amount: "₹299",        desc: "10 AI resume generations" },
-  interview_text:  { label: "AI Interview (Text)",   amount: "₹149",        desc: "1 full text interview session" },
-  interview_voice: { label: "AI Interview (Voice)",  amount: "₹149",        desc: "1 voice interview — ElevenLabs + Sonnet" },
-  ats_deep:        { label: "ATS Deep Analysis",     amount: "₹59",         desc: "1 Claude Sonnet ATS analysis" },
+  pro_monthly:        { label: "Pro Monthly",           amount: "₹299/month",  desc: "Cancel anytime" },
+  pro_yearly:         { label: "Pro Yearly",            amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
+  pro_yearly_upgrade: { label: "Upgrade to Yearly",     amount: "₹2,499/year", desc: "Starts when your monthly plan ends" },
+  resume_pack:        { label: "Resume Builder Pack",   amount: "₹299",        desc: "10 AI resume generations" },
+  interview_text:     { label: "AI Interview (Text)",   amount: "₹149",        desc: "1 full text interview session" },
+  interview_voice:    { label: "AI Interview (Voice)",  amount: "₹149",        desc: "1 voice interview — ElevenLabs + Sonnet" },
+  ats_deep:           { label: "ATS Deep Analysis",     amount: "₹59",         desc: "1 Claude Sonnet ATS analysis" },
 };
 
 type Stage = "loading" | "ready" | "processing" | "success" | "error";
@@ -68,8 +69,10 @@ type Stage = "loading" | "ready" | "processing" | "success" | "error";
 export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) {
   const [stage, setStage] = useState<Stage>("loading");
   const [error, setError] = useState("");
+  const [scheduledStartLabel, setScheduledStartLabel] = useState("");
   const info = PLAN_LABELS[plan] ?? { label: plan, amount: "", desc: "" };
   const isSubscription = plan === "pro_monthly" || plan === "pro_yearly";
+  const isScheduledUpgrade = plan === "pro_yearly_upgrade";
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +89,38 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
       const rzpLoaded = await loadRazorpay();
       if (!rzpLoaded) throw new Error("Payment gateway failed to load.");
 
-      if (isSubscription) {
+      if (isScheduledUpgrade) {
+        // ── Scheduled upgrade: Pro monthly → yearly (starts at period end) ──
+        const { subscription_id, razorpay_key_id, starts_at_label } =
+          await billingApi.scheduleUpgrade();
+        setScheduledStartLabel(starts_at_label);
+
+        await new Promise<void>((resolve, reject) => {
+          const rzp = new (window as any).Razorpay({
+            key:             razorpay_key_id,
+            subscription_id: subscription_id,
+            name:            "JobSynk",
+            description:     `Pro Yearly — starts ${starts_at_label}`,
+            image:           rzpLogo(),
+            theme:           RZP_THEME,
+            handler: async (response: any) => {
+              try {
+                await billingApi.verifySubscription({
+                  razorpay_payment_id:      response.razorpay_payment_id,
+                  razorpay_subscription_id: response.razorpay_subscription_id,
+                  razorpay_signature:       response.razorpay_signature,
+                  plan:                     "pro_yearly",
+                });
+                resolve();
+              } catch (e: any) {
+                reject(new Error(e?.response?.data?.detail || "Verification failed."));
+              }
+            },
+            modal: { ondismiss: () => reject(new Error("cancelled")) },
+          });
+          rzp.open();
+        });
+      } else if (isSubscription) {
         // ── Subscription flow ────────────────────────────────────────────────
         const { subscription_id, razorpay_key_id } = await billingApi.createSubscription(
           plan as "pro_monthly" | "pro_yearly"
@@ -151,7 +185,13 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
       }
 
       setStage("success");
-      toast.success(isSubscription ? "Welcome to Pro! 🎉" : `${info.label} added to your account!`);
+      toast.success(
+        isScheduledUpgrade
+          ? `Yearly plan scheduled! Starts ${scheduledStartLabel}.`
+          : isSubscription
+          ? "Welcome to Pro! 🎉"
+          : `${info.label} added to your account!`
+      );
       setTimeout(onSuccess, 1200);
     } catch (e: any) {
       if (e.message === "cancelled") {
@@ -179,6 +219,16 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
       >
+        {/* X close button — hidden only while payment is processing or after success */}
+        {stage !== "processing" && stage !== "success" && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4 text-[var(--text-muted)]" />
+          </button>
+        )}
+
         {stage === "loading" && (
           <>
             <Loader2 className="w-8 h-8 text-[#C05800] animate-spin mx-auto mb-3" />
@@ -218,8 +268,14 @@ export function CheckoutModal({ plan, onClose, onSuccess }: CheckoutModalProps) 
         {stage === "success" && (
           <>
             <CheckCircle2 className="w-12 h-12 text-[#7ab840] mx-auto mb-3" />
-            <p className="text-[16px] font-bold text-[var(--text-primary)]">Payment successful!</p>
-            <p className="text-[12px] text-[var(--text-muted)] mt-1">Your account has been updated.</p>
+            <p className="text-[16px] font-bold text-[var(--text-primary)]">
+              {isScheduledUpgrade ? "Upgrade scheduled!" : "Payment successful!"}
+            </p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-1">
+              {isScheduledUpgrade
+                ? `Your yearly plan starts on ${scheduledStartLabel}.`
+                : "Your account has been updated."}
+            </p>
           </>
         )}
 

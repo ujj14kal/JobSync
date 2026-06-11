@@ -139,8 +139,11 @@ async def my_plan(user_id: str = Depends(get_current_user_id)):
         .execute()
     )
 
+    row = sub.data[0] if sub.data else {"plan": "free", "status": "active"}
     return {
-        "subscription": sub.data[0] if sub.data else {"plan": "free", "status": "active"},
+        "subscription": row,
+        "has_pending_upgrade": bool(row.get("pending_yearly_sub_id")),
+        "upgrade_scheduled_for": row.get("upgrade_scheduled_for"),
         "monthly_usage": usage,
         "credits": credits.data or [],
         "limits": {
@@ -266,6 +269,71 @@ async def verify_subscription(
     return {"success": True, "plan": "pro", "billing_cycle": cycle}
 
 
+@router.post("/schedule-upgrade")
+async def schedule_upgrade(user_id: str = Depends(get_current_user_id)):
+    """Pro Monthly → Pro Yearly: schedules the yearly sub to start when the current monthly ends.
+    Cancels monthly at cycle end so there's no double-charge."""
+    supabase = get_supabase()
+
+    sub_row = await asyncio.to_thread(
+        lambda: supabase.table("user_subscriptions")
+        .select("*")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not sub_row.data:
+        raise HTTPException(404, "No subscription found.")
+
+    current = sub_row.data[0]
+    if current.get("plan") != "pro" or current.get("billing_cycle") != "monthly":
+        raise HTTPException(400, "Schedule upgrade is only available for Pro Monthly subscribers.")
+
+    period_end = current.get("current_period_end")
+    if not period_end:
+        raise HTTPException(400, "Cannot determine current period end date.")
+
+    if not settings.RAZORPAY_PLAN_YEARLY:
+        raise HTTPException(503, "Yearly plan not configured on server.")
+
+    end_dt = datetime.fromisoformat(period_end.replace("Z", "+00:00"))
+    start_at_unix = int(end_dt.timestamp())
+
+    # Cancel the monthly subscription at cycle end (no immediate cancellation)
+    rzp_sub_id = current.get("razorpay_subscription_id")
+    client = _rzp()
+    if rzp_sub_id:
+        await asyncio.to_thread(
+            lambda: client.subscription.cancel(rzp_sub_id, {"cancel_at_cycle_end": 1})
+        )
+
+    # Create yearly subscription scheduled to start when monthly ends
+    new_sub = await asyncio.to_thread(
+        lambda: client.subscription.create({
+            "plan_id":     settings.RAZORPAY_PLAN_YEARLY,
+            "total_count": 12,
+            "start_at":    start_at_unix,
+            "notes":       {"user_id": user_id, "plan": "pro_yearly"},
+        })
+    )
+
+    # Store pending upgrade details
+    await asyncio.to_thread(
+        lambda: supabase.table("user_subscriptions").update({
+            "pending_yearly_sub_id": new_sub["id"],
+            "upgrade_scheduled_for": end_dt.isoformat(),
+            "updated_at":            datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).execute()
+    )
+
+    return {
+        "subscription_id":  new_sub["id"],
+        "razorpay_key_id":  settings.RAZORPAY_KEY_ID,
+        "starts_at":        end_dt.isoformat(),
+        "starts_at_label":  end_dt.strftime("%B %d, %Y"),
+    }
+
+
 @router.post("/cancel-subscription")
 async def cancel_subscription(user_id: str = Depends(get_current_user_id)):
     supabase = get_supabase()
@@ -324,6 +392,15 @@ async def razorpay_webhook(
             cycle = "monthly" if plan == "pro_monthly" else "yearly"
             delta = timedelta(days=31 if cycle == "monthly" else 366)
             await _activate_pro(user_id, cycle, payload["id"], datetime.now(timezone.utc) + delta)
+            # Clear pending upgrade marker if this is the scheduled yearly firing
+            if cycle == "yearly":
+                supabase = get_supabase()
+                await asyncio.to_thread(
+                    lambda: supabase.table("user_subscriptions").update({
+                        "pending_yearly_sub_id": None,
+                        "upgrade_scheduled_for": None,
+                    }).eq("user_id", user_id).execute()
+                )
 
     elif event_type in ("subscription.cancelled", "subscription.expired"):
         payload = event["payload"]["subscription"]["entity"]

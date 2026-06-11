@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Zap, Crown, Sparkles, X,
-  Brain, Shield, MessageSquare,
+  Brain, Shield, MessageSquare, LogIn,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { CheckoutModal } from "@/components/billing/CheckoutModal";
 import { cn } from "@/lib/utils";
 
@@ -40,12 +42,24 @@ const INDIVIDUAL = [
 export default function PricingSection() {
   const ref      = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
+  const router   = useRouter();
   const [billing, setBilling]   = useState<"monthly" | "yearly">("monthly");
   const [checkout, setCheckout] = useState<string | null>(null);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
   const planPrice = billing === "monthly" ? "₹299" : "₹2,499";
   const planSub   = billing === "monthly" ? "per month" : "per year · ₹208/mo · save ₹1,089";
   const planId    = billing === "monthly" ? "pro_monthly" : "pro_yearly";
+
+  async function handleBuy(productId: string) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setShowSignInPrompt(true);
+      return;
+    }
+    setCheckout(productId);
+  }
 
   return (
     <section ref={ref} className="section relative overflow-hidden">
@@ -179,7 +193,7 @@ export default function PricingSection() {
             </div>
 
             <motion.button
-              onClick={() => setCheckout(planId)}
+              onClick={() => handleBuy(planId)}
               whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
               className="w-full py-3 rounded-xl text-[14px] font-bold text-white transition-all relative"
               style={{ background: "linear-gradient(135deg,#C05800,#713600)", boxShadow: "0 4px 20px rgba(192,88,0,0.35)" }}>
@@ -202,7 +216,7 @@ export default function PricingSection() {
               {INDIVIDUAL.map(({ id, label, price, per, icon: Icon }) => (
                 <motion.button
                   key={id}
-                  onClick={() => setCheckout(id)}
+                  onClick={() => handleBuy(id)}
                   whileHover={{ x: 3 }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:bg-[var(--bg-elevated)] group"
                   style={{ border: "1px solid var(--border-subtle)" }}>
@@ -227,6 +241,55 @@ export default function PricingSection() {
         </div>
 
       </div>
+
+      {/* Sign-in required prompt */}
+      <AnimatePresence>
+        {showSignInPrompt && (
+          <motion.div
+            className="fixed inset-0 z-[9500] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowSignInPrompt(false)} />
+            <motion.div
+              className="relative z-10 w-full max-w-sm p-6 rounded-3xl text-center"
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+            >
+              <button
+                onClick={() => setShowSignInPrompt(false)}
+                className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4 text-[var(--text-muted)]" />
+              </button>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{ background: "rgba(192,88,0,0.12)", border: "1px solid rgba(192,88,0,0.2)" }}>
+                <LogIn className="w-5 h-5 text-[#C05800]" />
+              </div>
+              <h3 className="text-[17px] font-bold text-[var(--text-primary)] mb-1">Sign in to purchase</h3>
+              <p className="text-[13px] text-[var(--text-secondary)] mb-6">
+                Create a free account or sign in to continue with your purchase.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Link href="/login">
+                  <button className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all"
+                    style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}>
+                    Sign in
+                  </button>
+                </Link>
+                <Link href="/signup">
+                  <button className="w-full py-2.5 rounded-xl text-[13px] font-medium border transition-all hover:bg-[var(--bg-elevated)]"
+                    style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
+                    Create free account
+                  </button>
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Checkout modal */}
       <AnimatePresence>

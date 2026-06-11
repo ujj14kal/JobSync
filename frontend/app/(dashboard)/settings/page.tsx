@@ -7,15 +7,17 @@ import { settingsApi, type UserSettings } from "@/lib/api/settings";
 import { resumeApi } from "@/lib/api/resume";
 import {
   Bell, User, Brain, Shield, Briefcase, DollarSign,
-  Save, Trash2, ChevronRight, Check, AlertTriangle, Plus, X,
+  Save, Trash2, Check, AlertTriangle, Plus, X, CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import BillingDashboard from "@/components/billing/BillingDashboard";
 
-type Section = "profile" | "notifications" | "career" | "scoring" | "privacy";
+type Section = "profile" | "notifications" | "career" | "scoring" | "privacy" | "billing";
 
 const sections: { id: Section; label: string; icon: typeof Bell; desc: string }[] = [
   { id: "profile",       label: "Profile",        icon: User,        desc: "Your personal info and career stage" },
+  { id: "billing",       label: "Billing",        icon: CreditCard,  desc: "Plans, purchases and credits" },
   { id: "notifications", label: "Notifications",  icon: Bell,        desc: "Control what alerts you receive" },
   { id: "career",        label: "Career Prefs",   icon: Briefcase,   desc: "Target roles, salary, work preferences" },
   { id: "scoring",       label: "AI Scoring",     icon: Brain,       desc: "Customize how your resume is scored" },
@@ -207,6 +209,9 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex-1 space-y-5"
         >
+          {/* ── BILLING ─────────────────────────────────────────────── */}
+          {activeSection === "billing" && <BillingDashboard />}
+
           {/* ── PROFILE ─────────────────────────────────────────────── */}
           {activeSection === "profile" && (
             <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] space-y-5">
