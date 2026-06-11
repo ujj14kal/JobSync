@@ -132,18 +132,7 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
         "subject:\"documents required\" OR subject:\"document verification\" OR "
         "subject:intern OR subject:internship OR subject:\"quick interaction\" OR "
         "subject:\"final round\" OR subject:hired OR subject:recruited"
-        ") "
-        # Exclude marketing noise and non-recruitment senders
-        "-from:internshala.com "
-        "-from:codingninjas.com "
-        "-from:coding-ninjas.com "
-        "-from:agoda.com "
-        "-from:agoda-emails.com "
-        "-from:linkedin.com "
-        "-from:noreply@linkedin.com "
-        "-from:jobs-noreply@linkedin.com "
-        "-from:tripadvisor.com "
-        "-from:quora.com"
+        ")"
     )
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -211,7 +200,7 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         for i, e in enumerate(emails[:25])
     )
 
-    prompt = f"""You are parsing job application emails. Extract status updates from any company.
+    prompt = f"""You are a classifier that extracts job application status updates from emails.
 
 Emails to analyse:
 {emails_block}
@@ -219,23 +208,35 @@ Emails to analyse:
 Return a JSON array. Each element:
 {{
   "email_index": <1-based int>,
-  "company": "<company/organisation name extracted from the email — from the sender domain, body, or subject>",
-  "job_title": "<job role mentioned in email, or null if not clear>",
+  "company": "<company/organisation name — from sender domain, body, or subject>",
+  "job_title": "<job role if mentioned, or null>",
   "status": "<one of: applied_confirmed | screening | interview_scheduled | offer | rejected | other>",
   "confidence": <0.0-1.0>,
   "subject": "<email subject>"
 }}
 
-Extraction rules:
-- Include ANY email that is clearly about a job application (company/recruiter → candidate).
-- Extract company name from: sender email domain (e.g. @boat-lifestyle.com → boAt), email body/subject mentions.
-- For offer: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome aboard", "welcome to the team", "congratulations on your selection", "documents required" (pre-joining document collection), "document verification" all indicate offer.
-- For rejected: "unfortunately", "not moving forward", "not selected", "other candidates", "not shortlisted".
-- For interview: "interview scheduled", "next round", "technical interview", "HR round", "please join", "quick interaction", calendar invites from a recruiter/company for a meeting.
-- For screening: "shortlisted", "initial screen", "assessment", "online test", "intern" (shortlisting for internship).
-- Do NOT require the company to be from any pre-defined list — extract it from the email itself.
-- Only include items where confidence >= 0.65 and company is not null and status != "other".
-- If nothing qualifies, return [].
+INCLUDE only if ALL of these are true:
+1. The email is sent BY a company/recruiter/HR TO the candidate about a specific job/internship they applied for.
+2. It contains a clear status signal about that application.
+
+Status signals:
+- offer: "offer letter", "appointment letter", "CTC", "joining date", "welcome aboard", "documents required" (asking for onboarding docs), "document verification", "congratulations on your selection", "pleased to offer".
+- rejected: "unfortunately", "not moving forward", "not selected", "regret to inform", "other candidates".
+- interview_scheduled: "interview scheduled", "next round", "technical interview", "HR round", "please join", "quick interaction" (from a recruiter), calendar invite from a company HR.
+- screening: "shortlisted for", "initial screening", "online assessment", "coding challenge", "HackerRank", "Mettl", "intern" combined with a shortlisting/selection context.
+- applied_confirmed: "received your application", "thank you for applying", "application confirmed".
+
+EXCLUDE (set status to "other" or skip):
+- Marketing emails, newsletters, or promotional content — even if they use words like "selected", "application", "congratulations", or "shortlisted" in a generic/marketing context (e.g. "selected courses for you", "your application is amazing, enrol now", "congratulations on joining our newsletter").
+- Job listing digests or job recommendations (e.g. LinkedIn "Jobs you may like", Naukri daily digest).
+- Course/education platform emails (e.g. Coding Ninjas, Coursera, Udemy, Internshala course emails).
+- Hotel, travel, food delivery, or e-commerce promotional emails.
+- GitHub/Supabase/tool notifications.
+- Any email where the "company" is just guessed from a marketing brand and there is no actual job status update.
+
+Extract the company name from the sender domain or body (e.g. @imaginemarketingindia.com + "boAt" in subject → company is "boAt").
+Only include items with confidence >= 0.65, a non-null company, and status != "other".
+If nothing qualifies, return [].
 """
 
     try:
