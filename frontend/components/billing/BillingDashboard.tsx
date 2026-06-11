@@ -19,9 +19,9 @@ const SKUS = [
 ] as const;
 
 const PRO_FEATURES = [
-  "15 ATS analyses/month",
-  "5 AI resume generations",
-  "3 AI cover letters",
+  "20 Claude Sonnet ATS analyses/month",
+  "8 AI resume generations (Sonnet)",
+  "5 AI cover letters/month",
   "Ask Claude chat assistant",
   "PDF report exports",
   "Priority processing",
