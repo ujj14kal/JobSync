@@ -477,50 +477,27 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
             matched_app["status"] = new_status
 
         else:
-            # ── Auto-create new application for unknown company ───────────
-            # Only create if confidence is high enough — avoid noisy entries
+            # ── Suggest new application — do NOT auto-create ──────────────
+            # Only surface high-confidence detections as suggestions the user
+            # can review and accept in the UI. Never insert without user action.
             confidence = item.get("confidence", 0)
             if confidence < 0.75:
                 continue
 
-            # Don't create duplicates within the same sync run
-            already_creating = any(
-                _normalize(a["company"]) == _normalize(detected_company)
-                for a in new_applications
+            # Deduplicate within the same sync run
+            already_suggested = any(
+                _normalize(s["company"]) == _normalize(detected_company)
+                for s in new_applications
             )
-            if already_creating:
+            if already_suggested:
                 continue
 
-            job_title = item.get("job_title") or "Position"
-            note_text = f"Auto-added via Gmail sync: {item.get('subject', '')[:80]}"
-
-            res = supabase.table("job_applications").insert({
-                "user_id":        user_id,
-                "company":        detected_company,
-                "job_title":      job_title,
-                "status":         new_status,
-                "notes":          note_text,
-                "status_history": [{
-                    "status":    new_status,
-                    "timestamp": now_iso,
-                    "note":      note_text,
-                }],
-            }).execute()
-
-            created = res.data[0] if res.data else {}
             new_applications.append({
-                "id":         created.get("id"),
-                "company":    detected_company,
-                "job_title":  job_title,
-                "new_status": new_status,
-                "subject":    item.get("subject", ""),
-            })
-            # Add to local list to avoid double-processing
-            applications.append({
-                "id": created.get("id"),
-                "company": detected_company,
-                "status": new_status,
-                "status_history": [],
+                "company":   detected_company,
+                "job_title": item.get("job_title") or "Position",
+                "status":    new_status,
+                "subject":   item.get("subject", ""),
+                "confidence": confidence,
             })
 
     # Mark sync time
@@ -528,12 +505,11 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
         "last_synced_at": now_iso,
     }).eq("user_id", user_id).execute()
 
-    total = len(updates_made) + len(new_applications)
     return {
-        "updates":          updates_made,
-        "new_applications": new_applications,
-        "emails_checked":   len(emails),
-        "message":          f"{total} job(s) updated — {len(updates_made)} existing, {len(new_applications)} new",
+        "updates":      updates_made,
+        "suggestions":  new_applications,   # user must accept these to add them
+        "emails_checked": len(emails),
+        "message": f"{len(updates_made)} status update(s), {len(new_applications)} suggestion(s) to review",
     }
 
 

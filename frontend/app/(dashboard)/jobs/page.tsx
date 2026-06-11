@@ -6,9 +6,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   jobApplicationsApi,
+  gmailApi,
   type JobApplication,
   type AppStatus,
   type StatusHistoryEntry,
+  type GmailSyncUpdate,
+  type GmailSuggestion,
 } from "@/lib/api/job-applications";
 import {
   Plus, Search, BarChart2, Briefcase, ExternalLink,
@@ -20,7 +23,6 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
-import { gmailApi, type GmailSyncUpdate } from "@/lib/api/job-applications";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<AppStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
@@ -487,8 +489,10 @@ function AppCard({ app, onEdit, onDelete, onStatusChange }: {
 // ─── Gmail Banner ─────────────────────────────────────────────────────────────
 function GmailBanner({
   onSyncComplete,
+  onSuggestions,
 }: {
   onSyncComplete: (updates: GmailSyncUpdate[]) => void;
+  onSuggestions: (suggestions: GmailSuggestion[]) => void;
 }) {
   const qc = useQueryClient();
 
@@ -505,18 +509,19 @@ function GmailBanner({
       qc.invalidateQueries({ queryKey: ["job-application-stats"] });
       qc.invalidateQueries({ queryKey: ["gmail-status"] });
       onSyncComplete(result.updates);
-      const newApps = result.new_applications ?? [];
-      if (result.updates.length === 0 && newApps.length === 0) {
+      const suggestions = result.suggestions ?? [];
+      if (result.updates.length === 0 && suggestions.length === 0) {
         toast.info("Inbox checked — no new status changes found");
       } else {
         result.updates.forEach((u) =>
           toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
         );
-        newApps.forEach((a) =>
-          toast.success(`Added: ${a.company} (${a.new_status})`, {
-            description: `Auto-detected from email · ${a.subject}`,
-          })
-        );
+        if (suggestions.length > 0) {
+          onSuggestions(suggestions);
+          toast.info(`${suggestions.length} new application${suggestions.length > 1 ? "s" : ""} detected from Gmail`, {
+            description: "Review and add them to your tracker below",
+          });
+        }
       }
     },
     onError: () => toast.error("Gmail sync failed"),
@@ -643,6 +648,82 @@ function GmailBanner({
   );
 }
 
+// ─── Gmail Suggestions Panel ──────────────────────────────────────────────────
+function GmailSuggestionsPanel({
+  suggestions,
+  onAccept,
+  onDismiss,
+  onDismissAll,
+}: {
+  suggestions: GmailSuggestion[];
+  onAccept: (s: GmailSuggestion) => void;
+  onDismiss: (s: GmailSuggestion) => void;
+  onDismissAll: () => void;
+}) {
+  if (suggestions.length === 0) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="rounded-2xl overflow-hidden"
+      style={{ border: "1px solid rgba(192,88,0,0.25)", background: "rgba(192,88,0,0.04)" }}
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(192,88,0,0.15)" }}>
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-[#C05800]" />
+          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+            Gmail found {suggestions.length} possible application{suggestions.length > 1 ? "s" : ""}
+          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">— review before adding</span>
+        </div>
+        <button
+          onClick={onDismissAll}
+          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+        >
+          Dismiss all
+        </button>
+      </div>
+      <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        {suggestions.map((s, i) => {
+          const cfg = STATUS_CONFIG[s.status] ?? STATUS_CONFIG.applied;
+          return (
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">{s.company}</span>
+                  {s.job_title && s.job_title !== "Position" && (
+                    <span className="text-[11px] text-[var(--text-muted)]">· {s.job_title}</span>
+                  )}
+                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", cfg.bg, cfg.color)}>
+                    {cfg.label}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">{s.subject}</p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  onClick={() => onAccept(s)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
+                  style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
+                >
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+                <button
+                  onClick={() => onDismiss(s)}
+                  className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function JobTrackerPage() {
   const [search, setSearch] = useState("");
@@ -650,6 +731,7 @@ export default function JobTrackerPage() {
   const [showModal, setShowModal] = useState(false);
   const [editApp, setEditApp] = useState<JobApplication | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
+  const [gmailSuggestions, setGmailSuggestions] = useState<GmailSuggestion[]>([]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const qc = useQueryClient();
@@ -659,31 +741,49 @@ export default function JobTrackerPage() {
     const gmail = searchParams.get("gmail");
     if (gmail === "connected") {
       toast.success("Gmail connected! Syncing your inbox…");
-      // Trigger an initial sync after a short delay so the connection is stored
       setTimeout(async () => {
         try {
           const result = await gmailApi.sync();
           qc.invalidateQueries({ queryKey: ["job-applications"] });
           qc.invalidateQueries({ queryKey: ["job-application-stats"] });
           qc.invalidateQueries({ queryKey: ["gmail-status"] });
-          const newApps = result.new_applications ?? [];
           result.updates.forEach((u) =>
             toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
           );
-          newApps.forEach((a) =>
-            toast.success(`Added: ${a.company} (${a.new_status})`, {
-              description: `Auto-detected from email · ${a.subject}`,
-            })
-          );
+          const suggestions = result.suggestions ?? [];
+          if (suggestions.length > 0) {
+            setGmailSuggestions(suggestions);
+            toast.info(`${suggestions.length} possible application${suggestions.length > 1 ? "s" : ""} found — review below`);
+          }
         } catch { /* silent */ }
       }, 1500);
-      // Clean up the URL param
       router.replace("/jobs");
     } else if (gmail === "error") {
       toast.error("Gmail connection failed — please try again");
       router.replace("/jobs");
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function acceptSuggestion(s: GmailSuggestion) {
+    try {
+      await jobApplicationsApi.create({
+        company:  s.company,
+        job_title: s.job_title !== "Position" ? s.job_title : s.company + " Role",
+        status:   s.status,
+        notes:    `Added from Gmail: ${s.subject}`,
+      });
+      qc.invalidateQueries({ queryKey: ["job-applications"] });
+      qc.invalidateQueries({ queryKey: ["job-application-stats"] });
+      setGmailSuggestions((prev) => prev.filter((x) => x.company !== s.company));
+      toast.success(`${s.company} added to tracker`);
+    } catch {
+      toast.error("Failed to add application");
+    }
+  }
+
+  function dismissSuggestion(s: GmailSuggestion) {
+    setGmailSuggestions((prev) => prev.filter((x) => x.company !== s.company));
+  }
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["job-applications"],
@@ -787,11 +887,24 @@ export default function JobTrackerPage() {
 
       {/* Gmail auto-tracking banner */}
       <GmailBanner
-        onSyncComplete={(updates) => {
+        onSyncComplete={() => {
           qc.invalidateQueries({ queryKey: ["job-applications"] });
           qc.invalidateQueries({ queryKey: ["job-application-stats"] });
         }}
+        onSuggestions={setGmailSuggestions}
       />
+
+      {/* Gmail suggestions — user reviews before adding */}
+      <AnimatePresence>
+        {gmailSuggestions.length > 0 && (
+          <GmailSuggestionsPanel
+            suggestions={gmailSuggestions}
+            onAccept={acceptSuggestion}
+            onDismiss={dismissSuggestion}
+            onDismissAll={() => setGmailSuggestions([])}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Stat cards */}
       <motion.div
