@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -112,12 +113,23 @@ async def _get_valid_access_token(conn: dict) -> str:
 async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dict]:
     """Fetch job-related emails using Gmail search operators."""
     after_ts = int((datetime.now(timezone.utc) - timedelta(days=since_days)).timestamp())
+    # Broad query — covers Indian ATS/HR patterns (Keka, Darwinbox, boAt, etc.)
+    # as well as standard western recruiting terms.
     query = (
         f"after:{after_ts} "
-        "(subject:application OR subject:interview OR subject:offer OR "
+        "("
+        "subject:application OR subject:interview OR subject:offer OR "
         "subject:rejected OR subject:unfortunately OR subject:\"next steps\" OR "
         "subject:assessment OR subject:screening OR subject:congratulations OR "
-        "subject:\"thank you for applying\" OR subject:\"we have reviewed\")"
+        "subject:\"thank you for applying\" OR subject:\"we have reviewed\" OR "
+        "subject:\"offer letter\" OR subject:appointed OR subject:selected OR "
+        "subject:joining OR subject:onboarding OR subject:\"we are pleased\" OR "
+        "subject:\"happy to inform\" OR subject:\"pleased to offer\" OR "
+        "subject:\"you have been selected\" OR subject:\"welcome to\" OR "
+        "subject:\"your application\" OR subject:\"job offer\" OR "
+        "subject:\"appointment letter\" OR subject:shortlisted OR "
+        "subject:\"next round\" OR subject:\"move forward\""
+        ")"
     )
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -133,7 +145,7 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
         message_ids = [m["id"] for m in r.json().get("messages", [])]
 
         emails: list[dict] = []
-        for msg_id in message_ids[:25]:   # cap — 25 × 5 units = 125 quota units
+        for msg_id in message_ids[:40]:   # increased from 25 to catch more
             try:
                 r2 = await client.get(
                     f"{GMAIL_API}/users/me/messages/{msg_id}",
@@ -152,7 +164,7 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
                         "subject": hmap.get("Subject", ""),
                         "from":    hmap.get("From", ""),
                         "date":    hmap.get("Date", ""),
-                        "snippet": msg.get("snippet", "")[:300],
+                        "snippet": msg.get("snippet", "")[:500],  # more context
                     })
             except Exception:
                 continue
@@ -185,12 +197,12 @@ async def _classify_emails(
     companies_csv = ", ".join(job_companies[:30])
     emails_block = "\n\n".join(
         f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\nSnippet: {e['snippet']}"
-        for i, e in enumerate(emails[:15])
+        for i, e in enumerate(emails[:25])  # increased from 15
     )
 
     prompt = f"""You parse job application emails to extract status updates.
 
-The user has applied to: {companies_csv}
+The user has applied to these companies: {companies_csv}
 
 Emails to analyse:
 {emails_block}
@@ -198,16 +210,18 @@ Emails to analyse:
 Return a JSON array. Each element:
 {{
   "email_index": <1-based int>,
-  "company": "<company from user's list, exact match, or null>",
+  "company": "<company from user's list that best matches this email, or null>",
   "status": "<one of: applied_confirmed | screening | interview_scheduled | offer | rejected | other>",
   "confidence": <0.0-1.0>,
   "subject": "<email subject>"
 }}
 
 Rules:
-- Only include emails that are clearly about a job application (recruiter/company → candidate).
-- company must match one of the user's companies (case-insensitive substring OK).
-- Only include items where confidence >= 0.7 and company is not null.
+- Include only emails clearly about a job application (company/recruiter → candidate).
+- Match company using flexible substring matching — "boAt", "Boat", "BOAT", "boAt Lifestyle" should all match "boat". Ignore case, hyphens, spaces, and "Ltd/Inc/Pvt" suffixes.
+- For offer status: "offer letter", "appointment letter", "pleased to offer", "selected for the role", "CTC", "joining date", "welcome to the team", "congratulations on your selection" all indicate an offer.
+- For rejected status: "unfortunately", "not moving forward", "not selected", "other candidates" all indicate rejection.
+- Only include items where confidence >= 0.65 and company is not null.
 - If nothing qualifies, return [].
 """
 
@@ -216,7 +230,7 @@ Rules:
             model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=600,
+            max_tokens=800,
             json_mode=True,
             use_cache=False,
         )
@@ -235,14 +249,34 @@ Rules:
 
 # ─── Company matching ─────────────────────────────────────────────────────────
 
+def _normalize(s: str) -> str:
+    """Lowercase, strip legal suffixes and punctuation for fuzzy matching."""
+    s = s.lower().strip()
+    # Remove common legal suffixes
+    s = re.sub(r"\b(pvt|ltd|inc|llc|llp|corp|private|limited|technologies|tech|solutions|services)\b", "", s)
+    # Remove non-alphanumeric (hyphens, dots, etc.)
+    s = re.sub(r"[^a-z0-9\s]", "", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def _match_company(detected: str, applications: list[dict]) -> Optional[dict]:
-    """Fuzzy substring match — returns the best matching application or None."""
-    d = detected.lower().strip()
+    """Fuzzy substring match with normalization — returns best match or None."""
+    d = _normalize(detected)
+    if not d:
+        return None
+    best: Optional[dict] = None
+    best_len = 0
     for app in applications:
-        company = (app.get("company") or "").lower().strip()
+        company = _normalize(app.get("company") or "")
+        if not company:
+            continue
+        # Substring match in either direction; prefer longer (more specific) match
         if d in company or company in d:
-            return app
-    return None
+            match_len = min(len(d), len(company))
+            if match_len > best_len:
+                best = app
+                best_len = match_len
+    return best
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -376,14 +410,16 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
     if not applications:
         return {"updates": [], "message": "No job applications to match against"}
 
-    # Determine look-back window (since last sync, or 14 days if first time)
+    # Determine look-back window.
+    # Always scan at least 7 days so an email that arrived between two
+    # same-day syncs is never missed (delta.days would be 0 → window was 1 day).
     last_synced = conn_res.data.get("last_synced_at")
     since_days = 14
     if last_synced:
         delta = datetime.now(timezone.utc) - datetime.fromisoformat(
             last_synced.replace("Z", "+00:00")
         )
-        since_days = max(1, min(30, delta.days + 1))
+        since_days = max(7, min(30, delta.days + 1))
 
     emails = await _fetch_job_emails(access_token, since_days=since_days)
     if not emails:
