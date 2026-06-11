@@ -12,6 +12,7 @@ import { MagicCard } from "@/components/ui/magic-card";
 import {
   ArrowRight, BarChart2, FileText,
   TrendingUp, Upload, Plus, Clock, Briefcase,
+  HelpCircle, Mail, BookOpen, MessageCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
@@ -590,6 +591,79 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           )}
         </div>
       )}
+      {/* ── Useful Resources ── */}
+      <div>
+        <motion.h2
+          className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+        >
+          Resources
+        </motion.h2>
+        <motion.div
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+          variants={container} initial="hidden" animate="show"
+        >
+          {[
+            {
+              href: "/faq",
+              icon: HelpCircle,
+              label: "Help & FAQ",
+              desc: "Community Q&A",
+              rgb: "192,88,0",
+              color: "#C05800",
+            },
+            {
+              href: `mailto:ujj.kalra10@gmail.com?subject=JobSynk Support`,
+              icon: Mail,
+              label: "Contact Support",
+              desc: "Email us directly",
+              rgb: "122,184,64",
+              color: "#7ab840",
+              external: true,
+            },
+            {
+              href: "/analysis",
+              icon: BookOpen,
+              label: "ATS Guide",
+              desc: "How scoring works",
+              rgb: "212,170,48",
+              color: "#d4aa30",
+            },
+            {
+              href: "/faq",
+              icon: MessageCircle,
+              label: "Ask a Question",
+              desc: "Post to community",
+              rgb: "113,54,0",
+              color: "#8c4a18",
+            },
+          ].map(({ href, icon: Icon, label, desc, rgb, color, external }) => (
+            <motion.div key={label} variants={cardItem}>
+              <Link
+                href={href as any}
+                {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                className="group flex flex-col gap-2 p-4 rounded-2xl transition-all duration-200 hover:border-opacity-60"
+                style={{
+                  background: `rgba(${rgb},0.06)`,
+                  border: `1px solid rgba(${rgb},0.18)`,
+                }}
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: `rgba(${rgb},0.12)`, border: `1px solid rgba(${rgb},0.2)` }}
+                >
+                  <Icon className="w-4 h-4" style={{ color }} />
+                </div>
+                <div>
+                  <div className="text-[12px] font-semibold text-[var(--text-primary)]">{label}</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">{desc}</div>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
+
     </div>
   );
 }

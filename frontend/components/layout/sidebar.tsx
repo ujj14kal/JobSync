@@ -17,6 +17,7 @@ import {
   Briefcase,
   Mic,
   Wand2,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -65,6 +66,11 @@ const navItems = [
     href: "/interview",
     icon: Mic,
     label: "AI Interview",
+  },
+  {
+    href: "/faq",
+    icon: HelpCircle,
+    label: "Help & FAQ",
   },
 ];
 
