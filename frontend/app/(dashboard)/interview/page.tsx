@@ -390,7 +390,7 @@ export default function InterviewPage() {
     retry: false,
   });
   const isPro = mounted && status?.is_pro === true;
-  const hasInterviewCredits = mounted && (status?.interview_credits ?? 0) > 0;
+  const hasInterviewCredits = true; // interviews free with browser audio — ElevenLabs is the paid upgrade
   const hasVoiceCredits = mounted && (status?.interview_voice_credits ?? 0) > 0;
   const canStartInterview = hasInterviewCredits;
   const [showBuySession, setShowBuySession] = useState(false);
@@ -1436,18 +1436,7 @@ export default function InterviewPage() {
 
       </AnimatePresence>
 
-      {/* Per-session purchase — ₹149 */}
-      <AnimatePresence>
-        {showBuySession && (
-          <CheckoutModal
-            plan="interview_text"
-            onClose={() => setShowBuySession(false)}
-            onSuccess={() => { setShowBuySession(false); refetchStatus(); }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Voice session purchase — ₹149 */}
+      {/* Voice session purchase — ₹149 (ElevenLabs upgrade) */}
       <AnimatePresence>
         {showBuyVoice && (
           <CheckoutModal

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Crown, Zap, Brain, Sparkles, MessageSquare, Shield,
+  Crown, Zap, Brain, Sparkles, Shield,
   CheckCircle2, ArrowRight, Calendar, RefreshCw,
 } from "lucide-react";
 import { billingApi } from "@/lib/api/billing";
@@ -13,10 +13,9 @@ import { cn } from "@/lib/utils";
 
 // ── Individual SKUs ───────────────────────────────────────────────────────────
 const SKUS = [
-  { id: "ats_deep",        creditType: "ats_deep",        label: "ATS Deep Analysis",    price: "₹59",  per: "per analysis",        icon: Brain },
-  { id: "resume_pack",     creditType: "resume",          label: "Resume Pack",          price: "₹299", per: "10 generations",      icon: Sparkles },
-  { id: "interview_text",  creditType: "interview_text",  label: "AI Interview (Text)",  price: "₹149", per: "per session",         icon: MessageSquare },
-  { id: "interview_voice", creditType: "interview_voice", label: "AI Interview (Voice)", price: "₹149", per: "ElevenLabs + Sonnet",  icon: Zap },
+  { id: "ats_deep",        creditType: "ats_deep",        label: "ATS Analysis · 5-pack", price: "₹99",  per: "5 analyses",              icon: Brain },
+  { id: "resume_pack",     creditType: "resume",          label: "Resume Builder · 3-pack",price: "₹149", per: "3 AI generations",       icon: Sparkles },
+  { id: "interview_voice", creditType: "interview_voice", label: "Interview · ElevenLabs", price: "₹149", per: "1 premium voice session", icon: Zap },
 ] as const;
 
 const PRO_FEATURES = [

@@ -55,13 +55,12 @@ interface CheckoutModalProps {
 }
 
 const PLAN_LABELS: Record<string, { label: string; amount: string; desc: string }> = {
-  pro_monthly:        { label: "Pro Monthly",           amount: "₹299/month",  desc: "Cancel anytime" },
-  pro_yearly:         { label: "Pro Yearly",            amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
-  pro_yearly_upgrade: { label: "Upgrade to Yearly",     amount: "₹2,499/year", desc: "Starts when your monthly plan ends" },
-  resume_pack:        { label: "Resume Builder Pack",   amount: "₹299",        desc: "10 AI resume generations" },
-  interview_text:     { label: "AI Interview (Text)",   amount: "₹149",        desc: "1 full text interview session" },
-  interview_voice:    { label: "AI Interview (Voice)",  amount: "₹149",        desc: "1 voice interview — ElevenLabs + Sonnet" },
-  ats_deep:           { label: "ATS Deep Analysis",     amount: "₹59",         desc: "1 Claude Sonnet ATS analysis" },
+  pro_monthly:        { label: "Pro Monthly",              amount: "₹299/month",  desc: "Cancel anytime" },
+  pro_yearly:         { label: "Pro Yearly",               amount: "₹2,499/year", desc: "Save ₹1,089 · 30% off" },
+  pro_yearly_upgrade: { label: "Upgrade to Yearly",        amount: "₹2,499/year", desc: "Starts when your monthly plan ends" },
+  resume_pack:        { label: "Resume Builder (3-pack)",  amount: "₹149",        desc: "3 AI resume generations" },
+  interview_voice:    { label: "AI Interview · ElevenLabs",amount: "₹149",        desc: "1 premium voice session — ElevenLabs + Sonnet" },
+  ats_deep:           { label: "ATS Deep Analysis (5-pack)",amount: "₹99",        desc: "5 Claude Sonnet ATS analyses" },
 };
 
 type Stage = "loading" | "ready" | "processing" | "success" | "error";

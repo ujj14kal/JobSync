@@ -32,9 +32,9 @@ export function useUpsell() {
 
 // ── Pro plan features list ────────────────────────────────────────────────────
 const PRO_FEATURES = [
-  "15 Claude Sonnet ATS analyses/month",
-  "5 AI resume generations (Sonnet)",
-  "3 AI cover letters (Sonnet)",
+  "20 Claude Sonnet ATS analyses/month",
+  "8 AI resume generations (Sonnet)",
+  "5 AI cover letters/month",
   "Ask Claude chat assistant",
   "PDF report exports",
   "Priority processing",

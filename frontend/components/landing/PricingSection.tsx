@@ -16,16 +16,16 @@ import { cn } from "@/lib/utils";
 const FREE_FEATURES = [
   "3 ATS analyses per day (JobSynk AI Engine)",
   "2 lifetime resume builder credits",
-  "1 free text interview practice",
+  "Voice interview practice (browser audio)",
   "Job application tracker",
   "Career insights & salary data",
   "Mentor discovery (browse)",
 ];
 
 const PRO_FEATURES = [
-  { label: "15 ATS analyses/month",           highlight: false },
-  { label: "5 AI resume generations",          highlight: false },
-  { label: "3 AI cover letters/month",         highlight: false },
+  { label: "20 ATS analyses/month",           highlight: false },
+  { label: "8 AI resume generations",          highlight: false },
+  { label: "5 AI cover letters/month",         highlight: false },
   { label: "Ask Claude chat assistant",        highlight: true  },
   { label: "PDF report exports",               highlight: false },
   { label: "Claude Sonnet for everything",     highlight: true  },
@@ -33,10 +33,9 @@ const PRO_FEATURES = [
 ];
 
 const INDIVIDUAL = [
-  { id: "ats_deep",        label: "ATS Deep Analysis",    price: "₹59",  per: "per analysis",        icon: Brain },
-  { id: "resume_pack",     label: "Resume Pack",          price: "₹299", per: "10 generations",      icon: Sparkles },
-  { id: "interview_text",  label: "AI Interview (Text)",  price: "₹149", per: "per session",         icon: MessageSquare },
-  { id: "interview_voice", label: "AI Interview (Voice)", price: "₹149", per: "ElevenLabs + Sonnet", icon: Zap },
+  { id: "ats_deep",        label: "ATS Analysis · 5-pack",  price: "₹99",  per: "5 analyses",              icon: Brain },
+  { id: "resume_pack",     label: "Resume Builder · 3-pack", price: "₹149", per: "3 AI resumes",            icon: Sparkles },
+  { id: "interview_voice", label: "Interview · ElevenLabs",  price: "₹149", per: "1 premium voice session", icon: Zap },
 ];
 
 export default function PricingSection() {
