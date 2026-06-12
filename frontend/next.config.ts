@@ -47,17 +47,6 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.jobsynk.in" }],
-        destination: "https://jobsynk.in/:path*",
-        permanent: true,
-      },
-    ];
-  },
-
   async rewrites() {
     return [
       {
