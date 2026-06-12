@@ -74,7 +74,7 @@ async def send_payment_receipt(
       <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
         <tr>
           <td style="background:#C05800;border-radius:10px;padding:11px 22px;">
-            <a href="https://jobsynk.app/dashboard" style="color:#fff;font-size:13px;font-weight:600;text-decoration:none;">
+            <a href="https://jobsynk.in/dashboard" style="color:#fff;font-size:13px;font-weight:600;text-decoration:none;">
               Go to dashboard →
             </a>
           </td>
@@ -136,7 +136,7 @@ async def send_pro_activated(
       <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
         <tr>
           <td style="background:#C05800;border-radius:10px;padding:11px 22px;">
-            <a href="https://jobsynk.app/dashboard" style="color:#fff;font-size:13px;font-weight:600;text-decoration:none;">
+            <a href="https://jobsynk.in/dashboard" style="color:#fff;font-size:13px;font-weight:600;text-decoration:none;">
               Explore Pro features →
             </a>
           </td>

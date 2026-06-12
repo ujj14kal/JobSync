@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://jobsynk.app"),
+  metadataBase: new URL("https://jobsynk.in"),
   title: {
     default: "JobSynk — Your Entire Job Search, Handled.",
     template: "%s · JobSynk",

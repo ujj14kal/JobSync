@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # Resend (transactional email — free tier 3,000 emails/month)
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "JobSynk <hello@jobsynk.app>"
+    EMAIL_FROM: str = "JobSynk <hello@jobsynk.in>"
 
     # Razorpay (Indian payments — 2% per txn, no monthly fee)
     RAZORPAY_KEY_ID: str = ""

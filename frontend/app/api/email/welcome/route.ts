@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = "JobSynk <hello@jobsynk.app>";
+const FROM = "JobSynk <hello@jobsynk.in>";
 
 export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) {
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
         <tr>
           <td style="background:#C05800;border-radius:10px;padding:12px 24px;">
-            <a href="https://jobsynk.app/onboarding" style="color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">
+            <a href="https://jobsynk.in/onboarding" style="color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">
               Get started →
             </a>
           </td>
