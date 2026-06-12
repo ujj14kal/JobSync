@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     CLAUDE_MODEL: str = "claude-sonnet-4-5"      # Pro tier: all features
     CLAUDE_MODEL_FAST: str = "claude-haiku-4-5"  # reserved for future lightweight tasks
 
+    # Resend (transactional email — free tier 3,000 emails/month)
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "JobSynk <hello@jobsynk.app>"
+
     # Razorpay (Indian payments — 2% per txn, no monthly fee)
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""

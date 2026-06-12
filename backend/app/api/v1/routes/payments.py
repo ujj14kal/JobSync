@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.security import get_current_user_id
 from app.db.supabase_client import get_supabase
 from app.services.claude_client import get_user_plan, get_monthly_usage
+from app.services.email_service import send_payment_receipt, send_pro_activated
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 logger = logging.getLogger(__name__)
@@ -42,6 +43,23 @@ def _rzp():
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         raise HTTPException(503, "Payment gateway not configured.")
     return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
+async def _user_contact(user_id: str) -> tuple[str, str]:
+    """Return (email, full_name) for a user, empty strings on failure."""
+    try:
+        supabase = get_supabase()
+        row = await asyncio.to_thread(
+            lambda: supabase.table("user_profiles")
+            .select("email,full_name")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        d = row.data or {}
+        return d.get("email") or "", d.get("full_name") or ""
+    except Exception:
+        return "", ""
 
 
 def _verify_signature(order_id: str, payment_id: str, signature: str) -> bool:
@@ -206,6 +224,16 @@ async def verify_payment(
             "razorpay_order_id": req.razorpay_order_id,
         }).execute()
     )
+    email, name = await _user_contact(user_id)
+    if email:
+        asyncio.create_task(send_payment_receipt(
+            to=email,
+            name=name,
+            product_label=product["label"],
+            amount_inr=product["amount"] / 100,
+            payment_id=req.razorpay_payment_id,
+        ))
+
     return {"success": True, "credits_added": product["credits"], "type": product["type"]}
 
 
@@ -265,6 +293,16 @@ async def verify_subscription(
         req.razorpay_subscription_id,
         datetime.now(timezone.utc) + delta,
     )
+    amount_inr = SUBSCRIPTIONS[req.plan]["amount"] / 100
+    email, name = await _user_contact(user_id)
+    if email:
+        asyncio.create_task(send_pro_activated(
+            to=email,
+            name=name,
+            plan=cycle,
+            amount_inr=amount_inr,
+            payment_id=req.razorpay_payment_id,
+        ))
     return {"success": True, "plan": "pro", "billing_cycle": cycle}
 
 

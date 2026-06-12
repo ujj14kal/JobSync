@@ -45,5 +45,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
+  // For Google OAuth logins that arrive without an explicit next destination,
+  // send new users (no onboarding_completed flag) to the onboarding wizard.
+  if (next === "/dashboard") {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && !user.user_metadata?.onboarding_completed) {
+      return NextResponse.redirect(`${origin}/onboarding`);
+    }
+  }
+
   return response;
 }

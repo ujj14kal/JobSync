@@ -37,14 +37,18 @@ export async function middleware(request: NextRequest) {
         return request.cookies.get(name)?.value;
       },
       set(name: string, value: string, options: object) {
-        request.cookies.set({ name, value, ...(options as Record<string, unknown>) });
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { maxAge, expires, ...sessionOptions } = options as Record<string, unknown>;
+        request.cookies.set({ name, value, ...sessionOptions });
         supabaseResponse = NextResponse.next({ request });
-        supabaseResponse.cookies.set({ name, value, ...(options as Record<string, unknown>) });
+        supabaseResponse.cookies.set({ name, value, ...sessionOptions });
       },
       remove(name: string, options: object) {
-        request.cookies.set({ name, value: "", ...(options as Record<string, unknown>) });
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { maxAge, expires, ...sessionOptions } = options as Record<string, unknown>;
+        request.cookies.set({ name, value: "", ...sessionOptions });
         supabaseResponse = NextResponse.next({ request });
-        supabaseResponse.cookies.set({ name, value: "", ...(options as Record<string, unknown>) });
+        supabaseResponse.cookies.set({ name, value: "", ...sessionOptions });
       },
     },
   });
@@ -62,7 +66,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/resume") ||
     pathname.startsWith("/mentors") ||
     pathname.startsWith("/improve") ||
-    pathname.startsWith("/insights");
+    pathname.startsWith("/insights") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/admin");
 
   if (!user && isDashboard) {
     const url = request.nextUrl.clone();

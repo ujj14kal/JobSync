@@ -143,7 +143,7 @@ export default function SignupPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
       },
     });
   }
@@ -175,7 +175,13 @@ export default function SignupPage() {
       return;
     }
     toast.success("Account created! Welcome to JobSynk.");
-    router.push("/dashboard");
+    // fire-and-forget — don't block navigation on email delivery
+    fetch("/api/email/welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name: fullName }),
+    }).catch(() => {});
+    router.push("/onboarding");
   }
 
   /* ── Phone: send OTP via Firebase ── */
@@ -249,7 +255,12 @@ export default function SignupPage() {
       const { access_token, refresh_token } = await res.json();
       await supabase.auth.setSession({ access_token, refresh_token });
       toast.success("Account created successfully!");
-      router.push("/dashboard");
+      fetch("/api/email/welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: phoneEmail, name: fullName }),
+      }).catch(() => {});
+      router.push("/onboarding");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "OTP verification failed";
       toast.error(msg);

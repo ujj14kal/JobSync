@@ -21,14 +21,18 @@ export async function createClient() {
       },
       set(name: string, value: string, options: object) {
         try {
-          cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { maxAge, expires, ...sessionOptions } = options as Record<string, unknown>;
+          cookieStore.set({ name, value, ...sessionOptions });
         } catch {
           // Server Component — writes handled by middleware
         }
       },
       remove(name: string, options: object) {
         try {
-          cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { maxAge, expires, ...sessionOptions } = options as Record<string, unknown>;
+          cookieStore.set({ name, value: "", ...sessionOptions });
         } catch {
           // Server Component — writes handled by middleware
         }
