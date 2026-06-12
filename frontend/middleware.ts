@@ -64,9 +64,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/analysis") ||
     pathname.startsWith("/resume") ||
-    pathname.startsWith("/mentors") ||
     pathname.startsWith("/improve") ||
     pathname.startsWith("/insights") ||
+    pathname.startsWith("/jobs") ||
+    pathname.startsWith("/interview") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/faq") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/admin");
 

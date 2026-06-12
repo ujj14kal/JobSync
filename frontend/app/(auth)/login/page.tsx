@@ -256,6 +256,12 @@ function LoginContent() {
                   </div>
                 </div>
 
+                <div className="flex justify-end -mt-1">
+                  <Link href="/forgot-password" className="text-[12px] text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors">
+                    Forgot password?
+                  </Link>
+                </div>
+
                 <button type="submit" disabled={loading}
                   className="w-full py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors disabled:opacity-50">
                   {loading ? "Signing in…" : "Sign in"}

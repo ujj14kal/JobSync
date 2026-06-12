@@ -46,11 +46,16 @@ export async function GET(request: NextRequest) {
   }
 
   // For Google OAuth logins that arrive without an explicit next destination,
-  // send new users (no onboarding_completed flag) to the onboarding wizard.
+  // send brand-new users (created in the last 5 minutes, no onboarding flag)
+  // to the onboarding wizard. Existing users who simply lack the flag are left alone.
   if (next === "/dashboard") {
     const { data: { user } } = await supabase.auth.getUser();
     if (user && !user.user_metadata?.onboarding_completed) {
-      return NextResponse.redirect(`${origin}/onboarding`);
+      const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+      const isNewAccount = Date.now() - createdAt < 5 * 60 * 1000; // within 5 minutes
+      if (isNewAccount) {
+        return NextResponse.redirect(`${origin}/onboarding`);
+      }
     }
   }
 
