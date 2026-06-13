@@ -171,12 +171,6 @@ async def start_interview(
         '"ideal_points": ["what a strong answer covers"]}]'
     )
 
-    # Interview is pay-per-session only — Pro plan does not include it
-    interview_credits = await get_user_credits(user_id, "interview_text")
-    if interview_credits <= 0:
-        raise HTTPException(status_code=402, detail="No interview credits. Purchase a session at ₹149.")
-    await consume_credit(user_id, "interview_text")
-
     try:
         raw = await claude_complete(
             user_id=user_id,
@@ -254,12 +248,6 @@ async def start_hirevue_interview(
         '"follow_up_hint": "specific probe based on their background", '
         '"ideal_points": ["what a strong answer covers"]}]'
     )
-
-    # Interview is pay-per-session only — Pro plan does not include it
-    interview_credits = await get_user_credits(user_id, "interview_text")
-    if interview_credits <= 0:
-        raise HTTPException(status_code=402, detail="No interview credits. Purchase a session at ₹149.")
-    await consume_credit(user_id, "interview_text")
 
     try:
         raw = await claude_complete(
