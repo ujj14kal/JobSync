@@ -10,8 +10,33 @@ const SUPABASE_URL =
 
 function serviceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY not set");
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured in environment variables");
   return createServiceClient(SUPABASE_URL, key);
+}
+
+async function addCreditsAction(
+  userId: string,
+  creditType: string,
+  amount: number
+): Promise<{ error?: string }> {
+  "use server";
+  try {
+    const anonClient = await createAnonClient();
+    const { data: { user } } = await anonClient.auth.getUser();
+    if (!user || user.email !== ADMIN_EMAIL) return { error: "Unauthorized" };
+
+    const svc = serviceClient();
+    const { error } = await svc.from("user_credits").insert({
+      user_id: userId,
+      credit_type: creditType,
+      credits_total: amount,
+      credits_used: 0,
+    });
+    if (error) return { error: error.message };
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
 }
 
 export default async function AdminPage() {
@@ -41,7 +66,6 @@ export default async function AdminPage() {
   const proSubs = subRes.data ?? [];
   const credits = creditsRes.data ?? [];
 
-  // Aggregate credits per user
   const creditsByUser: Record<string, { type: string; remaining: number }[]> = {};
   for (const c of credits) {
     if (!creditsByUser[c.user_id]) creditsByUser[c.user_id] = [];
@@ -72,7 +96,7 @@ export default async function AdminPage() {
     <AdminClient
       users={enrichedUsers}
       stats={stats}
-      serviceKey={process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}
+      onAddCredits={addCreditsAction}
     />
   );
 }

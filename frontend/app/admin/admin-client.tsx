@@ -3,10 +3,6 @@
 import { useState } from "react";
 import { Users, BarChart2, CreditCard, TrendingUp, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://dzdziagugdcbkictslrt.supabase.co";
 
 type UserRow = {
   id: string;
@@ -30,11 +26,11 @@ const CREDIT_TYPES = ["ats_deep", "resume", "interview_voice"] as const;
 export function AdminClient({
   users,
   stats,
-  serviceKey,
+  onAddCredits,
 }: {
   users: UserRow[];
   stats: Stats;
-  serviceKey: string;
+  onAddCredits: (userId: string, creditType: string, amount: number) => Promise<{ error?: string }>;
 }) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
@@ -50,14 +46,8 @@ export function AdminClient({
   async function addCredits(userId: string) {
     setAdding(userId);
     try {
-      const svc = createServiceClient(SUPABASE_URL, serviceKey);
-      const { error } = await svc.from("user_credits").insert({
-        user_id: userId,
-        credit_type: creditType,
-        credits_total: creditAmt,
-        credits_used: 0,
-      });
-      if (error) throw error;
+      const result = await onAddCredits(userId, creditType, creditAmt);
+      if (result?.error) throw new Error(result.error);
       toast.success(`Added ${creditAmt}× ${creditType} credit(s)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add credits");
