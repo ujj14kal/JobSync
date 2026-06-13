@@ -261,13 +261,15 @@ function ParsedResumePreview({ resume }: { resume: Resume }) {
           {d.contact.linkedin && (
             <a href={d.contact.linkedin} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[12px] text-[var(--accent-primary)] hover:underline">
-              <Link2 className="w-3 h-3 flex-shrink-0" />LinkedIn
+              <Link2 className="w-3 h-3 flex-shrink-0" />
+              {d.contact.linkedin.replace(/^https?:\/\//, "")}
             </a>
           )}
           {d.contact.github && (
             <a href={d.contact.github} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[12px] text-[var(--accent-primary)] hover:underline">
-              <Link2 className="w-3 h-3 flex-shrink-0" />GitHub
+              <Link2 className="w-3 h-3 flex-shrink-0" />
+              {d.contact.github.replace(/^https?:\/\//, "")}
             </a>
           )}
         </div>

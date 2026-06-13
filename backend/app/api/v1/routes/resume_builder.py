@@ -76,17 +76,24 @@ class ProjectInput(BaseModel):
     description: str
     url: str = ""
 
+class CertificationInput(BaseModel):
+    name: str
+    issuer: str = ""
+    date: str = ""
+    url: str = ""
+
 class GenerateRequest(BaseModel):
     contact: ContactInput
     education: list[EducationInput] = []
     experience: list[ExperienceInput] = []
     projects: list[ProjectInput] = []
+    certifications: list[CertificationInput] = []
     skills_raw: str = ""
     activities: str = ""
     awards: str = ""
     target_job: str = ""
     use_active_resume: bool = False
-    template: str = "jake"  # jake | minimal | modern | two-column | compact
+    template: str = "jake"  # jake | minimal | modern | two-column | compact | elegant | ats-max
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -272,6 +279,19 @@ def _build_latex_jake(data: dict) -> str:
     for a in awards:
         award_tex += rf"    \resumeItem{{{_escape_latex(a)}}}" + "\n"
 
+    certs_tex = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        heading = rf"\textbf{{{cname}}} $|$ \emph{{{issuer}}}" if issuer else rf"\textbf{{{cname}}}"
+        if url:
+            heading = rf"\href{{{url}}}{{{heading}}}"
+        certs_tex += rf"""
+      \resumeProjectHeading
+          {{{heading}}}{{{date}}}"""
+
     summary_section = rf"""
 %-----------SUMMARY-----------
 \section{{Summary}}
@@ -291,6 +311,14 @@ def _build_latex_jake(data: dict) -> str:
   \resumeItemListStart
 {award_tex}  \resumeItemListEnd
 """ if award_tex else ""
+
+    certs_section = (
+        f"%-----------CERTIFICATIONS-----------\n"
+        f"\\section{{Certifications}}\n"
+        f"    \\resumeSubHeadingListStart\n"
+        f"{certs_tex}\n"
+        f"    \\resumeSubHeadingListEnd\n"
+    ) if certs_tex else ""
 
     body = (
         f"%----------HEADING----------\n"
@@ -314,6 +342,7 @@ def _build_latex_jake(data: dict) -> str:
         f"    \\resumeSubHeadingListStart\n"
         f"{proj_tex}\n"
         f"    \\resumeSubHeadingListEnd\n"
+        f"{certs_section}"
         f"{activities_section}"
         f"{awards_section}"
         f"%-----------TECHNICAL SKILLS-----------\n"
@@ -431,9 +460,20 @@ def _build_latex_minimal(data: dict) -> str:
     awards = data.get("awards", [])
     award_tex = "\n".join(rf"  \item {_escape_latex(a)}" for a in awards)
 
+    certs_items = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        line = rf"\textbf{{{cname}}}" + (f" --- {issuer}" if issuer else "") + (f" \\hfill {date}" if date else "")
+        if url: line = rf"\href{{{url}}}{{{line}}}"
+        certs_items += f"  \\item {line}\n"
+
     summary_section = f"\\msection{{Summary}}\n{summary}\n\n" if summary else ""
     act_section = f"\\msection{{Activities}}\n\\begin{{itemize}}\n{act_tex}\n\\end{{itemize}}\n" if act_tex else ""
     award_section = f"\\msection{{Awards \\& Achievements}}\n\\begin{{itemize}}\n{award_tex}\n\\end{{itemize}}\n" if award_tex else ""
+    certs_section = f"\\msection{{Certifications}}\n\\begin{{itemize}}\n{certs_items}\\end{{itemize}}\n" if certs_items else ""
 
     body = (
         f"\\noindent{{\\LARGE\\bfseries {name}}}\\\\[3pt]\n"
@@ -442,6 +482,7 @@ def _build_latex_minimal(data: dict) -> str:
         f"\\msection{{Education}}\n{edu_tex}\n"
         f"\\msection{{Experience}}\n{exp_tex}"
         f"\\msection{{Projects}}\n{proj_tex}"
+        f"{certs_section}"
         f"{act_section}"
         f"{award_section}"
         f"\\msection{{Technical Skills}}\n{skills_tex}\n"
@@ -569,9 +610,20 @@ def _build_latex_modern(data: dict) -> str:
     awards = data.get("awards", [])
     award_tex = "\n".join(rf"  \item {_escape_latex(a)}" for a in awards)
 
+    certs_items = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        line = rf"\textbf{{{cname}}}" + (f" $|$ {issuer}" if issuer else "") + (f" \\hfill {date}" if date else "")
+        if url: line = rf"\href{{{url}}}{{{line}}}"
+        certs_items += f"  \\item {line}\n"
+
     summary_section = f"\\msection{{Summary}}\n\\noindent {summary}\n" if summary else ""
     act_section = f"\\msection{{Activities}}\n\\begin{{itemize}}\n{act_tex}\n\\end{{itemize}}\n" if act_tex else ""
     award_section = f"\\msection{{Awards \\& Achievements}}\n\\begin{{itemize}}\n{award_tex}\n\\end{{itemize}}\n" if award_tex else ""
+    certs_section = f"\\msection{{Certifications}}\n\\begin{{itemize}}\n{certs_items}\\end{{itemize}}\n" if certs_items else ""
 
     body = (
         f"\\begin{{headerframe}}\n"
@@ -585,6 +637,7 @@ def _build_latex_modern(data: dict) -> str:
         f"\\msection{{Education}}\n{edu_tex}"
         f"\\msection{{Experience}}\n{exp_tex}"
         f"\\msection{{Projects}}\n{proj_tex}"
+        f"{certs_section}"
         f"{act_section}"
         f"{award_section}"
         f"\\msection{{Technical Skills}}\n{skills_tex}\n"
@@ -682,6 +735,14 @@ def _build_latex_twocol(data: dict) -> str:
     act_section = f"\\shead{{Activities}}\n\\begin{{itemize}}\n{act_tex}\n\\end{{itemize}}\n" if act_tex else ""
     award_section = f"\\shead{{Awards}}\n\\begin{{itemize}}\n{award_tex}\n\\end{{itemize}}\n" if award_tex else ""
 
+    certs_sidebar = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        certs_sidebar += f"{{\\small {cname}}}" + (f"\\\\\n{{\\small\\color{{lightgray}} {issuer}}}" if issuer else "") + (f"\\\\\n{{\\small\\color{{lightgray}} {date}}}" if date else "") + "\\\\\n\n"
+    certs_section = f"\\shead{{Certifications}}\n{certs_sidebar}" if certs_sidebar else ""
+
     # Right main: summary, experience, projects
     exp_tex = ""
     for e in data.get("experience", []):
@@ -730,6 +791,7 @@ def _build_latex_twocol(data: dict) -> str:
         f"\\shead{{Contact}}\n{left_contact}\n"
         f"\\shead{{Technical Skills}}\n{skills_tex}\n"
         f"\\shead{{Education}}\n{edu_tex}\n"
+        f"{certs_section}"
         f"{act_section}"
         f"{award_section}"
         f"\\vspace{{6pt}}\n"
@@ -905,6 +967,19 @@ def _build_latex_compact(data: dict) -> str:
     awards = data.get("awards", [])
     award_tex = "".join(rf"    \resumeItem{{{_escape_latex(a)}}}" + "\n" for a in awards)
 
+    certs_tex = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        heading = rf"\textbf{{{cname}}} $|$ \emph{{{issuer}}}" if issuer else rf"\textbf{{{cname}}}"
+        if url:
+            heading = rf"\href{{{url}}}{{{heading}}}"
+        certs_tex += rf"""
+      \resumeProjectHeading
+          {{{heading}}}{{{date}}}"""
+
     summary_section = rf"""
 %-----------SUMMARY-----------
 \section{{Summary}}
@@ -924,6 +999,14 @@ def _build_latex_compact(data: dict) -> str:
   \resumeItemListStart
 {award_tex}  \resumeItemListEnd
 """ if award_tex else ""
+
+    certs_section = (
+        f"%-----------CERTIFICATIONS-----------\n"
+        f"\\section{{Certifications}}\n"
+        f"    \\resumeSubHeadingListStart\n"
+        f"{certs_tex}\n"
+        f"    \\resumeSubHeadingListEnd\n"
+    ) if certs_tex else ""
 
     body = (
         f"%----------HEADING----------\n"
@@ -947,6 +1030,7 @@ def _build_latex_compact(data: dict) -> str:
         f"    \\resumeSubHeadingListStart\n"
         f"{proj_tex}\n"
         f"    \\resumeSubHeadingListEnd\n"
+        f"{certs_section}"
         f"{act_section}"
         f"{award_section}"
         f"%-----------TECHNICAL SKILLS-----------\n"
@@ -961,6 +1045,319 @@ def _build_latex_compact(data: dict) -> str:
     return _LATEX_COMPACT_PREAMBLE + body
 
 
+# ── Template: Elegant ─────────────────────────────────────────────────────────
+
+_LATEX_ELEGANT_PREAMBLE = r"""%-------------------------
+% Elegant Resume Template — generated by JobSync AI
+%-------------------------
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage[top=0.60in,bottom=0.60in,left=0.75in,right=0.75in]{geometry}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{microtype}
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+\definecolor{accent}{RGB}{26,75,155}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.4em,itemsep=1pt,parsep=0pt,topsep=2pt,label={\small$\bullet$}}
+
+\titleformat{\section}[block]
+  {\large\bfseries\color{accent}}{}{0em}{}
+  [{\vspace{1pt}\color{accent!60}\rule{\linewidth}{1pt}}]
+\titlespacing*{\section}{0pt}{9pt}{4pt}
+
+\begin{document}
+"""
+
+
+def _build_latex_elegant(data: dict) -> str:
+    c = data.get("contact", {})
+    name      = _escape_latex(c.get("name", "Your Name"))
+    email     = c.get("email", "")
+    phone     = _escape_latex(c.get("phone", ""))
+    location  = _escape_latex(c.get("location", ""))
+    linkedin  = c.get("linkedin", "").replace("https://", "").replace("http://", "")
+    github    = c.get("github", "").replace("https://", "").replace("http://", "")
+    portfolio = c.get("portfolio", "")
+
+    contact_parts = []
+    if phone:     contact_parts.append(phone)
+    if email:     contact_parts.append(rf"\href{{mailto:{email}}}{{{_escape_latex(email)}}}")
+    if location:  contact_parts.append(location)
+    if linkedin:  contact_parts.append(rf"\href{{https://{linkedin}}}{{{_escape_latex(linkedin)}}}")
+    if github:    contact_parts.append(rf"\href{{https://{github}}}{{{_escape_latex(github)}}}")
+    if portfolio: contact_parts.append(rf"\href{{{portfolio}}}{{Portfolio}}")
+    contact_line = " $\,\cdot\,$ ".join(contact_parts)
+
+    summary = _escape_latex(data.get("summary", ""))
+
+    edu_tex = ""
+    for e in data.get("education", []):
+        deg  = _escape_latex(e.get("degree", ""))
+        inst = _escape_latex(e.get("institution", ""))
+        loc  = _escape_latex(e.get("location", ""))
+        sd   = _escape_latex(e.get("start_date", ""))
+        ed_  = _escape_latex(e.get("end_date", ""))
+        gpa  = _escape_latex(str(e.get("gpa", "")))
+        date_str = f"{sd}--{ed_}" if sd else ed_
+        gpa_str = f" \\hfill GPA: {gpa}" if gpa else ""
+        loc_str = f", \\textit{{{loc}}}" if loc else ""
+        edu_tex += (
+            f"\\textbf{{{inst}}}{loc_str} \\hfill {_escape_latex(date_str)}\\\\\n"
+            f"{deg}{gpa_str}\\\\\n\n"
+        )
+
+    exp_tex = ""
+    for e in data.get("experience", []):
+        title   = _escape_latex(e.get("title", ""))
+        company = _escape_latex(e.get("company", ""))
+        loc     = _escape_latex(e.get("location", ""))
+        sd      = _escape_latex(e.get("start_date", ""))
+        ed      = _escape_latex(e.get("end_date", "Present"))
+        date_str = f"{sd}--{ed}" if sd else ed
+        loc_str  = f", {loc}" if loc else ""
+        bullets  = e.get("bullets", [])
+        bullet_tex = "\n".join(rf"  \item {_escape_latex(b)}" for b in bullets)
+        exp_tex += (
+            f"\\textbf{{{title}}} \\hfill {_escape_latex(date_str)}\\\\\n"
+            f"\\textit{{{company}{loc_str}}}\\\\\n"
+            f"\\begin{{itemize}}\n{bullet_tex}\n\\end{{itemize}}\n\n"
+        )
+
+    proj_tex = ""
+    for p in data.get("projects", []):
+        pname   = _escape_latex(p.get("name", ""))
+        stack   = _escape_latex(p.get("tech_stack", ""))
+        url     = p.get("url", "")
+        bullets = p.get("bullets", [])
+        bullet_tex = "\n".join(rf"  \item {_escape_latex(b)}" for b in bullets)
+        phead = rf"\href{{{url}}}{{\textbf{{{pname}}}}}" if url else rf"\textbf{{{pname}}}"
+        proj_tex += (
+            f"{phead} \\hfill \\textit{{{stack}}}\\\\\n"
+            f"\\begin{{itemize}}\n{bullet_tex}\n\\end{{itemize}}\n\n"
+        )
+
+    certs_items = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        line = rf"\textbf{{{cname}}}" + (f" $|$ {issuer}" if issuer else "") + (f" \\hfill {date}" if date else "")
+        if url: line = rf"\href{{{url}}}{{{line}}}"
+        certs_items += f"  \\item {line}\n"
+
+    skills_tex = ""
+    for category, items in data.get("skills", {}).items():
+        if items:
+            skills_tex += f"\\textbf{{{_escape_latex(category)}}}: {_escape_latex(', '.join(items))}\\\\\n"
+
+    activities = data.get("activities", [])
+    act_items = "\n".join(rf"  \item {_escape_latex(a)}" for a in activities)
+    awards = data.get("awards", [])
+    award_items = "\n".join(rf"  \item {_escape_latex(a)}" for a in awards)
+
+    summary_section = f"\\section{{Summary}}\n\\noindent {summary}\n\n" if summary else ""
+    certs_section = f"\\section{{Certifications}}\n\\begin{{itemize}}\n{certs_items}\\end{{itemize}}\n\n" if certs_items else ""
+    act_section = f"\\section{{Activities}}\n\\begin{{itemize}}\n{act_items}\n\\end{{itemize}}\n\n" if act_items else ""
+    award_section = f"\\section{{Awards \\& Achievements}}\n\\begin{{itemize}}\n{award_items}\n\\end{{itemize}}\n\n" if award_items else ""
+
+    body = (
+        f"\\begin{{center}}\n"
+        f"  {{\\LARGE\\bfseries\\color{{accent}} {name}}}\\\\[4pt]\n"
+        f"  {{\\small {contact_line}}}\n"
+        f"\\end{{center}}\n\n"
+        f"{summary_section}"
+        f"\\section{{Education}}\n{edu_tex}"
+        f"\\section{{Experience}}\n{exp_tex}"
+        f"\\section{{Projects}}\n{proj_tex}"
+        f"{certs_section}"
+        f"{act_section}"
+        f"{award_section}"
+        f"\\section{{Technical Skills}}\n{skills_tex}\n"
+        f"\\end{{document}}\n"
+    )
+    return _LATEX_ELEGANT_PREAMBLE + body
+
+
+# ── Template: ATS Max ─────────────────────────────────────────────────────────
+# Same Jake preamble, but section order puts Skills right after Education for
+# maximum keyword density early in the document.
+
+def _build_latex_atsmax(data: dict) -> str:
+    """Jake's layout with Skills placed immediately after Education for ATS keyword density."""
+    c = data.get("contact", {})
+    name     = _escape_latex(c.get("name", "Your Name"))
+    email    = c.get("email", "")
+    phone    = _escape_latex(c.get("phone", ""))
+    location = _escape_latex(c.get("location", ""))
+    linkedin = c.get("linkedin", "").replace("https://", "").replace("http://", "")
+    github   = c.get("github", "").replace("https://", "").replace("http://", "")
+    portfolio = c.get("portfolio", "")
+
+    contact_parts = []
+    if phone:     contact_parts.append(phone)
+    if email:     contact_parts.append(rf"\href{{mailto:{email}}}{{\underline{{{_escape_latex(email)}}}}}")
+    if linkedin:  contact_parts.append(rf"\href{{https://{linkedin}}}{{\underline{{{_escape_latex(linkedin)}}}}}")
+    if github:    contact_parts.append(rf"\href{{https://{github}}}{{\underline{{{_escape_latex(github)}}}}}")
+    if portfolio: contact_parts.append(rf"\href{{{portfolio}}}{{\underline{{Portfolio}}}}")
+    contact_line = " $|$ ".join(contact_parts)
+
+    summary = _escape_latex(data.get("summary", ""))
+
+    edu_tex = ""
+    for e in data.get("education", []):
+        deg  = _escape_latex(e.get("degree", ""))
+        inst = _escape_latex(e.get("institution", ""))
+        loc  = _escape_latex(e.get("location", ""))
+        sd   = _escape_latex(e.get("start_date", ""))
+        ed_  = _escape_latex(e.get("end_date", ""))
+        gpa  = _escape_latex(str(e.get("gpa", "")))
+        date_str = f"{sd} -- {ed_}" if sd else ed_
+        gpa_block = (
+            f"\n      \\resumeItemListStart\n"
+            f"        \\resumeItem{{GPA: {gpa}}}\n"
+            f"      \\resumeItemListEnd"
+        ) if gpa else ""
+        edu_tex += (
+            f"\n    \\resumeSubheading\n"
+            f"      {{{inst}}}{{{loc}}}\n"
+            f"      {{{deg}}}{{{date_str}}}"
+            f"{gpa_block}"
+        )
+
+    skills_tex = ""
+    for category, items in data.get("skills", {}).items():
+        if items:
+            skills_tex += rf"     \textbf{{{_escape_latex(category)}}}{{: {_escape_latex(', '.join(items))}}} \\" + "\n"
+
+    exp_tex = ""
+    for e in data.get("experience", []):
+        title   = _escape_latex(e.get("title", ""))
+        company = _escape_latex(e.get("company", ""))
+        loc     = _escape_latex(e.get("location", ""))
+        sd      = _escape_latex(e.get("start_date", ""))
+        ed      = _escape_latex(e.get("end_date", "Present"))
+        date_str = f"{sd} -- {ed}" if sd else ed
+        bullets = e.get("bullets", [])
+        bullet_tex = "\n".join(rf"        \resumeItem{{{_escape_latex(b)}}}" for b in bullets)
+        exp_tex += rf"""
+    \resumeSubheading
+      {{{title}}}{{{date_str}}}
+      {{{company}}}{{{loc}}}
+      \resumeItemListStart
+{bullet_tex}
+      \resumeItemListEnd"""
+
+    proj_tex = ""
+    for p in data.get("projects", []):
+        pname  = _escape_latex(p.get("name", ""))
+        stack  = _escape_latex(p.get("tech_stack", ""))
+        url    = p.get("url", "")
+        bullets = p.get("bullets", [])
+        bullet_tex = "\n".join(rf"        \resumeItem{{{_escape_latex(b)}}}" for b in bullets)
+        proj_heading = (
+            rf"\textbf{{\href{{{url}}}{{{pname}}}}} $|$ \emph{{{stack}}}"
+            if url else
+            rf"\textbf{{{pname}}} $|$ \emph{{{stack}}}"
+        )
+        proj_tex += rf"""
+      \resumeProjectHeading
+          {{{proj_heading}}}{{}}
+          \resumeItemListStart
+{bullet_tex}
+          \resumeItemListEnd"""
+
+    certs_tex = ""
+    for cert in data.get("certifications", []):
+        cname  = _escape_latex(cert.get("name", ""))
+        issuer = _escape_latex(cert.get("issuer", ""))
+        date   = _escape_latex(cert.get("date", ""))
+        url    = cert.get("url", "")
+        heading = rf"\textbf{{{cname}}} $|$ \emph{{{issuer}}}" if issuer else rf"\textbf{{{cname}}}"
+        if url:
+            heading = rf"\href{{{url}}}{{{heading}}}"
+        certs_tex += rf"""
+      \resumeProjectHeading
+          {{{heading}}}{{{date}}}"""
+
+    activities = data.get("activities", [])
+    act_tex = "".join(rf"    \resumeItem{{{_escape_latex(a)}}}" + "\n" for a in activities)
+    awards = data.get("awards", [])
+    award_tex = "".join(rf"    \resumeItem{{{_escape_latex(a)}}}" + "\n" for a in awards)
+
+    summary_section = rf"""
+%-----------SUMMARY-----------
+\section{{Summary}}
+  \small{{{summary}}}
+""" if summary else ""
+
+    certs_section = (
+        f"%-----------CERTIFICATIONS-----------\n"
+        f"\\section{{Certifications}}\n"
+        f"    \\resumeSubHeadingListStart\n"
+        f"{certs_tex}\n"
+        f"    \\resumeSubHeadingListEnd\n"
+    ) if certs_tex else ""
+
+    act_section = rf"""
+%-----------ACTIVITIES-----------
+\section{{Activities}}
+  \resumeItemListStart
+{act_tex}  \resumeItemListEnd
+""" if act_tex else ""
+
+    award_section = rf"""
+%-----------AWARDS \& ACHIEVEMENTS-----------
+\section{{Awards \& Achievements}}
+  \resumeItemListStart
+{award_tex}  \resumeItemListEnd
+""" if award_tex else ""
+
+    body = (
+        f"%----------HEADING----------\n"
+        f"\\begin{{center}}\n"
+        f"    \\textbf{{\\Huge \\scshape {name}}} \\\\ \\vspace{{1pt}}\n"
+        f"    \\small {contact_line}\n"
+        f"\\end{{center}}\n"
+        f"{summary_section}"
+        f"%-----------EDUCATION-----------\n"
+        f"\\section{{Education}}\n"
+        f"  \\resumeSubHeadingListStart\n"
+        f"{edu_tex}\n"
+        f"  \\resumeSubHeadingListEnd\n\n"
+        f"%-----------TECHNICAL SKILLS (before experience for ATS)-----------\n"
+        f"\\section{{Technical Skills}}\n"
+        f" \\begin{{itemize}}[leftmargin=0.15in, label={{}}]\n"
+        f"    \\small{{\\item{{\n"
+        f"{skills_tex}"
+        f"    }}}}\n"
+        f" \\end{{itemize}}\n\n"
+        f"%-----------EXPERIENCE-----------\n"
+        f"\\section{{Experience}}\n"
+        f"  \\resumeSubHeadingListStart\n"
+        f"{exp_tex}\n"
+        f"  \\resumeSubHeadingListEnd\n\n"
+        f"%-----------PROJECTS-----------\n"
+        f"\\section{{Projects}}\n"
+        f"    \\resumeSubHeadingListStart\n"
+        f"{proj_tex}\n"
+        f"    \\resumeSubHeadingListEnd\n"
+        f"{certs_section}"
+        f"{act_section}"
+        f"{award_section}"
+        f"\\end{{document}}\n"
+    )
+    return _LATEX_PREAMBLE + body
+
+
 # ── Template dispatcher ───────────────────────────────────────────────────────
 
 _TEMPLATE_BUILDERS = {
@@ -969,6 +1366,8 @@ _TEMPLATE_BUILDERS = {
     "modern":     _build_latex_modern,
     "two-column": _build_latex_twocol,
     "compact":    _build_latex_compact,
+    "elegant":    _build_latex_elegant,
+    "ats-max":    _build_latex_atsmax,
 }
 
 
@@ -1101,13 +1500,14 @@ async def generate_resume(
         }
     else:
         user_info = {
-            "contact":    body.contact.model_dump(),
-            "education":  [e.model_dump() for e in body.education],
-            "experience": [e.model_dump() for e in body.experience],
-            "projects":   [p.model_dump() for p in body.projects],
-            "skills":     body.skills_raw,
-            "activities": body.activities,
-            "awards":     body.awards,
+            "contact":        body.contact.model_dump(),
+            "education":      [e.model_dump() for e in body.education],
+            "experience":     [e.model_dump() for e in body.experience],
+            "projects":       [p.model_dump() for p in body.projects],
+            "certifications": [c.model_dump() for c in body.certifications],
+            "skills":         body.skills_raw,
+            "activities":     body.activities,
+            "awards":         body.awards,
         }
 
     jd_context  = f"\n\nTARGET JOB DESCRIPTION (tailor keywords to this):\n{body.target_job[:1000]}" if body.target_job else ""
@@ -1128,8 +1528,9 @@ STRICT RULES:
 7. Extract ALL activities (clubs, competitions, sports) from raw text — include all of them
 8. Extract ALL awards/achievements from raw text — include all of them
 9. Organise skills into exactly these 5 categories: Languages, Frameworks/Libraries, Databases, Tools, Cloud
-10. Keep all facts (company names, dates, institutions, GPA) EXACTLY as provided — never invent facts
-11. The output must be RICH and COMPREHENSIVE enough to fill a full A4 page
+10. Keep all facts (company names, dates, institutions, GPA, certification names) EXACTLY as provided — never invent facts
+11. Include all certifications from the input data exactly as given
+12. The output must be RICH and COMPREHENSIVE enough to fill a full A4 page
 
 Return ONLY this JSON structure:
 {{
@@ -1138,6 +1539,7 @@ Return ONLY this JSON structure:
   "education": [{{"degree":"","institution":"","location":"","start_date":"","end_date":"","gpa":""}}],
   "experience": [{{"title":"","company":"","location":"","start_date":"","end_date":"","bullets":["5-6 detailed bullets each"]}}],
   "projects": [{{"name":"","tech_stack":"comma,separated,stack","url":"","bullets":["2-3 strong bullets"]}}],
+  "certifications": [{{"name":"","issuer":"","date":"","url":""}}],
   "skills": {{"Languages":["..."],"Frameworks/Libraries":["..."],"Databases":["..."],"Tools":["..."],"Cloud":["..."]}},
   "activities": ["Full activity description with year range"],
   "awards": ["Full award description with year"]

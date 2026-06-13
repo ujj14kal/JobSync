@@ -283,6 +283,34 @@ def extract_github(text: str) -> Optional[str]:
     return f"https://github.com/{match.group(1)}" if match else None
 
 
+# Words that commonly appear in professional headlines/titles but are NOT names.
+# If any word in a candidate "name" is here, we reject it as a title line.
+_TITLE_WORDS = {
+    "software", "engineer", "engineering", "developer", "development", "architect",
+    "programmer", "designer", "manager", "analyst", "scientist", "researcher",
+    "consultant", "specialist", "coordinator", "administrator", "executive",
+    "lead", "senior", "junior", "staff", "principal", "director", "head",
+    "vice", "president", "officer", "associate", "assistant",
+    # Academic / student labels
+    "undergraduate", "graduate", "postgraduate", "student", "fresher", "intern",
+    "trainee", "bachelor", "masters", "master", "phd", "mba", "btech", "mtech",
+    "bsc", "msc", "bca", "mca",
+    # Tech domain words
+    "tech", "technical", "technology", "technologies", "data", "full", "stack",
+    "frontend", "backend", "fullstack", "devops", "cloud", "mobile", "web",
+    "cybersecurity", "security", "network", "systems", "infrastructure",
+    # Common resume section words
+    "profile", "resume", "curriculum", "vitae", "summary", "objective",
+    # Other non-name words that occasionally appear at top of resume
+    "portfolio", "contact", "information",
+}
+
+
+def _is_title_line(words: list[str]) -> bool:
+    """Return True if any word suggests this is a professional headline, not a name."""
+    return any(w.lower() in _TITLE_WORDS for w in words)
+
+
 def _split_camelcase_name(word: str) -> str:
     """
     Split a CamelCase word that looks like a merged name.
@@ -300,7 +328,7 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
     _NAME_WORD = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿऀ-ॿ\-\'\.]+$")
     _ALLOWED_SHORT = {"de", "van", "von", "bin", "binti", "jr", "sr", "ii", "iii", "iv", "phd", "md"}
 
-    candidates: list[str] = []
+    single_word_candidates: list[str] = []
 
     for line in header_text.split("\n"):
         line = line.strip()
@@ -320,6 +348,9 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
             continue
 
         if 2 <= len(words) <= 4:
+            # Skip lines that look like professional titles/headlines
+            if _is_title_line(cleaned_words):
+                continue
             # Normalise ALL-CAPS to Title-Case (e.g. "UJJWAL KALRA" → "Ujjwal Kalra")
             normalized = " ".join(
                 w.title() if w.isupper() and len(w) > 1 else w
@@ -331,53 +362,56 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
             split = _split_camelcase_name(cleaned_words[0])
             if " " in split:
                 return split
-            candidates.append(cleaned_words[0])
+            single_word_candidates.append(cleaned_words[0])
 
-    if candidates:
-        return candidates[0]
+    if single_word_candidates:
+        return single_word_candidates[0]
 
     # Fallback 1: strip contact info from the first line and try again.
     # Handles PDFs where name and phone/email are on the same line.
     first_lines = [ln.strip() for ln in header_text.split("\n") if ln.strip()][:3]
     for first_line in first_lines:
-        # Strip email addresses
         cleaned = re.sub(r"[\w.+\-]+@[\w\-]+\.[a-zA-Z]{2,}", "", first_line)
-        # Strip phone numbers (international + local)
         cleaned = re.sub(r"\+?[\d][\d\s\-\(\)\.]{6,}", "", cleaned)
-        # Strip URLs
         cleaned = re.sub(r"https?://\S+|www\.\S+", "", cleaned)
-        # Strip common separators
         cleaned = re.sub(r"[|•·/\\–—]", " ", cleaned)
-        # Strip trailing punctuation and normalize whitespace
         cleaned = re.sub(r"[,;:]", "", cleaned).strip()
         cleaned = re.sub(r"\s{2,}", " ", cleaned)
         if not cleaned:
             continue
         parts = cleaned.split()
         if 2 <= len(parts) <= 4 and all(re.match(r"^[A-Za-z\'\-\.]+$", p) for p in parts):
-            return " ".join(
-                p.title() if p.isupper() and len(p) > 1 else p
-                for p in parts
-            )
+            if not _is_title_line(parts):
+                return " ".join(
+                    p.title() if p.isupper() and len(p) > 1 else p
+                    for p in parts
+                )
 
     # Fallback 2: scan the first 400 chars for a Title-Case name sequence.
     text_start = re.sub(r"\s+", " ", header_text[:400])
-    # Match 2–4 consecutive Title-Case words (≥2 chars each, no digits)
     name_re = re.compile(r"\b([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,}){1,3})\b")
     for m in name_re.finditer(text_start):
         candidate = m.group(1)
         parts = candidate.split()
-        if all(_NAME_WORD.match(p) for p in parts):
+        if all(_NAME_WORD.match(p) for p in parts) and not _is_title_line(parts):
             return candidate
 
     # Fallback 3: scan for ALL-CAPS name sequence (2–4 words, 2+ chars each).
     caps_re = re.compile(r"\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b")
     for m in caps_re.finditer(text_start):
         candidate_parts = m.group(1).split()
-        if all(re.match(r"^[A-Z]+$", p) for p in candidate_parts):
+        if all(re.match(r"^[A-Z]+$", p) for p in candidate_parts) and not _is_title_line(candidate_parts):
             return " ".join(p.title() for p in candidate_parts)
 
     return None
+
+
+def looks_like_title(name: str) -> bool:
+    """Return True if the extracted 'name' looks like a professional headline, not a real name."""
+    if not name:
+        return False
+    words = name.split()
+    return _is_title_line(words)
 
 
 def extract_skills_from_text(text: str) -> list[str]:

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.core.security import get_current_user_id
 from app.core.config import settings
 from app.db.supabase_client import get_supabase
-from app.services.resume_parser import extract_text, parse_resume
+from app.services.resume_parser import extract_text, parse_resume, looks_like_title
 from app.services.embedding_service import embed_text
 
 router = APIRouter(prefix="/resume", tags=["resume"])
@@ -129,8 +129,9 @@ async def upload_resume(
 
     parsed_data, embedding = await asyncio.gather(_parse(), _embed())
 
-    # If regex couldn't extract the name, try LLM fallback
-    if not parsed_data.get("contact", {}).get("name"):
+    # Use LLM fallback if: no name found, OR the extracted "name" looks like a job title
+    parsed_name = parsed_data.get("contact", {}).get("name", "")
+    if not parsed_name or looks_like_title(parsed_name):
         llm_name = await _extract_name_with_llm(raw_text)
         if llm_name:
             parsed_data.setdefault("contact", {})["name"] = llm_name

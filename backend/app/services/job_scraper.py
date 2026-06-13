@@ -137,13 +137,8 @@ def extract_metadata_from_html(html: str, url: str = "") -> dict:
 
     # 4. h1 page heading as last resort — only trusted on known job board domains
     if not title:
-        trusted_domains = {
-            "linkedin.com", "indeed.com", "greenhouse.io", "lever.co",
-            "ashbyhq.com", "workday.com", "myworkdayjobs.com", "icims.com",
-            "taleo.net", "smartrecruiters.com", "jobvite.com", "workable.com",
-            "breezy.hr", "bamboohr.com", "recruitee.com", "dover.com",
-            "rippling.com", "wellfound.com", "naukri.com", "internshala.com",
-        }
+        # Any known job domain gets h1 fallback trust
+        trusted_domains = _JOB_DOMAINS
         parsed_host = urlparse(url).netloc.lower().lstrip("www.")
         if any(parsed_host == d or parsed_host.endswith("." + d) for d in trusted_domains):
             for h1 in soup.find_all("h1"):
@@ -154,6 +149,13 @@ def extract_metadata_from_html(html: str, url: str = "") -> dict:
 
     logger.debug("Metadata fallback result", title=title, company=company)
     return {"title": title, "company": company}
+
+
+# ─── URL Normalizers ─────────────────────────────────────────────────────────
+
+def normalize_job_url(url: str) -> str:
+    """Normalize ATS-specific redirect URLs. Currently a pass-through."""
+    return url
 
 
 # ─── LinkedIn Guest API ──────────────────────────────────────────────────────
@@ -231,10 +233,32 @@ _LOGIN_SIGNALS = [
 ]
 
 _JOB_SIGNALS = [
+    # Universal
     "responsibilities", "requirements", "qualifications", "skills",
     "experience", "job description", "about the role", "what you'll do",
     "we are looking", "we're looking", "apply now", "job type",
-    "full-time", "part-time", "benefits", "compensation",
+    "full-time", "part-time", "benefits", "compensation", "salary",
+    "who you are", "what you bring", "about you", "your role",
+    "duties", "key responsibilities", "essential functions",
+    "minimum qualifications", "preferred qualifications",
+    "equal opportunity", "eeo", "we offer", "what we offer",
+    # Healthcare / pharma
+    "patient care", "clinical", "nursing", "medical", "healthcare",
+    "hospital", "physician", "licensed", "certification required",
+    # Finance / banking
+    "financial", "banking", "investment", "accounting", "audit",
+    "compliance", "portfolio", "underwriting",
+    # Retail / hospitality
+    "customer service", "retail", "store", "shift", "hospitality",
+    "food service", "guest experience", "inventory",
+    # Manufacturing / logistics
+    "manufacturing", "production", "warehouse", "logistics", "supply chain",
+    "forklift", "safety standards", "quality control",
+    # Education
+    "teaching", "educator", "faculty", "curriculum", "classroom",
+    "academic", "students",
+    # Legal / consulting
+    "counsel", "attorney", "litigation", "consulting", "advisory",
 ]
 
 
@@ -414,6 +438,21 @@ async def scrape_url_with_httpx(url: str) -> Optional[str]:
     return None
 
 
+# Domains that are full SPAs — need networkidle to finish loading job content
+_SPA_DOMAINS = {
+    "careers.microsoft.com", "apply.careers.microsoft.com",
+    "careers.google.com", "hire.withgoogle.com",
+    "metacareers.com",
+    "amazon.jobs",
+    "jobs.apple.com",
+    "myworkdayjobs.com",   # covers *.myworkdayjobs.com via endswith check below
+    "icims.com",
+    "successfactors.com", "successfactors.eu",
+    "smartrecruiters.com",
+    "jobs.spotify.com",
+}
+
+
 async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[str]:
     """
     Full Playwright scrape with stealth mode — bypasses bot detection on Indeed,
@@ -426,6 +465,14 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
             _stealth_available = True
         except ImportError:
             _stealth_available = False
+
+        # SPA portals need networkidle to finish API-driven content loading
+        host = urlparse(url).netloc.lower().lstrip("www.")
+        is_spa = any(host == d or host.endswith("." + d) for d in _SPA_DOMAINS)
+        # Also treat any Workday-hosted domain as SPA
+        if not is_spa and "myworkdayjobs.com" in host:
+            is_spa = True
+        wait_until = "networkidle" if is_spa else "domcontentloaded"
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -447,7 +494,6 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
                 viewport={"width": 1440, "height": 900},
                 locale="en-US",
                 timezone_id="America/New_York",
-                # Mimic a real browser environment
                 java_script_enabled=True,
                 accept_downloads=False,
                 extra_http_headers={
@@ -458,7 +504,6 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
                 },
             )
             page = await context.new_page()
-            # Apply stealth patches — removes webdriver flag, fixes navigator props, etc.
             if _stealth_available:
                 await stealth_async(page)
 
@@ -469,7 +514,7 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
             )
 
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+                await page.goto(url, wait_until=wait_until, timeout=timeout * 1000)
 
                 # Wait up to 5s for the job description to appear
                 desc_selectors = [
@@ -566,9 +611,109 @@ _SELECTORS: dict[str, list[str]] = {
         "div[class*='job-description']",
         "section.job-desc",
     ],
+    "careers.microsoft.com": [
+        "div[class*='job-description']",
+        "div[class*='jobDescription']",
+        "section[class*='description']",
+        "div[data-automationid='jobDescription']",
+        "div[class*='ms-DocumentCard']",
+        "div[class*='description']",
+        "main",
+    ],
+    # apply.careers.microsoft.com — the job apply/listing SPA
+    "apply.careers.microsoft.com": [
+        "div#job-description-container",
+        "div[class*='job-description']",
+        "div[class*='jobDescription']",
+        "div[data-ph-at-id='job-description']",
+        "section[class*='description']",
+        "div[class*='description']",
+        "main",
+    ],
     "unstop.com": [
         "div.opportunity-details",
         "div[class*='description']",
+    ],
+    # iCIMS
+    "icims.com": [
+        "div.iCIMS_JobContent",
+        "div#iCIMS_Content",
+        "div[class*='iCIMS']",
+        "div[class*='job-description']",
+    ],
+    # SAP SuccessFactors
+    "successfactors.com": [
+        "div.jobDescription",
+        "div[class*='jobDescription']",
+        "section[class*='job-description']",
+        "div[data-bind*='jobDescription']",
+    ],
+    "successfactors.eu": [
+        "div.jobDescription",
+        "div[class*='jobDescription']",
+    ],
+    # Taleo
+    "taleo.net": [
+        "div#requisitionDescriptionInterface",
+        "div.requisitionDescription",
+        "div[class*='description']",
+    ],
+    # Workday (all subdomains via myworkdayjobs.com)
+    "myworkdayjobs.com": [
+        "div[data-automation-id='jobPostingDescription']",
+        "div[data-automation-id='job-posting-description']",
+        "div[class*='job-description']",
+        "section[data-automation-id='jobReqDescription']",
+    ],
+    # Meta Careers
+    "metacareers.com": [
+        "div[data-testid='job-description']",
+        "div._8muv",
+        "div[class*='job-description']",
+        "section[class*='description']",
+        "div._9ata",
+    ],
+    # Apple Jobs
+    "jobs.apple.com": [
+        "div.content-copy",
+        "section.job-description",
+        "div[class*='job-description']",
+        "div[id*='job-description']",
+        "div.accordion__content",
+    ],
+    # Amazon Jobs
+    "amazon.jobs": [
+        "div.job-description",
+        "section[class*='description']",
+        "div[class*='job-details']",
+        "div#job-detail",
+    ],
+    # Jobvite
+    "jobvite.com": [
+        "div.jobdescription",
+        "div#jobdescription",
+        "div[class*='description']",
+    ],
+    # BambooHR
+    "bamboohr.com": [
+        "div.BambooHR-ATS-body",
+        "div[class*='description']",
+        "section[class*='job']",
+    ],
+    # Greenhouse short links & EU board
+    "grnh.se": [
+        "div#content",
+        "div.job-post-description",
+    ],
+    # Spotify
+    "jobs.spotify.com": [
+        "div[class*='job-description']",
+        "section[class*='description']",
+        "div[data-testid='job-description']",
+    ],
+    # Salesforce (Workday-based)
+    "salesforce.wd12.myworkdayjobs.com": [
+        "div[data-automation-id='jobPostingDescription']",
     ],
 }
 
@@ -678,10 +823,11 @@ async def extract_job_details_with_llm(
         f"{hint_block}"
         "You are a job description parser. Extract every piece of structured information "
         "from the text below, even if the text is noisy, partial, or mixed with page chrome.\n"
+        "This may be ANY industry — tech, healthcare, finance, retail, manufacturing, education, legal, etc.\n"
         "Rules:\n"
-        "- title: the exact job role name (e.g. 'Product Manager', 'Backend Engineer', 'Data Analyst')\n"
-        "- required_skills: concrete skills/technologies explicitly required (strings, no duplicates)\n"
-        "- tech_stack: specific tools/frameworks/languages mentioned\n"
+        "- title: the exact job role name (e.g. 'Staff Nurse', 'Financial Analyst', 'Store Manager', 'Software Engineer')\n"
+        "- required_skills: concrete skills/tools/certifications explicitly required (strings, no duplicates)\n"
+        "- tech_stack: tools, software, equipment, or frameworks mentioned (can be medical tools, ERP systems, machinery, etc.)\n"
         "- If a field has no data in the text, return [] or '' — never invent data\n"
         "- Even if the text is partial, extract what is present\n\n"
         f"URL: {url}\n\n"
@@ -728,31 +874,98 @@ async def extract_job_details_with_llm(
 
 # ─── URL Validator ───────────────────────────────────────────────────────────
 
+# Known job board / ATS domains — endswith() check covers all subdomains
 _JOB_DOMAINS = {
-    "linkedin.com", "indeed.com", "greenhouse.io", "lever.co",
-    "ashbyhq.com", "workday.com", "myworkdayjobs.com", "icims.com",
-    "taleo.net", "smartrecruiters.com", "jobvite.com", "workable.com",
-    "breezy.hr", "bamboohr.com", "recruitee.com", "dover.com",
-    "rippling.com", "wellfound.com", "naukri.com", "internshala.com",
-    "glassdoor.com", "monster.com", "dice.com", "ziprecruiter.com",
-    "angel.co", "ycombinator.com", "greenhouse.io", "jobs.lever.co",
+    # Major job boards
+    "linkedin.com", "indeed.com", "glassdoor.com", "monster.com",
+    "dice.com", "ziprecruiter.com", "wellfound.com", "angel.co",
+    "ycombinator.com", "naukri.com", "internshala.com", "unstop.com",
+    "careerbuilder.com", "simplyhired.com", "jobstreet.com",
+    "seek.com.au", "totaljobs.com", "reed.co.uk", "cv-library.co.uk",
+    # ATS platforms (used across all industries)
+    "greenhouse.io", "lever.co", "ashbyhq.com", "workable.com",
+    "smartrecruiters.com", "jobvite.com", "breezy.hr", "bamboohr.com",
+    "recruitee.com", "dover.com", "rippling.com", "workday.com",
+    "myworkdayjobs.com", "icims.com", "taleo.net", "successfactors.com",
+    "successfactors.eu", "sap-successfactors.com",
+    "jobs.lever.co", "grnh.se",
+    "teamtailor.com", "jazzhr.com", "jobscore.com", "comeet.co",
+    "pinpointrecruitment.com", "clearcompany.com", "applytojob.com",
+    "ultipro.com", "kronos.com", "silkroad.com",
+    "oraclecloud.com",       # Oracle HCM — used by banks, hospitals, retailers
+    "kenexa.com",            # IBM Kenexa
+    "shl.com",
+    "careerplug.com",        # SMB / retail / hospitality
+    "paylocity.com", "paycor.com",
+    "recruitingbypaychex.com",
+    # Big-tech career portals
+    "careers.microsoft.com", "apply.careers.microsoft.com",
+    "careers.google.com", "hire.withgoogle.com",
+    "metacareers.com", "jobs.apple.com",
+    "amazon.jobs", "jobs.netflix.com",
+    "careers.salesforce.com", "salesforce.wd12.myworkdayjobs.com",
+    "careers.adobe.com", "adobe.wd5.myworkdayjobs.com",
+    "jobs.spotify.com",
+    # Indian job portals
+    "shine.com", "timesjobs.com", "freshersworld.com", "hirist.com",
+    "iimjobs.com", "cutshort.io", "instahyre.com",
 }
+
+# Subdomains that always indicate a company careers site
+_CAREERS_SUBDOMAINS = {
+    "careers", "jobs", "job", "work", "apply", "hiring",
+    "talent", "join", "opportunities", "recruitment", "vacancies",
+    "careers2", "career", "joinus",
+}
+
+# Path fragments that strongly indicate a job posting URL
 _JOB_PATH_KEYWORDS = {
-    "/jobs/", "/careers/", "/job/", "/opening/", "/openings/",
-    "/positions/", "/vacancy/", "/vacancies/", "/apply/",
-    "/job-detail/", "/job-posting/", "/role/",
+    "/jobs/", "/job/", "/careers/", "/careers",
+    "/opening/", "/openings/", "/positions/", "/position/",
+    "/vacancy/", "/vacancies/", "/role/", "/roles/",
+    "/apply/", "/job-detail/", "/job-posting/", "/joboffer/",
+    "/requisition/", "/posting/", "/join-us/", "/work-with-us/",
+    "/join/", "/opportunities/", "/opportunity/", "/working-here/",
+}
+
+# Query-string param names used by ATSs to identify a specific job
+_JOB_ID_PARAMS = {
+    "pid", "jobid", "job_id", "jobid", "jid",
+    "requisitionid", "req_id", "reqid",
+    "jobpostingid", "positionid", "position_id",
+    "currentjobid", "selected_job", "job",
 }
 
 
 def is_job_url(url: str) -> bool:
-    """Return True only if the URL looks like a genuine job posting page."""
+    """
+    Return True if the URL is likely a job posting page.
+
+    Checks (in order):
+      1. Known ATS / job-board domain
+      2. Careers/jobs subdomain (careers.walmart.com, jobs.nhs.uk, etc.)
+      3. Job-related path keyword
+      4. Job-ID query parameter (covers custom ATSs and apply pages)
+      5. Numeric job-ID at end of path (common across all industries)
+    """
     try:
         parsed = urlparse(url)
         host = parsed.netloc.lower().lstrip("www.")
         path = parsed.path.lower()
+        qs_keys = {k.lower() for k in parse_qs(parsed.query)}
+
         if any(host == d or host.endswith("." + d) for d in _JOB_DOMAINS):
             return True
+        # careers.*, jobs.*, talent.*, apply.* subdomains on ANY company domain
+        subdomain = host.split(".")[0] if "." in host else ""
+        if subdomain in _CAREERS_SUBDOMAINS:
+            return True
         if any(kw in path for kw in _JOB_PATH_KEYWORDS):
+            return True
+        if qs_keys & _JOB_ID_PARAMS:
+            return True
+        # Numeric slug at end of path — /en-us/details/200554359/ or /job/12345678
+        if re.search(r"/\d{6,}/?$", path):
             return True
     except Exception:
         pass
@@ -784,6 +997,10 @@ async def search_and_scrape_job(
         title=job_title,
         direct_url=direct_url,
     )
+
+    # Normalize ATS-specific URLs (e.g. Microsoft apply page → job description page)
+    if direct_url:
+        direct_url = normalize_job_url(direct_url)
 
     # Reject non-job URLs immediately to prevent fake JD generation
     if direct_url and not is_job_url(direct_url):
