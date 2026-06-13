@@ -306,9 +306,36 @@ _TITLE_WORDS = {
 }
 
 
+# Indian and global city/state/country names that can appear at the top of resumes.
+_LOCATION_WORDS = {
+    # Indian cities
+    "gurgaon", "gurugram", "noida", "delhi", "mumbai", "bangalore", "bengaluru",
+    "hyderabad", "pune", "chennai", "kolkata", "ahmedabad", "jaipur", "lucknow",
+    "chandigarh", "faridabad", "ghaziabad", "meerut", "agra", "varanasi",
+    "bhopal", "indore", "nagpur", "surat", "vadodara", "kochi", "thiruvananthapuram",
+    "coimbatore", "madurai", "visakhapatnam", "patna", "ranchi", "bhubaneswar",
+    "dehradun", "shimla", "jammu", "srinagar", "amritsar", "ludhiana",
+    # Indian states / territories
+    "haryana", "maharashtra", "karnataka", "telangana", "rajasthan", "gujarat",
+    "punjab", "kerala", "tamilnadu", "andhra", "pradesh", "bengal", "bihar",
+    "jharkhand", "odisha", "uttarakhand", "himachal", "assam", "manipur",
+    "nagaland", "mizoram", "meghalaya", "tripura", "sikkim", "goa",
+    # Common global cities
+    "london", "dubai", "singapore", "toronto", "sydney", "berlin", "paris",
+    "newyork", "california", "texas", "florida",
+    # Generic location words
+    "india", "city", "state", "country", "location", "address", "region",
+}
+
+
 def _is_title_line(words: list[str]) -> bool:
     """Return True if any word suggests this is a professional headline, not a name."""
     return any(w.lower() in _TITLE_WORDS for w in words)
+
+
+def _is_location_line(words: list[str]) -> bool:
+    """Return True if the line looks like a city/state/country, not a person's name."""
+    return any(w.lower() in _LOCATION_WORDS for w in words)
 
 
 def _split_camelcase_name(word: str) -> str:
@@ -348,8 +375,8 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
             continue
 
         if 2 <= len(words) <= 4:
-            # Skip lines that look like professional titles/headlines
-            if _is_title_line(cleaned_words):
+            # Skip lines that look like professional titles/headlines or locations
+            if _is_title_line(cleaned_words) or _is_location_line(cleaned_words):
                 continue
             # Normalise ALL-CAPS to Title-Case (e.g. "UJJWAL KALRA" → "Ujjwal Kalra")
             normalized = " ".join(
@@ -381,7 +408,7 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
             continue
         parts = cleaned.split()
         if 2 <= len(parts) <= 4 and all(re.match(r"^[A-Za-z\'\-\.]+$", p) for p in parts):
-            if not _is_title_line(parts):
+            if not _is_title_line(parts) and not _is_location_line(parts):
                 return " ".join(
                     p.title() if p.isupper() and len(p) > 1 else p
                     for p in parts
@@ -393,25 +420,25 @@ def extract_name_from_header(header_text: str) -> Optional[str]:
     for m in name_re.finditer(text_start):
         candidate = m.group(1)
         parts = candidate.split()
-        if all(_NAME_WORD.match(p) for p in parts) and not _is_title_line(parts):
+        if all(_NAME_WORD.match(p) for p in parts) and not _is_title_line(parts) and not _is_location_line(parts):
             return candidate
 
     # Fallback 3: scan for ALL-CAPS name sequence (2–4 words, 2+ chars each).
     caps_re = re.compile(r"\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b")
     for m in caps_re.finditer(text_start):
         candidate_parts = m.group(1).split()
-        if all(re.match(r"^[A-Z]+$", p) for p in candidate_parts) and not _is_title_line(candidate_parts):
+        if all(re.match(r"^[A-Z]+$", p) for p in candidate_parts) and not _is_title_line(candidate_parts) and not _is_location_line(candidate_parts):
             return " ".join(p.title() for p in candidate_parts)
 
     return None
 
 
 def looks_like_title(name: str) -> bool:
-    """Return True if the extracted 'name' looks like a professional headline, not a real name."""
+    """Return True if the extracted 'name' looks like a title or location, not a real name."""
     if not name:
         return False
     words = name.split()
-    return _is_title_line(words)
+    return _is_title_line(words) or _is_location_line(words)
 
 
 def extract_skills_from_text(text: str) -> list[str]:
