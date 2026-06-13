@@ -43,6 +43,9 @@ coverage/
 # Misc
 *.tsbuildinfo
 
+# Generated LaTeX output artifacts
+*.tex
+
 # Trained model binaries — baked into Docker image, track in git
 # .pt and .json ARE committed so Cloud Run gets them without GitHub Release calls
 backend/models/*.joblib
