@@ -128,6 +128,43 @@ def _fix_merged_text(text: str) -> str:
     return "\n".join(lines)
 
 
+def _extract_pdf_hyperlinks(content: bytes) -> list[str]:
+    """
+    Extract all HTTP/HTTPS URIs embedded as link annotations in the PDF.
+    These are the actual redirect targets — not just visible text.
+    """
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    def _add(url: str) -> None:
+        url = url.strip()
+        if url and url.startswith("http") and url not in seen:
+            seen.add(url)
+            urls.append(url)
+
+    # PyMuPDF link annotations
+    try:
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        for page in doc:
+            for link in page.get_links():
+                _add(link.get("uri", ""))
+        doc.close()
+    except Exception:
+        pass
+
+    # pdfplumber hyperlinks (catches some PDFs PyMuPDF misses)
+    try:
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                for h in (page.hyperlinks or []):
+                    _add(h.get("uri", ""))
+    except Exception:
+        pass
+
+    return urls
+
+
 def extract_text_from_pdf(content: bytes) -> str:
     """
     Extract full text from PDF bytes.
@@ -136,8 +173,11 @@ def extract_text_from_pdf(content: bytes) -> str:
     1. PyMuPDF (fitz) first — preserves word spacing most reliably.
     2. Fall back to pdfplumber word reconstruction with strict x_tolerance.
     3. Apply _fix_merged_text() as a final cleanup pass.
+    4. Append any embedded hyperlink URLs as a labelled block so the LLM
+       picks up the actual link targets (not just display text).
     """
     # ── Primary: PyMuPDF ──────────────────────────────────────────────────────
+    raw = ""
     try:
         import fitz  # PyMuPDF
         doc = fitz.open(stream=content, filetype="pdf")
@@ -145,38 +185,44 @@ def extract_text_from_pdf(content: bytes) -> str:
         for page in doc:
             parts.append(page.get_text("text", sort=True))
         doc.close()
-        raw = "\n".join(parts)
-        if len(raw.strip()) > 50:
-            return _fix_merged_text(raw)
+        candidate = "\n".join(parts)
+        if len(candidate.strip()) > 50:
+            raw = _fix_merged_text(candidate)
     except Exception as e:
         logger.warning("PyMuPDF failed, trying pdfplumber", error=str(e))
 
     # ── Fallback: pdfplumber word reconstruction ───────────────────────────
-    text_parts = []
-    try:
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            for page in pdf.pages:
-                try:
-                    words = page.extract_words(
-                        x_tolerance=3,   # tighter — avoids merging adjacent words
-                        y_tolerance=5,
-                        keep_blank_chars=False,
-                    )
-                    if words:
-                        text_parts.append(_reconstruct_lines_from_words(words))
-                    else:
+    if not raw:
+        text_parts = []
+        try:
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                for page in pdf.pages:
+                    try:
+                        words = page.extract_words(
+                            x_tolerance=3,
+                            y_tolerance=5,
+                            keep_blank_chars=False,
+                        )
+                        if words:
+                            text_parts.append(_reconstruct_lines_from_words(words))
+                        else:
+                            page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
+                            if page_text:
+                                text_parts.append(page_text)
+                    except Exception:
                         page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
                         if page_text:
                             text_parts.append(page_text)
-                except Exception:
-                    page_text = page.extract_text(x_tolerance=7, y_tolerance=5)
-                    if page_text:
-                        text_parts.append(page_text)
-    except Exception as e:
-        logger.error("PDF extraction failed completely", error=str(e))
+        except Exception as e:
+            logger.error("PDF extraction failed completely", error=str(e))
+        raw = _fix_merged_text("\n".join(text_parts))
 
-    raw_text = "\n".join(text_parts)
-    return _fix_merged_text(raw_text)
+    # ── Append embedded hyperlinks so LLM sees actual URLs ────────────────
+    links = _extract_pdf_hyperlinks(content)
+    if links:
+        raw += "\n\n[EMBEDDED_LINKS]\n" + "\n".join(links)
+
+    return raw
 
 
 def extract_text_from_docx(content: bytes) -> str:

@@ -82,150 +82,109 @@ export default function ResumePage() {
         </div>
       </motion.div>
 
-      {/* Disclaimer */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex items-start gap-3 p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-      >
-        <Info className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0 mt-0.5" />
-        <p className="text-[12px] text-[var(--text-muted)] leading-relaxed">
-          <span className="font-semibold text-[var(--text-secondary)]">One resume at a time.</span>{" "}
-          JobSynk uses your single active resume across all features. To upload a new version,
-          delete your current resume first. Use{" "}
-          <Link href="/resume/build" className="text-[var(--accent-primary)] hover:underline">AI Resume Builder</Link>{" "}
-          to generate a polished, ATS-ready resume from scratch.
-        </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: upload or current resume */}
-        <div className="lg:col-span-2 space-y-4">
-
-          {isLoading ? (
-            <div className="h-40 rounded-2xl animate-shimmer" />
-          ) : hasResume ? (
-            /* Has resume — show it with delete-to-replace prompt */
-            <div className="space-y-3">
-              {resumes.map((resume) => (
-                <motion.div
-                  key={resume.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
-                    selectedResume?.id === resume.id
-                      ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
-                  )}
-                  onClick={() => setSelectedResume(resume)}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-4 h-4 text-[var(--text-secondary)]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-medium text-[var(--text-primary)] truncate">
-                      {resume.file_name}
-                    </div>
-                    <div className="text-[10px] text-[var(--text-muted)]">
-                      {formatDate(resume.created_at)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {resume.is_active && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleSetActive(resume.id); }}
-                      className="p-1 rounded-md hover:bg-[var(--bg-overlay)] text-[var(--text-muted)] hover:text-amber-400 transition-colors"
-                      title="Set as active"
-                    >
-                      <Star className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(resume.id); }}
-                      className="p-1 rounded-md hover:bg-[var(--bg-overlay)] text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
-                      title="Delete resume"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-
-              {/* Delete confirmation */}
-              {confirmDelete && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 rounded-xl border border-red-400/30 bg-red-400/5 space-y-3"
-                >
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-[13px] font-medium text-[var(--text-primary)]">Delete resume?</div>
-                      <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
-                        This will remove it from all analyses and features. You can upload a new one after.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDelete(confirmDelete)}
-                      className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[12px] font-medium transition-colors"
-                    >
-                      Yes, Delete
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(null)}
-                      className="flex-1 py-2 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </motion.div>
+      {/* File management bar — compact full-width */}
+      {isLoading ? (
+        <div className="h-14 rounded-2xl animate-shimmer" />
+      ) : hasResume ? (
+        <div className="space-y-2">
+          {resumes.map((resume) => (
+            <motion.div
+              key={resume.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all",
+                selectedResume?.id === resume.id
+                  ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
+                  : "border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
               )}
-
-              {/* Replace hint */}
-              <div className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                <Info className="w-3.5 h-3.5 text-[var(--text-muted)] flex-shrink-0" />
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  To upload a new resume, delete the existing one above first.
-                </p>
+              onClick={() => setSelectedResume(resume)}
+            >
+              <div className="w-7 h-7 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
               </div>
-            </div>
-          ) : (
-            /* No resume — show upload zone */
-            <div className="space-y-3">
-              <UploadZone onSuccess={handleUploadSuccess} />
-              <div className="flex items-center gap-2 p-3 rounded-xl border border-[var(--accent-primary)]/20 bg-[var(--accent-subtle)]">
-                <Info className="w-3.5 h-3.5 text-[var(--accent-primary)] flex-shrink-0" />
-                <p className="text-[11px] text-[var(--text-secondary)]">
-                  No resume yet. Upload a PDF/DOCX, or{" "}
-                  <Link href="/resume/build" className="text-[var(--accent-primary)] hover:underline font-medium">
-                    build one with AI
-                  </Link>
-                  .
-                </p>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{resume.file_name}</div>
+                <div className="text-[11px] text-[var(--text-muted)]">{formatDate(resume.created_at)}</div>
               </div>
-            </div>
-          )}
-        </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {resume.is_active && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mr-1" />}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleSetActive(resume.id); }}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-overlay)] text-[var(--text-muted)] hover:text-amber-400 transition-colors"
+                  title="Set as active"
+                >
+                  <Star className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(resume.id); }}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-overlay)] text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
+                  title="Delete resume"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          ))}
 
-        {/* Right: parsed preview */}
-        <div className="lg:col-span-3">
-          {selectedResume ? (
-            <ParsedResumePreview resume={selectedResume} />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-              <FileText className="w-8 h-8 text-[var(--text-muted)] mb-3" />
-              <p className="text-[14px] text-[var(--text-secondary)]">
-                {hasResume ? "Select a resume to preview parsed data" : "Upload a resume to see the parsed preview"}
+          {confirmDelete && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-4 px-4 py-3 rounded-xl border border-red-400/30 bg-red-400/5"
+            >
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <p className="text-[12px] text-[var(--text-secondary)] flex-1">
+                <span className="font-medium text-[var(--text-primary)]">Delete resume?</span>
+                {" "}This removes it from all analyses and features.
               </p>
-            </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => handleDelete(confirmDelete)}
+                  className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[12px] font-medium transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
           )}
+
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-[var(--border-subtle)]">
+            <Info className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0" />
+            <p className="text-[11px] text-[var(--text-muted)]">
+              One resume at a time — delete the above to upload a new version, or{" "}
+              <Link href="/resume/build" className="text-[var(--accent-primary)] hover:underline">build with AI</Link>.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-3">
+          <UploadZone onSuccess={handleUploadSuccess} />
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--accent-primary)]/20 bg-[var(--accent-subtle)]">
+            <Info className="w-3 h-3 text-[var(--accent-primary)] flex-shrink-0" />
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              No resume yet. Upload a PDF/DOCX, or{" "}
+              <Link href="/resume/build" className="text-[var(--accent-primary)] hover:underline font-medium">build one with AI</Link>.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Full-width parsed preview */}
+      {selectedResume ? (
+        <ParsedResumePreview resume={selectedResume} />
+      ) : hasResume && !isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-[var(--border-subtle)]">
+          <FileText className="w-7 h-7 text-[var(--text-muted)] mb-2" />
+          <p className="text-[13px] text-[var(--text-secondary)]">Select a resume above to preview parsed data</p>
+        </div>
+      ) : null}
     </div>
   );
 }
