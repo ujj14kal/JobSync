@@ -110,13 +110,30 @@ async def _get_valid_access_token(conn: dict) -> str:
 
 # ─── Gmail API helpers ────────────────────────────────────────────────────────
 
+def _extract_body_text(payload: dict) -> str:
+    """Recursively extract plaintext body from Gmail API full-format payload."""
+    mime = payload.get("mimeType", "")
+    if mime == "text/plain":
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            try:
+                return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+    for part in payload.get("parts", []):
+        result = _extract_body_text(part)
+        if result:
+            return result
+    return ""
+
+
 async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dict]:
-    """Fetch job-related emails using Gmail search operators."""
+    """Fetch job-related emails using Gmail search operators, including Spam folder."""
     after_ts = int((datetime.now(timezone.utc) - timedelta(days=since_days)).timestamp())
-    # Broad query — covers Indian ATS/HR patterns (Keka, Darwinbox, boAt, etc.)
-    # as well as standard western recruiting terms.
+    # in:anywhere — includes Inbox, Spam, Sent, All Mail so test/unknown-sender
+    # emails that land in Spam are still found.
     query = (
-        f"after:{after_ts} "
+        f"after:{after_ts} in:anywhere "
         "("
         "subject:application OR subject:interview OR subject:offer OR "
         "subject:rejected OR subject:unfortunately OR subject:\"next steps\" OR "
@@ -131,7 +148,8 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
         "subject:\"next round\" OR subject:\"move forward\" OR "
         "subject:\"documents required\" OR subject:\"document verification\" OR "
         "subject:intern OR subject:internship OR subject:\"quick interaction\" OR "
-        "subject:\"final round\" OR subject:hired OR subject:recruited"
+        "subject:\"final round\" OR subject:hired OR subject:recruited OR "
+        "subject:invitation OR subject:\"pleased to invite\" OR subject:regret"
         ")"
     )
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -143,31 +161,33 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
             params={"q": query, "maxResults": 50},
         )
         if r.status_code != 200:
+            print(f"[gmail_sync] Gmail search failed: {r.status_code} {r.text[:200]}", flush=True)
             return []
 
         message_ids = [m["id"] for m in r.json().get("messages", [])]
+        print(f"[gmail_sync] Gmail search returned {len(message_ids)} message IDs", flush=True)
 
         emails: list[dict] = []
-        for msg_id in message_ids[:40]:   # increased from 25 to catch more
+        for msg_id in message_ids[:40]:
             try:
+                # Fetch full message to get body text (not just snippet)
                 r2 = await client.get(
                     f"{GMAIL_API}/users/me/messages/{msg_id}",
                     headers=headers,
-                    params={
-                        "format": "metadata",
-                        "metadataHeaders": ["Subject", "From", "Date"],
-                    },
+                    params={"format": "full"},
                 )
                 if r2.status_code == 200:
                     msg = r2.json()
                     hmap = {h["name"]: h["value"]
                             for h in msg.get("payload", {}).get("headers", [])}
+                    body = _extract_body_text(msg.get("payload", {}))
                     emails.append({
                         "id":      msg_id,
                         "subject": hmap.get("Subject", ""),
                         "from":    hmap.get("From", ""),
                         "date":    hmap.get("Date", ""),
-                        "snippet": msg.get("snippet", "")[:500],  # more context
+                        "snippet": msg.get("snippet", "")[:300],
+                        "body":    body[:1500],  # first 1500 chars of body
                     })
             except Exception:
                 continue
@@ -178,12 +198,16 @@ async def _fetch_job_emails(access_token: str, since_days: int = 14) -> list[dic
 # ─── Groq classification ──────────────────────────────────────────────────────
 
 GROQ_STATUS_MAP = {
-    "applied_confirmed": "applied",
-    "screening":         "screening",
+    "applied_confirmed":   "applied",
+    "screening":           "screening",
     "interview_scheduled": "interviewing",
-    "offer":             "offer",
-    "rejected":          "rejected",
-    "withdrawn":         "withdrawn",
+    "offer":               "offer",
+    "rejected":            "rejected",
+    "withdrawn":           "withdrawn",
+    # aliases Groq sometimes produces
+    "interview":           "interviewing",
+    "offer_extended":      "offer",
+    "not_selected":        "rejected",
 }
 
 async def _classify_emails(emails: list[dict]) -> list[dict]:
@@ -196,11 +220,13 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         return []
 
     emails_block = "\n\n".join(
-        f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\nSnippet: {e['snippet']}"
+        f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\n"
+        f"Snippet: {e.get('snippet', '')}\n"
+        f"Body: {e.get('body', '')[:800]}"
         for i, e in enumerate(emails[:25])
     )
 
-    prompt = f"""You are a classifier that extracts job application status updates from emails.
+    prompt = f"""You are an AI that detects job application status updates in emails.
 
 Emails to analyse:
 {emails_block}
@@ -208,25 +234,26 @@ Emails to analyse:
 Return a JSON array. Each element:
 {{
   "email_index": <1-based int>,
-  "company": "<company/organisation name — from sender domain, body, or subject>",
+  "company": "<company/organisation name — extract from sender domain, body, or subject>",
   "job_title": "<job role if mentioned, or null>",
-  "status": "<one of: applied_confirmed | screening | interview_scheduled | offer | rejected | other>",
+  "status": "<one of: applied_confirmed | screening | interview_scheduled | offer | rejected | withdrawn | other>",
   "confidence": <0.0-1.0>,
   "subject": "<email subject>"
 }}
 
-INCLUDE only if ALL of these are true:
-1. The email is sent BY a company/recruiter/HR TO the candidate about a specific job/internship they applied for.
-2. It contains a clear status signal about that application.
+INCLUDE an item if the email is from a recruiter/company/HR system to a job candidate with a clear status signal:
 
 Status signals:
-- offer: "offer letter", "appointment letter", "CTC", "joining date", "welcome aboard", "documents required" (asking for onboarding docs), "document verification", "congratulations on your selection", "pleased to offer".
-- rejected: "unfortunately", "not moving forward", "not selected", "regret to inform", "other candidates".
-- interview_scheduled: "interview scheduled", "next round", "technical interview", "HR round", "please join", "quick interaction" (from a recruiter), calendar invite from a company HR.
-- screening: "shortlisted for", "initial screening", "online assessment", "coding challenge", "HackerRank", "Mettl", "intern" combined with a shortlisting/selection context.
-- applied_confirmed: "received your application", "thank you for applying", "application confirmed".
+- interview_scheduled: subject/body contains "interview", "interview invitation", "invited for an interview", "schedule an interview", "next round", "technical round", "HR round", "quick call", "quick interaction", calendar invite from HR.
+- offer: "offer letter", "appointment letter", "CTC", "joining date", "welcome aboard", "documents required" (onboarding context), "congratulations on your selection", "pleased to offer", "we are pleased to extend".
+- rejected: "unfortunately", "not moving forward", "not selected", "regret to inform", "we have decided not", "other candidates", "not shortlisted".
+- screening: "shortlisted", "initial screening", "online assessment", "coding challenge", "HackerRank", "Mettl", "aptitude test", selected for next stage.
+- applied_confirmed: "received your application", "thank you for applying", "application confirmed", "application received".
+- withdrawn: "withdrawn", "no longer being considered", "position filled", "role closed".
 
-EXCLUDE (set status to "other" or skip):
+For confidence: use 0.9 if the signal is unambiguous (e.g. "Interview Invitation" in subject). Use 0.7 if context is present in the body. Use 0.5 if only weakly implied.
+
+EXCLUDE (set status to "other"):
 - Marketing emails, newsletters, or promotional content — even if they use words like "selected", "application", "congratulations", or "shortlisted" in a generic/marketing context (e.g. "selected courses for you", "your application is amazing, enrol now", "congratulations on joining our newsletter").
 - Job listing digests or job recommendations (e.g. LinkedIn "Jobs you may like", Naukri daily digest).
 - Course/education platform emails (e.g. Coding Ninjas, Coursera, Udemy, Internshala course emails).
@@ -244,7 +271,7 @@ If nothing qualifies, return [].
             model=settings.GROQ_FAST_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=900,
+            max_tokens=1200,
             json_mode=True,
             use_cache=False,
         )
@@ -498,7 +525,7 @@ async def sync_gmail(user_id: str = Depends(get_current_user_id)):
             # Only surface high-confidence detections as suggestions the user
             # can review and accept in the UI. Never insert without user action.
             confidence = item.get("confidence", 0)
-            if confidence < 0.75:
+            if confidence < 0.55:
                 continue
 
             # Deduplicate within the same sync run
