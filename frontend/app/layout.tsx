@@ -42,11 +42,22 @@ export const metadata: Metadata = {
       "Paste the job URL. Upload your resume. Know your chances in 30 seconds.",
     type: "website",
     locale: "en_US",
+    url: "https://jobsynk.in",
+    siteName: "JobSynk",
+    images: [
+      {
+        url: "https://jobsynk.in/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "JobSynk — Your Entire Job Search, Handled.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "JobSynk — Your Entire Job Search, Handled.",
     description: "Paste the job URL. Upload your resume. Know your chances in 30 seconds.",
+    images: ["https://jobsynk.in/opengraph-image"],
   },
   robots: { index: true, follow: true },
   verification: {
