@@ -1,4 +1,4 @@
-# JobSync — AI Career Platform
+# JobSynk — AI Career Platform
 
 > Land your dream job with AI precision. Semantic ATS analysis, recruiter-grade feedback, and intelligent mentor matching.
 
