@@ -1293,10 +1293,10 @@ export default function InterviewPage() {
             )}
 
             {/* ── Single unified configurator card ── */}
-            <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden" style={{ background: "var(--bg-surface)" }}>
+            <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden flex flex-col" style={{ background: "var(--bg-surface)", height: "calc(100vh - 196px)" }}>
 
               {/* ① Company */}
-              <div className="px-6 pt-5 pb-4">
+              <div className="px-6 py-5 flex-1 flex flex-col justify-center">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Company</span>
                   <button onClick={() => setShowAllCo(v => !v)}
@@ -1328,72 +1328,70 @@ export default function InterviewPage() {
                 </div>
               </div>
 
-              <div className="border-t border-[var(--border-subtle)]" />
-
               {/* ② Role */}
-              <div className="px-6 py-5 flex items-center gap-3">
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-2">Role</div>
-                  <input
-                    list="roles-list"
-                    value={role}
-                    onChange={e => setRole(e.target.value)}
-                    placeholder="What role are you interviewing for?"
-                    className="w-full bg-transparent text-[17px] font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-                  />
-                  <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+              <div className="px-6 py-5 flex-1 flex flex-col justify-center border-t border-[var(--border-subtle)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-2">Role</div>
+                    <input
+                      list="roles-list"
+                      value={role}
+                      onChange={e => setRole(e.target.value)}
+                      placeholder="What role are you interviewing for?"
+                      className="w-full bg-transparent text-[17px] font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                    />
+                    <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+                  </div>
+                  {role.trim() && (
+                    <button onClick={() => setRole("")}
+                      className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                      style={{ background: "var(--bg-elevated)" }}>
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </button>
+                  )}
                 </div>
-                {role.trim() && (
-                  <button onClick={() => setRole("")}
-                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-                    style={{ background: "var(--bg-elevated)" }}>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                  </button>
-                )}
               </div>
-
-              <div className="border-t border-[var(--border-subtle)]" />
 
               {/* ③ Experience + Format */}
-              <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Experience level</div>
-                  <div className="flex flex-wrap gap-2">
-                    {EXPERIENCE_LEVELS.map(l => (
-                      <button key={l.value} onClick={() => setExpLevel(l.value)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
-                        style={expLevel === l.value
-                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
-                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
-                      >
-                        <span>{l.icon}</span>
-                        <span>{l.label}</span>
-                      </button>
-                    ))}
+              <div className="flex-1 flex flex-col justify-center border-t border-[var(--border-subtle)] px-6 py-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Experience level</div>
+                    <div className="flex flex-wrap gap-2">
+                      {EXPERIENCE_LEVELS.map(l => (
+                        <button key={l.value} onClick={() => setExpLevel(l.value)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
+                          style={expLevel === l.value
+                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                            : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
+                        >
+                          <span>{l.icon}</span>
+                          <span>{l.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Interview format</div>
-                  <div className="flex flex-wrap gap-2">
-                    {INTERVIEW_TYPES.map(t => (
-                      <button key={t.value} onClick={() => setIType(t.value)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
-                        style={iType === t.value
-                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
-                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
-                      >
-                        <span>{t.icon}</span>
-                        <span>{t.label}</span>
-                      </button>
-                    ))}
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Interview format</div>
+                    <div className="flex flex-wrap gap-2">
+                      {INTERVIEW_TYPES.map(t => (
+                        <button key={t.value} onClick={() => setIType(t.value)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
+                          style={iType === t.value
+                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                            : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
+                        >
+                          <span>{t.icon}</span>
+                          <span>{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-[var(--border-subtle)]" />
-
               {/* ④ Bottom action bar: Q count + Voice + CTA */}
-              <div className="px-6 py-4 flex flex-wrap items-center gap-4" style={{ background: "var(--bg-elevated)" }}>
+              <div className="px-6 py-4 flex flex-wrap items-center gap-4 flex-shrink-0 border-t border-[var(--border-subtle)]" style={{ background: "var(--bg-elevated)" }}>
 
                 {/* Q count */}
                 <div className="flex items-center gap-3 flex-shrink-0">
