@@ -540,7 +540,6 @@ export default function InterviewPage() {
   const isPro = mounted && status?.is_pro === true;
   const interviewCreditsLeft = mounted ? (status?.interview_voice_credits ?? 0) : null;
   const hasVoiceCredits = mounted && (status?.interview_voice_credits ?? 0) > 0;
-  const canStartInterview = isPro || (mounted && (status?.interview_voice_credits ?? 0) > 0);
   const [showBuySession, setShowBuySession] = useState(false);
   const [showBuyVoice, setShowBuyVoice] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -559,6 +558,9 @@ export default function InterviewPage() {
   const [ttsAvail,      setTtsAvail]      = useState(false);
   const [aiSpeaking,    setAiSpeaking]    = useState(false);
   const [useElevenLabs, setUseElevenLabs] = useState(false);
+  // Free interviews (Groq + browser TTS) are always allowed.
+  // Credits only needed when user picks ElevenLabs HD voice.
+  const canStartInterview = !useElevenLabs || isPro || (mounted && (status?.interview_voice_credits ?? 0) > 0);
   const [previewing,    setPreviewing]    = useState<string | null>(null);
   const [elVoices, setElVoices] = useState<{ id: string; name: string; desc: string; gender: string }[]>([]);
   const [selectedElVoice, setSelectedElVoice] = useState("EXAVITQu4vr4xnSDxMaL");
@@ -742,10 +744,16 @@ export default function InterviewPage() {
       };
       window.speechSynthesis.speak(utt);
 
-      // Chrome sometimes silently drops the utterance; kick it after 200ms if still queued
-      setTimeout(() => {
+      // Chrome bug: speechSynthesis can be paused silently (e.g. after state changes).
+      // Poll every 250ms for up to 5s and resume if paused.
+      let resumeChecks = 0;
+      const resumeInterval = setInterval(() => {
+        if (++resumeChecks > 20 || !window.speechSynthesis.speaking) {
+          clearInterval(resumeInterval);
+          return;
+        }
         if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      }, 200);
+      }, 250);
     };
 
     // If voices haven't loaded yet, wait for them
@@ -1021,6 +1029,7 @@ export default function InterviewPage() {
     try {
       const { data } = await apiClient.post("/interview/hirevue/start", {
         role, company, experience_level: expLevel, interview_type: iType, num_questions: numQ,
+        use_voice: useElevenLabs,
       });
       // Store result; the AnalysisScreen's onDone callback will apply it
       pendingSessionData.current = data;
@@ -1054,14 +1063,11 @@ export default function InterviewPage() {
     setPendingFollowUp(null);
     setPhase("session");
 
-    // Speak first — Chrome cancels speech when fullscreen is requested
+    // Delay speech until React has committed the phase change.
+    // Calling speechSynthesis immediately after batched setState can cause
+    // Chrome to silently drop the utterance.
     const firstQ = data.questions[0]?.question;
-    if (firstQ) speakText(firstQ);
-
-    // Request fullscreen after a tick so speech is already queued
-    setTimeout(() => {
-      try { document.documentElement.requestFullscreen(); } catch {}
-    }, 100);
+    if (firstQ) setTimeout(() => speakText(firstQ), 250);
   }
 
   function exitSession() {
@@ -1069,7 +1075,6 @@ export default function InterviewPage() {
     stopMic();
     if (thinkIntRef.current)   clearInterval(thinkIntRef.current);
     if (advanceIntRef.current) clearInterval(advanceIntRef.current);
-    document.exitFullscreen?.().catch(() => {});
     setPhase("setup");
     setQuestions([]);
     setQIndex(0);
@@ -1120,10 +1125,7 @@ export default function InterviewPage() {
       const q = qs[qi];
       if (q) speakText(q.question);
       else startThinkTime();
-    }, 50);
-    setTimeout(() => {
-      try { document.documentElement.requestFullscreen(); } catch {}
-    }, 100);
+    }, 250);
   }
 
   const overallScore = allFeedback.length

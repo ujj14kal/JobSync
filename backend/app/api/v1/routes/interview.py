@@ -59,6 +59,7 @@ class InterviewStartRequest(BaseModel):
     experience_level: str = "entry"
     interview_type: str   = "mixed"
     num_questions: int    = 5
+    use_voice: bool       = False  # True = ElevenLabs HD; credits required
 
 
 class HireVueStartRequest(BaseModel):
@@ -67,6 +68,7 @@ class HireVueStartRequest(BaseModel):
     experience_level: str = "entry"
     interview_type: str   = "mixed"
     num_questions: int    = 5
+    use_voice: bool       = False  # True = ElevenLabs HD; credits required
 
 
 class TTSRequest(BaseModel):
@@ -138,21 +140,22 @@ async def start_interview(
     """Generate questions using the user's active resume as context."""
     body.num_questions = max(3, min(10, body.num_questions))
 
-    # ── Credit gate ──────────────────────────────────────────────────────────
-    plan = await get_user_plan(user_id)
-    if plan != "pro":
-        credits = await get_user_credits(user_id, "interview_voice")
-        if credits <= 0:
-            raise HTTPException(
-                status_code=402,
-                detail="No interview credits remaining. Purchase a session at /settings.",
-            )
-        consumed = await consume_credit(user_id, "interview_voice")
-        if not consumed:
-            raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
-        # Open 90-min window so TTS calls within this interview are free
-        _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
-        logger.info("Interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
+    # ── Credit gate (ElevenLabs HD voice only) ────────────────────────────────
+    # Groq questions + browser TTS are always free. Credits only needed for HD.
+    if body.use_voice:
+        plan = await get_user_plan(user_id)
+        if plan != "pro":
+            credits = await get_user_credits(user_id, "interview_voice")
+            if credits <= 0:
+                raise HTTPException(
+                    status_code=402,
+                    detail="No interview credits remaining. Purchase a session at /settings.",
+                )
+            consumed = await consume_credit(user_id, "interview_voice")
+            if not consumed:
+                raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
+            _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
+            logger.info("Interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
 
     # Always fetch the user's actual resume
     resume_text = ""
@@ -226,21 +229,22 @@ async def start_hirevue_interview(
     """Generate deeply personalised questions from the candidate's actual resume + target company."""
     body.num_questions = max(3, min(10, body.num_questions))
 
-    # ── Credit gate ──────────────────────────────────────────────────────────
-    plan = await get_user_plan(user_id)
-    if plan != "pro":
-        credits = await get_user_credits(user_id, "interview_voice")
-        if credits <= 0:
-            raise HTTPException(
-                status_code=402,
-                detail="No interview credits remaining. Purchase a session at /settings.",
-            )
-        consumed = await consume_credit(user_id, "interview_voice")
-        if not consumed:
-            raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
-        # Open 90-min window so TTS calls within this interview are free
-        _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
-        logger.info("HireVue interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
+    # ── Credit gate (ElevenLabs HD voice only) ────────────────────────────────
+    # Groq questions + browser TTS are always free. Credits only needed for HD.
+    if body.use_voice:
+        plan = await get_user_plan(user_id)
+        if plan != "pro":
+            credits = await get_user_credits(user_id, "interview_voice")
+            if credits <= 0:
+                raise HTTPException(
+                    status_code=402,
+                    detail="No interview credits remaining. Purchase a session at /settings.",
+                )
+            consumed = await consume_credit(user_id, "interview_voice")
+            if not consumed:
+                raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
+            _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
+            logger.info("HireVue interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
 
     # Fetch full resume text
     resume_text = ""
