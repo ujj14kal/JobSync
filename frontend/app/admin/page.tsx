@@ -12,6 +12,12 @@ export type FaqQuestion = {
   created_at: string;
 };
 
+export type WarningRow = {
+  user_id: string;
+  count: number;        // total warnings sent
+  pending: number;      // unacknowledged
+};
+
 const ADMIN_EMAIL = "ujj.kalra10@gmail.com";
 
 const SUPABASE_URL =
@@ -64,6 +70,32 @@ async function deleteFaqAction(questionId: string): Promise<{ error?: string }> 
   }
 }
 
+async function sendWarningAction(userId: string, message: string): Promise<{ error?: string }> {
+  "use server";
+  try {
+    const anonClient = await createAnonClient();
+    const { data: { user } } = await anonClient.auth.getUser();
+    if (!user || user.email !== ADMIN_EMAIL) return { error: "Unauthorized" };
+
+    const svc = serviceClient();
+    // Count existing warnings to determine warning_number
+    const { count } = await svc
+      .from("user_warnings")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    const { error } = await svc.from("user_warnings").insert({
+      user_id: userId,
+      message: message.trim(),
+      warning_number: (count ?? 0) + 1,
+    });
+    if (error) return { error: error.message };
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 async function answerFaqAction(questionId: string, answer: string): Promise<{ error?: string }> {
   "use server";
   try {
@@ -91,7 +123,7 @@ export default async function AdminPage() {
   const svc = serviceClient();
 
   // ── Fetch stats in parallel ────────────────────────────────────────────────
-  const [usersRes, analysesRes, subRes, creditsRes, faqRes] = await Promise.all([
+  const [usersRes, analysesRes, subRes, creditsRes, faqRes, warningsRes] = await Promise.all([
     svc
       .from("user_profiles")
       .select("id,email,full_name,career_stage,created_at")
@@ -104,12 +136,14 @@ export default async function AdminPage() {
       .eq("plan", "pro"),
     svc.from("user_credits").select("user_id,credit_type,credits_total,credits_used"),
     svc.from("faq_questions").select("*").order("created_at", { ascending: false }),
+    svc.from("user_warnings").select("user_id,acknowledged_at"),
   ]);
 
   const users = usersRes.data ?? [];
   const totalAnalyses = analysesRes.count ?? 0;
   const proSubs = subRes.data ?? [];
   const credits = creditsRes.data ?? [];
+  const warnings = warningsRes.data ?? [];
 
   const creditsByUser: Record<string, { type: string; remaining: number }[]> = {};
   for (const c of credits) {
@@ -120,12 +154,20 @@ export default async function AdminPage() {
     });
   }
 
+  const warningsByUser: Record<string, { count: number; pending: number }> = {};
+  for (const w of warnings) {
+    if (!warningsByUser[w.user_id]) warningsByUser[w.user_id] = { count: 0, pending: 0 };
+    warningsByUser[w.user_id].count++;
+    if (!w.acknowledged_at) warningsByUser[w.user_id].pending++;
+  }
+
   const proUserIds = new Set(proSubs.map((s) => s.user_id));
 
   const enrichedUsers = users.map((u) => ({
     ...u,
     is_pro: proUserIds.has(u.id),
     credits: creditsByUser[u.id] ?? [],
+    warnings: warningsByUser[u.id] ?? { count: 0, pending: 0 },
   }));
 
   const stats = {
@@ -145,6 +187,7 @@ export default async function AdminPage() {
       onAddCredits={addCreditsAction}
       onDeleteFaq={deleteFaqAction}
       onAnswerFaq={answerFaqAction}
+      onSendWarning={sendWarningAction}
     />
   );
 }

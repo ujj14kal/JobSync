@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Users, BarChart2, CreditCard, TrendingUp, Search, Plus,
   MessageCircle, Trash2, Send, CheckCircle2, Clock,
+  AlertTriangle, X, ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { FaqQuestion } from "./page";
@@ -16,7 +17,133 @@ type UserRow = {
   created_at: string;
   is_pro: boolean;
   credits: { type: string; remaining: number }[];
+  warnings: { count: number; pending: number };
 };
+
+const PRESET_WARNINGS = [
+  "Your recent activity has been flagged for violating JobSynk's community guidelines. Please review the rules and ensure your future participation is respectful and constructive.",
+  "Spam or repetitive posting was detected from your account. Excessive or irrelevant submissions disrupt the community and are not permitted.",
+  "Inappropriate or offensive content was found in your community submissions. All interactions must remain professional and respectful.",
+  "Your account has been flagged for posting misleading or inaccurate information. Honesty and accuracy are core to the JobSynk community.",
+];
+
+// ── Send-warning dialog ───────────────────────────────────────────────────────
+function SendWarningDialog({
+  user,
+  onClose,
+  onSend,
+}: {
+  user: UserRow;
+  onClose: () => void;
+  onSend: (userId: string, message: string) => Promise<{ error?: string }>;
+}) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const isRepeat = user.warnings.count >= 1;
+
+  async function handleSend() {
+    if (!message.trim()) return;
+    setSending(true);
+    const res = await onSend(user.id, message);
+    setSending(false);
+    if (res.error) { toast.error(res.error); return; }
+    toast.success(`Warning sent to ${user.full_name || user.email}`);
+    onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-lg mx-4 rounded-2xl overflow-hidden"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-default)]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(234,179,8,0.12)", border: "1px solid rgba(234,179,8,0.3)" }}>
+              <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
+            </div>
+            <div>
+              <div className="text-[13px] font-bold text-[var(--text-primary)]">Send Warning</div>
+              <div className="text-[11px] text-[var(--text-muted)]">{user.full_name || user.email}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {user.warnings.count > 0 && (
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={user.warnings.count >= 2
+                  ? { background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }
+                  : { background: "rgba(234,179,8,0.12)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
+              >
+                {user.warnings.count} prior warning{user.warnings.count > 1 ? "s" : ""}
+              </span>
+            )}
+            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {isRepeat && (
+            <div className="flex items-start gap-2.5 p-3 rounded-xl text-[11px]" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
+              <ShieldAlert className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              This user has been warned before. This will be flagged as a repeat offence (shown in red on their dashboard).
+            </div>
+          )}
+
+          {/* Preset messages */}
+          <div>
+            <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Quick messages</div>
+            <div className="space-y-1.5">
+              {PRESET_WARNINGS.map((p, i) => (
+                <button key={i} onClick={() => setMessage(p)}
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-[12px] leading-snug border transition-all"
+                  style={message === p
+                    ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.4)", color: "var(--text-primary)" }
+                    : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom textarea */}
+          <div>
+            <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Or type a custom message</div>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Write a specific warning message…"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl text-[13px] text-[var(--text-primary)] bg-[var(--bg-elevated)] border border-[var(--border-default)] focus:border-[rgba(192,88,0,0.5)] focus:outline-none resize-none placeholder:text-[var(--text-muted)]"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border-default)]" style={{ background: "var(--bg-elevated)" }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={!message.trim() || sending}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 transition-all"
+            style={{ background: "linear-gradient(135deg,#ca8a04,#78350f)" }}
+          >
+            {sending ? "Sending…" : <><Send className="w-3.5 h-3.5" /> Send Warning</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Stats = {
   totalUsers: number;
@@ -227,6 +354,7 @@ export function AdminClient({
   onAddCredits,
   onDeleteFaq,
   onAnswerFaq,
+  onSendWarning,
 }: {
   users: UserRow[];
   stats: Stats;
@@ -234,12 +362,14 @@ export function AdminClient({
   onAddCredits: (userId: string, creditType: string, amount: number) => Promise<{ error?: string }>;
   onDeleteFaq: (id: string) => Promise<{ error?: string }>;
   onAnswerFaq: (id: string, answer: string) => Promise<{ error?: string }>;
+  onSendWarning: (userId: string, message: string) => Promise<{ error?: string }>;
 }) {
   const [tab, setTab]         = useState<"users" | "community">("users");
   const [query, setQuery]     = useState("");
   const [adding, setAdding]   = useState<string | null>(null);
   const [creditType, setCreditType] = useState<string>("ats_deep");
   const [creditAmt, setCreditAmt]   = useState(1);
+  const [warnTarget, setWarnTarget] = useState<UserRow | null>(null);
 
   const filtered = users.filter(
     (u) =>
@@ -373,7 +503,7 @@ export function AdminClient({
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--border-default)]">
-                    {["User", "Stage", "Plan", "Credits", "Joined", ""].map((h) => (
+                    {["User", "Stage", "Plan", "Credits", "Joined", "Warnings", ""].map((h) => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider"
@@ -429,21 +559,48 @@ export function AdminClient({
                           year: "2-digit",
                         })}
                       </td>
+                      {/* Warnings badge */}
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => addCredits(u.id)}
-                          disabled={adding === u.id}
-                          title={`Add ${creditAmt}× ${creditType}`}
-                          className="w-7 h-7 rounded-lg bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20 flex items-center justify-center text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/20 transition-colors disabled:opacity-40"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                        {u.warnings.count === 0 ? (
+                          <span className="text-[11px] text-[var(--text-muted)]">—</span>
+                        ) : (
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={u.warnings.count >= 2
+                              ? { background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }
+                              : { background: "rgba(234,179,8,0.12)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}
+                          >
+                            {u.warnings.count}× {u.warnings.pending > 0 && <span className="opacity-70">({u.warnings.pending} pending)</span>}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => addCredits(u.id)}
+                            disabled={adding === u.id}
+                            title={`Add ${creditAmt}× ${creditType}`}
+                            className="w-7 h-7 rounded-lg bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20 flex items-center justify-center text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/20 transition-colors disabled:opacity-40"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setWarnTarget(u)}
+                            title="Send warning"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-yellow-500/10"
+                            style={{ color: u.warnings.count >= 2 ? "#ef4444" : "#eab308", border: `1px solid ${u.warnings.count >= 2 ? "rgba(239,68,68,0.25)" : "rgba(234,179,8,0.25)"}`, background: u.warnings.count >= 2 ? "rgba(239,68,68,0.06)" : "rgba(234,179,8,0.06)" }}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-[13px] text-[var(--text-muted)]">
+                      <td colSpan={7} className="px-4 py-8 text-center text-[13px] text-[var(--text-muted)]">
                         No users match your search.
                       </td>
                     </tr>
@@ -461,6 +618,15 @@ export function AdminClient({
           initialQuestions={faqQuestions}
           onDelete={onDeleteFaq}
           onAnswer={onAnswerFaq}
+        />
+      )}
+
+      {/* ── Send-warning dialog ── */}
+      {warnTarget && (
+        <SendWarningDialog
+          user={warnTarget}
+          onClose={() => setWarnTarget(null)}
+          onSend={onSendWarning}
         />
       )}
     </div>
