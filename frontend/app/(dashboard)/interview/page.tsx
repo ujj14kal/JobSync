@@ -1022,6 +1022,16 @@ export default function InterviewPage() {
       setShowBuySession(true);
       return;
     }
+
+    // Unlock Web Speech API inside the user gesture. Chrome blocks speechSynthesis
+    // outside a direct user-initiated event; speaking an empty utterance here grants
+    // permission so the deferred speakText() call inside applySessionData works.
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const unlock = new SpeechSynthesisUtterance("");
+      window.speechSynthesis.speak(unlock);
+      window.speechSynthesis.cancel();
+    }
+
     setPhase("analyzing");
     setAnalysisReady(false);
     pendingSessionData.current = null;
@@ -1108,6 +1118,12 @@ export default function InterviewPage() {
 
   function handleResume() {
     if (!savedSession) return;
+    // Unlock Web Speech API in user-gesture context (same as startInterview)
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const unlock = new SpeechSynthesisUtterance("");
+      window.speechSynthesis.speak(unlock);
+      window.speechSynthesis.cancel();
+    }
     const { questions: qs, qIndex: qi, allFeedback: af, role: r, company: co, resumeLoaded: rl } = savedSession;
     setSavedSession(null);
     setQuestions(qs);
