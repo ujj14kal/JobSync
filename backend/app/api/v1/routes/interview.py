@@ -1,16 +1,20 @@
 """
 AI Interview Practice — HireVue-style with ElevenLabs TTS + Groq.
 
-Cost model (paid tier):
-  - ElevenLabs: Creator plan, 100K chars/month included. Per call capped at 300 chars.
-    A typical voice session (10 questions × 300 chars) = 3,000 chars ≈ ₹28 cost.
-    Requires Pro plan OR a purchased voice interview credit (₹349).
-  - Groq: FREE — question generation, evaluation, follow-ups.
-  - No DB session storage — client holds conversation state.
+Cost model:
+  - 1 interview_voice credit = 1 complete interview session.
+  - Credit consumed atomically at /start or /hirevue/start, BEFORE questions are
+    generated. This gates everything: questions, feedback, report, and TTS.
+  - Opening /start sets a 90-min in-memory session window. All subsequent TTS
+    calls within that window are free (no additional credit consumed).
+  - If the user exits early the credit is refunded via /voice/cancel.
+  - Pro plan users pay nothing — all endpoints are free.
+  - Groq (questions, feedback, report) is free-tier; ElevenLabs requires the key.
 
 Access control:
-  - /tts  → Pro plan OR voice credit. One credit opens a 90-min session window.
-  - All other endpoints → any authenticated user (Groq, free).
+  - /start, /hirevue/start → Pro plan OR ≥1 interview_voice credit (consumed here).
+  - /tts                   → Pro plan OR active session window opened at start.
+  - All other endpoints    → any authenticated user.
 """
 from __future__ import annotations
 
@@ -134,6 +138,22 @@ async def start_interview(
     """Generate questions using the user's active resume as context."""
     body.num_questions = max(3, min(10, body.num_questions))
 
+    # ── Credit gate ──────────────────────────────────────────────────────────
+    plan = await get_user_plan(user_id)
+    if plan != "pro":
+        credits = await get_user_credits(user_id, "interview_voice")
+        if credits <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail="No interview credits remaining. Purchase a session at /settings.",
+            )
+        consumed = await consume_credit(user_id, "interview_voice")
+        if not consumed:
+            raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
+        # Open 90-min window so TTS calls within this interview are free
+        _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
+        logger.info("Interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
+
     # Always fetch the user's actual resume
     resume_text = ""
     try:
@@ -205,6 +225,22 @@ async def start_hirevue_interview(
 ):
     """Generate deeply personalised questions from the candidate's actual resume + target company."""
     body.num_questions = max(3, min(10, body.num_questions))
+
+    # ── Credit gate ──────────────────────────────────────────────────────────
+    plan = await get_user_plan(user_id)
+    if plan != "pro":
+        credits = await get_user_credits(user_id, "interview_voice")
+        if credits <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail="No interview credits remaining. Purchase a session at /settings.",
+            )
+        consumed = await consume_credit(user_id, "interview_voice")
+        if not consumed:
+            raise HTTPException(status_code=402, detail="Could not consume interview credit — please try again.")
+        # Open 90-min window so TTS calls within this interview are free
+        _voice_sessions[user_id] = datetime.now(timezone.utc) + _VOICE_SESSION_TTL
+        logger.info("HireVue interview started for user %s — credit consumed (remaining: ~%d)", user_id, credits - 1)
 
     # Fetch full resume text
     resume_text = ""
@@ -384,33 +420,25 @@ async def text_to_speech(
         raise HTTPException(status_code=503, detail="TTS not configured — set ELEVENLABS_API_KEY")
 
     # ── Access control ────────────────────────────────────────────────────────
+    # Credits are consumed at /start or /hirevue/start. TTS is free within the
+    # 90-minute session window that those endpoints open. We just gate here —
+    # no credit is consumed here any more.
     plan = await get_user_plan(user_id)
     if plan != "pro":
         now = datetime.now(timezone.utc)
-        # Clean up expired sessions (lazy GC)
+        # Lazy GC: evict expired windows
         expired = [uid for uid, exp in _voice_sessions.items() if exp <= now]
         for uid in expired:
             _voice_sessions.pop(uid, None)
 
-        if _voice_sessions.get(user_id, now) > now:
-            # Within an active session window — no need to consume another credit
-            pass
-        else:
-            # Need to open a new session — consume 1 voice credit atomically
-            voice_credits = await get_user_credits(user_id, "interview_voice")
-            if voice_credits <= 0:
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "Voice interview requires a Pro plan (₹299/month) "
-                        "or a Voice Interview credit (₹349). "
-                        "Upgrade at /settings."
-                    ),
-                )
-            await consume_credit(user_id, "interview_voice")
-            # Open session window — free TTS calls for the next 90 min
-            _voice_sessions[user_id] = now + _VOICE_SESSION_TTL
-            logger.info("Voice session opened for user %s (credit consumed, remaining: ~%d)", user_id, voice_credits - 1)
+        if _voice_sessions.get(user_id, now) <= now:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "No active interview session. Start an interview first to use TTS. "
+                    "Voice interview requires a Pro plan or an interview credit."
+                ),
+            )
 
     text = body.text[:300].strip()  # hard cap: 300 chars per TTS call
     if not text:
