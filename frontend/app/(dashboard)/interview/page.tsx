@@ -290,6 +290,17 @@ function FrequencyBars({
   );
 }
 
+// ── ElevenLabs logo (their "11" two-bar mark) ────────────────────────────────
+function ElevenLabsLogo({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg className={className} style={style} viewBox="0 0 20 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0"  y="0" width="5.5" height="16" rx="1.5"/>
+      <rect x="7.25" y="3" width="5.5" height="10" rx="1.5"/>
+      <rect x="14.5" y="0" width="5.5" height="16" rx="1.5"/>
+    </svg>
+  );
+}
+
 // ── Analysis Screen ───────────────────────────────────────────────────────────
 
 function AnalysisScreen({
@@ -752,7 +763,10 @@ export default function InterviewPage() {
       const pick = window.speechSynthesis.getVoices().find(v => v.name === voiceId) ?? null;
       if (pick) utt.voice = pick;
       utt.onend   = () => setPreviewing(null);
-      utt.onerror = () => setPreviewing(null);
+      utt.onerror = () => {
+        setPreviewing(null);
+        toast.error(`"${voiceId.split(" ")[0]}" preview unavailable on this device`);
+      };
       window.speechSynthesis.speak(utt);
       return;
     }
@@ -1397,19 +1411,26 @@ export default function InterviewPage() {
                 {/* Voice */}
                 <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
                   <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] whitespace-nowrap flex-shrink-0">Voice</span>
-                  <div className="flex rounded-md overflow-hidden border border-[var(--border-subtle)] text-[10px] flex-shrink-0">
+
+                  {/* Free / ElevenLabs toggle */}
+                  <div className="flex rounded-md overflow-hidden border text-[10px] flex-shrink-0 transition-colors"
+                    style={{ borderColor: useElevenLabs ? "rgba(139,92,246,0.45)" : "var(--border-subtle)" }}>
                     <button onClick={() => setUseElevenLabs(false)}
-                      className="px-2.5 py-1 font-bold transition-colors"
+                      className="px-2.5 py-1 font-bold transition-all"
                       style={!useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
                       Free
                     </button>
                     <button onClick={() => { if (!hasVoiceCredits) { setShowBuyVoice(true); return; } setUseElevenLabs(true); }}
-                      className="px-2.5 py-1 font-bold transition-colors"
-                      style={useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
-                      ✦ HD{!hasVoiceCredits && mounted ? " ₹149" : ""}
+                      className="flex items-center gap-1 px-2.5 py-1 font-bold transition-all"
+                      style={useElevenLabs
+                        ? { background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "white" }
+                        : { color: "var(--text-muted)" }}>
+                      <ElevenLabsLogo className="w-3 h-2.5 flex-shrink-0" />
+                      {!hasVoiceCredits && mounted ? "₹149" : "HD"}
                     </button>
                   </div>
 
+                  {/* Browser voice chips */}
                   {!useElevenLabs && (
                     <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
                       {browserVoices.map(v => (
@@ -1429,22 +1450,30 @@ export default function InterviewPage() {
                     </div>
                   )}
 
+                  {/* ElevenLabs HD voice chips */}
                   {useElevenLabs && ttsAvail && (
-                    <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-                      {elVoices.map(v => (
-                        <button key={v.id}
-                          onClick={() => setSelectedElVoice(v.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
-                          style={selectedElVoice === v.id
-                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
-                            : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                          {v.name}
-                          <span onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                            className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
-                            {previewing === v.id ? "■" : "▶"}
-                          </span>
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                        {elVoices.map(v => (
+                          <button key={v.id}
+                            onClick={() => setSelectedElVoice(v.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                            style={selectedElVoice === v.id
+                              ? { background: "rgba(124,58,237,0.15)", borderColor: "rgba(124,58,237,0.6)", color: "white" }
+                              : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                            {v.name}
+                            <span onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                              className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
+                              {previewing === v.id ? "■" : "▶"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <span className="flex items-center gap-1 pl-2 flex-shrink-0 border-l border-[var(--border-subtle)]">
+                        <span className="text-[9px] text-[var(--text-muted)] whitespace-nowrap">powered by</span>
+                        <ElevenLabsLogo className="w-3 h-2.5 flex-shrink-0" style={{ color: "#a78bfa" }} />
+                        <span className="text-[9px] font-bold whitespace-nowrap" style={{ color: "#a78bfa" }}>ElevenLabs</span>
+                      </span>
                     </div>
                   )}
 
