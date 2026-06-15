@@ -395,6 +395,15 @@ export default function InterviewPage() {
   const canStartInterview = hasInterviewCredits;
   const [showBuySession, setShowBuySession] = useState(false);
   const [showBuyVoice, setShowBuyVoice] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [savedSession, setSavedSession] = useState<{
+    questions: Question[];
+    qIndex: number;
+    allFeedback: Feedback[];
+    role: string;
+    company: string;
+    resumeLoaded: boolean;
+  } | null>(null);
 
   const [phase,       setPhase]       = useState<Phase>("setup");
   const [sessionMode, setSessionMode] = useState<SessionMode>("thinking");
@@ -439,6 +448,8 @@ export default function InterviewPage() {
   const recognitionRef = useRef<any>(null);
   const hasSpeechRef  = useRef(false);
   const silenceStartRef = useRef<number | null>(null);
+  const ttsAbortRef   = useRef<AbortController | null>(null);
+  const ttsSessionRef = useRef(false);  // true once ElevenLabs credit was consumed this session
 
   const [micActive, setMicActive] = useState(false);
   const [analysisReady, setAnalysisReady] = useState(false);
@@ -490,6 +501,8 @@ export default function InterviewPage() {
     setAiSpeaking(true);
 
     if (useElevenLabs && ttsAvail) {
+      const controller = new AbortController();
+      ttsAbortRef.current = controller;
       try {
         const { createClient } = await import("@/lib/supabase/client");
         const token = await createClient().auth.getSession()
@@ -500,14 +513,20 @@ export default function InterviewPage() {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ text, voice_id: selectedElVoice }),
+            signal: controller.signal,
           }
         );
         if (!resp.ok) throw new Error();
         const blob  = await resp.blob();
+        // If stopAudio() was called while we were fetching, bail out cleanly
+        if (ttsAbortRef.current !== controller) return;
+        ttsAbortRef.current = null;
+        ttsSessionRef.current = true;
         const url   = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audioElRef.current = audio;
         const ctx      = getAudioCtx();
+        if (ctx.state === "suspended") await ctx.resume();
         const src      = ctx.createMediaElementSource(audio);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
@@ -518,8 +537,20 @@ export default function InterviewPage() {
         audio.onerror = () => { setAiSpeaking(false); startThinkTime(); };
         await audio.play();
         return;
-      } catch {
-        // fallthrough to browser TTS
+      } catch (err: unknown) {
+        if ((err as Error)?.name === "AbortError") {
+          // Cleanly cancelled by stopAudio() — don't start think time
+          setAiSpeaking(false);
+          return;
+        }
+        // ElevenLabs failed — stop partial audio, skip browser TTS (question is visible on screen)
+        audioElRef.current?.pause();
+        audioElRef.current = null;
+        aiAnalyserRef.current = null;
+        ttsAbortRef.current = null;
+        setAiSpeaking(false);
+        startThinkTime();
+        return;
       }
     }
 
@@ -574,6 +605,8 @@ export default function InterviewPage() {
   }
 
   function stopAudio() {
+    ttsAbortRef.current?.abort();
+    ttsAbortRef.current = null;
     audioElRef.current?.pause();
     audioElRef.current = null;
     window.speechSynthesis?.cancel();
@@ -862,6 +895,50 @@ export default function InterviewPage() {
     setAllFeedback([]);
     setPendingFollowUp(null);
     setSessionMode("thinking");
+    ttsSessionRef.current = false;
+  }
+
+  async function handleConfirmedExit() {
+    setShowExitConfirm(false);
+    // Snapshot current session for the Resume button before clearing state
+    setSavedSession({
+      questions: [...questions],
+      qIndex,
+      allFeedback: [...allFeedback],
+      role,
+      company,
+      resumeLoaded,
+    });
+    // Refund ElevenLabs credit — user didn't complete the interview
+    if (useElevenLabs && ttsSessionRef.current) {
+      try { await apiClient.post("/interview/voice/cancel"); } catch {}
+    }
+    exitSession();
+  }
+
+  function handleResume() {
+    if (!savedSession) return;
+    const { questions: qs, qIndex: qi, allFeedback: af, role: r, company: co, resumeLoaded: rl } = savedSession;
+    setSavedSession(null);
+    setQuestions(qs);
+    setQIndex(qi);
+    setAllFeedback(af);
+    setRole(r);
+    setCompany(co);
+    setResumeLoaded(rl);
+    setFeedback(null);
+    setAnswer("");
+    setPendingFollowUp(null);
+    setSessionMode("thinking");
+    setPhase("session");
+    setTimeout(() => {
+      const q = qs[qi];
+      if (q) speakText(q.question);
+      else startThinkTime();
+    }, 50);
+    setTimeout(() => {
+      try { document.documentElement.requestFullscreen(); } catch {}
+    }, 100);
   }
 
   const overallScore = allFeedback.length
@@ -894,6 +971,38 @@ export default function InterviewPage() {
         {/* ── Setup ── */}
         {phase === "setup" && (
           <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} className="space-y-4">
+
+            {/* Resume banner — shown when user exited mid-interview */}
+            {savedSession && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--accent-primary)]/30 bg-[var(--accent-muted)]"
+              >
+                <div>
+                  <div className="text-[13px] font-semibold text-[var(--accent-hover)]">
+                    Interview in progress — {savedSession.company} · {savedSession.role}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    {savedSession.allFeedback.length} of {savedSession.questions.length} questions answered
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleResume}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[12px] font-semibold transition-colors"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    onClick={() => setSavedSession(null)}
+                    className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] text-[12px] hover:text-[var(--text-secondary)] transition-colors"
+                  >
+                    Discard
+                  </button>
+                </div>
+              </motion.div>
+            )}
 
             {/* Main config card */}
             <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
@@ -1200,7 +1309,8 @@ export default function InterviewPage() {
                     ✓ Resume
                   </span>
                 )}
-                <button onClick={exitSession}
+                <button
+                  onClick={() => allFeedback.length < questions.length ? setShowExitConfirm(true) : exitSession()}
                   className="p-2 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
                   <X className="w-4 h-4" />
                 </button>
@@ -1434,6 +1544,53 @@ export default function InterviewPage() {
           </motion.div>
         )}
 
+      </AnimatePresence>
+
+      {/* Exit confirmation modal */}
+      <AnimatePresence>
+        {showExitConfirm && (
+          <motion.div
+            key="exit-confirm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-6 max-w-sm w-full mx-4 space-y-4"
+            >
+              <div>
+                <h3 className="text-[16px] font-bold text-[var(--text-primary)] mb-1">Exit Interview?</h3>
+                <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                  You've answered <span className="font-semibold text-[var(--text-primary)]">{allFeedback.length} of {questions.length}</span> questions.
+                  Your progress will be saved so you can resume later.
+                  {useElevenLabs && ttsSessionRef.current && (
+                    <span className="block mt-1 text-emerald-400 text-[12px]">
+                      ✓ Your ElevenLabs credit will be refunded.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-[var(--accent-primary)]/40 bg-[var(--accent-muted)] text-[13px] font-semibold text-[var(--accent-hover)] hover:bg-[var(--accent-subtle)] transition-colors"
+                >
+                  Resume Interview
+                </button>
+                <button
+                  onClick={handleConfirmedExit}
+                  className="flex-1 py-2.5 rounded-xl border border-red-500/30 bg-red-500/10 text-[13px] font-semibold text-red-400 hover:bg-red-500/15 transition-colors"
+                >
+                  Exit & Save
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Voice session purchase — ₹149 (ElevenLabs upgrade) */}

@@ -4,12 +4,13 @@ import { useRef } from "react";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import {
   Brain, Target, GitBranch, TrendingUp,
-  Zap, BarChart3, Users, Shield,
+  Zap, BarChart3, Shield,
 } from "lucide-react";
 import TiltCard from "@/components/ui/TiltCard";
 import { MagicCard } from "@/components/ui/magic-card";
 import { BorderBeam } from "@/components/ui/border-beam";
 
+// col: lg column span within a 6-col grid
 const FEATURES = [
   {
     icon: Brain,
@@ -22,6 +23,7 @@ const FEATURES = [
     badge: "AI-Powered",
     badgeColor: "#C05800",
     detail: "JobSynk Neural Scorer · Section-level precision · Transferable skill detection · Context-aware",
+    col: 3,
   },
   {
     icon: Target,
@@ -34,6 +36,7 @@ const FEATURES = [
     badge: "Predictive AI",
     badgeColor: "#8c4a18",
     detail: "JobSynk AI Engine · Role-specific prediction · Confidence rating · Improves over time",
+    col: 3,
   },
   {
     icon: GitBranch,
@@ -46,18 +49,7 @@ const FEATURES = [
     badge: "Smart Roadmap",
     badgeColor: "#d4aa30",
     detail: "Transferable skills credited · Ordered learning path · Time estimates",
-  },
-  {
-    icon: TrendingUp,
-    color: "#8c9a20",
-    rgb: "140,154,32",
-    beamTo: "#d4aa30",
-    title: "Gets Smarter Over Time",
-    description:
-      "The JobSynk AI Engine was trained on 6,000 real resume-job pairs and continues to improve. Every outcome signal sharpens the model for everyone on the platform.",
-    badge: "Adaptive AI",
-    badgeColor: "#8c9a20",
-    detail: "Custom PyTorch model · Trained on real data · Improves with usage",
+    col: 2,
   },
   {
     icon: Zap,
@@ -70,6 +62,7 @@ const FEATURES = [
     badge: "Instant",
     badgeColor: "#d97020",
     detail: "No waiting · No queues · Results while you watch",
+    col: 2,
   },
   {
     icon: BarChart3,
@@ -82,18 +75,20 @@ const FEATURES = [
     badge: "Dashboard",
     badgeColor: "#b86820",
     detail: "Application timeline · Score trends · Progress at a glance",
+    col: 2,
   },
   {
-    icon: Users,
-    color: "#e89848",
-    rgb: "232,152,72",
+    icon: TrendingUp,
+    color: "#8c9a20",
+    rgb: "140,154,32",
     beamTo: "#d4aa30",
-    title: "Mentor Discovery",
+    title: "Gets Smarter Over Time",
     description:
-      "Finds mentors whose career path matches your goal — not just by job title, but by the actual gap you're trying to close.",
-    badge: "Smart Match",
-    badgeColor: "#e89848",
-    detail: "Relevance-ranked · ADPList · Unstop · LinkedIn",
+      "The JobSynk AI Engine was trained on 6,000 real resume-job pairs and continues to improve. Every outcome signal sharpens the model for everyone on the platform.",
+    badge: "Adaptive AI",
+    badgeColor: "#8c9a20",
+    detail: "Custom PyTorch model · Trained on real data · Improves with usage",
+    col: 3,
   },
   {
     icon: Shield,
@@ -106,11 +101,12 @@ const FEATURES = [
     badge: "Private",
     badgeColor: "#7ab840",
     detail: "Private storage · No ads · No data selling · Your data, yours",
+    col: 3,
   },
 ];
 
-/* ── Per-column parallax offsets (col 0 = fastest, col 3 = most delayed) ── */
-const COL_PARALLAX = [0, 28, 52, 72]; // px lag per column
+/* ── Per-row parallax offsets ── */
+const ROW_PARALLAX = [0, 24, 48];
 
 export default function FeaturesSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -128,13 +124,12 @@ export default function FeaturesSection() {
   const orb2Y = useTransform(scrollYProgress, [0, 1], ["30%", "-30%"]);
   const orb3Y = useTransform(scrollYProgress, [0, 1], ["-20%", "35%"]);
 
-  /* ── Column parallax speeds (columns lag at different rates) ── */
-  const col0Y = useTransform(scrollYProgress, [0, 1], [`${COL_PARALLAX[0]}px`, `-${COL_PARALLAX[0]}px`]);
-  const col1Y = useTransform(scrollYProgress, [0, 1], [`${COL_PARALLAX[1]}px`, `-${COL_PARALLAX[1]}px`]);
-  const col2Y = useTransform(scrollYProgress, [0, 1], [`${COL_PARALLAX[2]}px`, `-${COL_PARALLAX[2]}px`]);
-  const col3Y = useTransform(scrollYProgress, [0, 1], [`${COL_PARALLAX[3]}px`, `-${COL_PARALLAX[3]}px`]);
+  /* ── Row parallax speeds ── */
+  const row0Y = useTransform(scrollYProgress, [0, 1], [`${ROW_PARALLAX[0]}px`, `-${ROW_PARALLAX[0]}px`]);
+  const row1Y = useTransform(scrollYProgress, [0, 1], [`${ROW_PARALLAX[1]}px`, `-${ROW_PARALLAX[1]}px`]);
+  const row2Y = useTransform(scrollYProgress, [0, 1], [`${ROW_PARALLAX[2]}px`, `-${ROW_PARALLAX[2]}px`]);
 
-  const colMotion = [col0Y, col1Y, col2Y, col3Y];
+  const rowMotion = [row0Y, row0Y, row1Y, row1Y, row1Y, row2Y, row2Y];
 
   return (
     <section ref={sectionRef} className="section relative overflow-hidden">
@@ -200,16 +195,17 @@ export default function FeaturesSection() {
           </motion.p>
         </div>
 
-        {/* ── Feature grid — 4 columns, each at a different parallax depth ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── Bento grid — 6-col base: row1 2×half, row2 3×third, row3 2×half ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {FEATURES.map((feat, i) => {
-            const col = i % 4;
             const Icon = feat.icon;
+            const colSpanClass =
+              feat.col === 3 ? "lg:col-span-3" : "lg:col-span-2";
             return (
               <motion.div
                 key={i}
-                style={{ y: colMotion[col] }}
-                className="flex flex-col"
+                style={{ y: rowMotion[i] }}
+                className={`flex flex-col ${colSpanClass}`}
               >
                 <TiltCard intensity={10} scale={1.04} className="group flex-1">
                   <MagicCard
@@ -228,7 +224,7 @@ export default function FeaturesSection() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: "-20px" }}
                       transition={{
-                        delay: (col * 0.08),
+                        delay: (i % 3) * 0.08,
                         duration: 0.55,
                         ease: [0.16, 1, 0.3, 1],
                       }}

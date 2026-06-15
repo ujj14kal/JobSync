@@ -33,7 +33,7 @@ from app.services.claude_client import (
     get_user_plan,
     get_user_credits,
     consume_credit,
-    claude_complete,
+    refund_credit,
 )
 from app.services.groq_limiter import groq_call
 
@@ -172,13 +172,16 @@ async def start_interview(
     )
 
     try:
-        raw = await claude_complete(
-            user_id=user_id,
-            feature="interview",
-            system=INTERVIEW_SYSTEM,
-            messages=[{"role": "user", "content": prompt_content}],
+        raw = await groq_call(
+            model=settings.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": INTERVIEW_SYSTEM},
+                {"role": "user",   "content": prompt_content},
+            ],
+            temperature=0.7,
             max_tokens=2200,
-            skip_quota_check=True,
+            json_mode=True,
+            use_cache=False,
         )
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
@@ -186,7 +189,7 @@ async def start_interview(
         return {
             "questions": questions[:body.num_questions],
             "role": body.role,
-            "_model": "claude-sonnet",
+            "_model": "groq-llama",
         }
     except Exception as e:
         logger.error("Interview question generation failed", exc_info=e)
@@ -250,13 +253,16 @@ async def start_hirevue_interview(
     )
 
     try:
-        raw = await claude_complete(
-            user_id=user_id,
-            feature="interview",
-            system=INTERVIEW_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+        raw = await groq_call(
+            model=settings.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": INTERVIEW_SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
+            temperature=0.7,
             max_tokens=2800,
-            skip_quota_check=True,
+            json_mode=True,
+            use_cache=False,
         )
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
@@ -267,7 +273,7 @@ async def start_hirevue_interview(
             "role": body.role,
             "company": body.company,
             "resume_loaded": bool(resume_text),
-            "_model": "claude-sonnet",
+            "_model": "groq-llama",
         }
     except Exception as e:
         logger.error("HireVue question generation failed", exc_info=e)
@@ -453,6 +459,27 @@ async def text_to_speech(
 async def tts_status(user_id: str = Depends(get_current_user_id)):
     """Check if TTS is configured."""
     return {"available": bool(settings.ELEVENLABS_API_KEY)}
+
+
+@router.post("/voice/cancel")
+async def cancel_voice_session(user_id: str = Depends(get_current_user_id)):
+    """
+    Called when the user exits an ElevenLabs interview before completing all questions.
+    Clears the in-memory session window and refunds the consumed credit so the user
+    isn't charged for an incomplete session.
+    """
+    now = datetime.now(timezone.utc)
+    had_active_session = _voice_sessions.get(user_id, datetime.min.replace(tzinfo=timezone.utc)) > now
+    _voice_sessions.pop(user_id, None)
+
+    if had_active_session:
+        plan = await get_user_plan(user_id)
+        if plan != "pro":
+            refunded = await refund_credit(user_id, "interview_voice")
+            return {"cancelled": True, "refunded": refunded}
+        return {"cancelled": True, "refunded": False, "reason": "pro_plan"}
+
+    return {"cancelled": False, "refunded": False}
 
 
 @router.get("/voices")

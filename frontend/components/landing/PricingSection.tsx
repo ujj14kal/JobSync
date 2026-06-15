@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Zap, Crown, Sparkles, X,
@@ -47,9 +47,58 @@ export default function PricingSection() {
   const [checkout, setCheckout] = useState<string | null>(null);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
-  const planPrice = billing === "monthly" ? "₹299" : "₹2,499";
-  const planSub   = billing === "monthly" ? "per month" : "per year · ₹208/mo · save ₹1,089";
-  const planId    = billing === "monthly" ? "pro_monthly" : "pro_yearly";
+  const planSub = billing === "monthly" ? "per month" : "per year · ₹208/mo · save ₹1,089";
+  const planId  = billing === "monthly" ? "pro_monthly" : "pro_yearly";
+
+  // ── Yearly price animation state ──────────────────────────────────────────
+  const [shownPrice, setShownPrice]     = useState(299);
+  const [strikeVisible, setStrikeVisible] = useState(false);
+  const rafRef = useRef<number | null>(null);
+
+  const formatPrice = (n: number) =>
+    "₹" + n.toLocaleString("en-IN");
+
+  const cancelRaf = useCallback(() => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  useEffect(() => {
+    cancelRaf();
+    if (billing === "monthly") {
+      setShownPrice(299);
+      setStrikeVisible(false);
+      return;
+    }
+
+    // Show original full-year price first, then animate down
+    const ORIGINAL = 3588; // 299 × 12
+    const TARGET   = 2499;
+
+    setShownPrice(ORIGINAL);
+    setStrikeVisible(false);
+
+    const t1 = setTimeout(() => setStrikeVisible(true), 80);
+
+    const t2 = setTimeout(() => {
+      const duration  = 900;
+      const startTime = performance.now();
+
+      const tick = (now: number) => {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const eased    = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        setShownPrice(Math.round(ORIGINAL + (TARGET - ORIGINAL) * eased));
+        if (progress < 1) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          setStrikeVisible(false);
+        }
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    }, 650);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); cancelRaf(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billing]);
 
   async function handleBuy(productId: string) {
     const supabase = createClient();
@@ -160,12 +209,35 @@ export default function PricingSection() {
 
             <div className="mb-5 relative">
               <div className="text-[12px] font-semibold text-[#C05800] uppercase tracking-wider mb-2">Pro</div>
+
+              {/* Price with animated strikethrough */}
+              <div className="relative inline-block">
+                <motion.div
+                  className="text-[40px] font-bold leading-none"
+                  animate={{ color: strikeVisible ? "var(--text-muted)" : "var(--text-primary)" }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {formatPrice(shownPrice)}
+                </motion.div>
+
+                {/* Strikethrough line */}
+                <motion.div
+                  className="absolute left-0 top-1/2 h-[3px] rounded-full pointer-events-none"
+                  style={{ background: "linear-gradient(90deg,#C05800,#d4aa30)", translateY: "-50%" }}
+                  initial={{ width: "0%" }}
+                  animate={{ width: strikeVisible ? "100%" : "0%" }}
+                  transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
+
               <AnimatePresence mode="wait">
-                <motion.div key={billing}
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2 }}>
-                  <div className="text-[40px] font-bold text-[var(--text-primary)] leading-none">{planPrice}</div>
-                  <div className="text-[12px] text-[var(--text-muted)] mt-1">{planSub}</div>
+                <motion.div
+                  key={planSub}
+                  className="text-[12px] text-[var(--text-muted)] mt-1"
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {planSub}
                 </motion.div>
               </AnimatePresence>
             </div>

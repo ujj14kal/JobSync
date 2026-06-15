@@ -174,6 +174,40 @@ async def consume_credit(user_id: str, credit_type: str) -> bool:
         return False
 
 
+async def refund_credit(user_id: str, credit_type: str) -> bool:
+    """
+    Refund 1 credit by decrementing credits_used on the most recently consumed row.
+    Used when the user exits an ElevenLabs interview before completing all questions.
+    """
+    supabase = get_supabase()
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.table("user_credits")
+            .select("id, credits_used")
+            .eq("user_id", user_id)
+            .eq("credit_type", credit_type)
+            .gt("credits_used", 0)
+            .order("created_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            row = result.data[0]
+            new_used = max(0, row["credits_used"] - 1)
+            await asyncio.to_thread(
+                lambda: supabase.table("user_credits")
+                .update({"credits_used": new_used})
+                .eq("id", row["id"])
+                .eq("credits_used", row["credits_used"])  # optimistic lock
+                .execute()
+            )
+            return True
+        return False
+    except Exception as e:
+        logger.warning("refund_credit failed (non-fatal): %s", e)
+        return False
+
+
 async def check_feature_quota(
     user_id: str,
     feature: str,

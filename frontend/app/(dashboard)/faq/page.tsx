@@ -4,10 +4,19 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle, Send, CheckCircle2, Clock, ChevronDown,
-  ChevronUp, Mail, Sparkles, Shield,
+  ChevronUp, Mail, Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+
+function VerifiedBadge() {
+  return (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" fill="#1d9bf0" />
+      <path d="M8 12l3 3 5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const ADMIN_EMAIL = "ujj.kalra10@gmail.com";
 const SUPPORT_EMAIL = "ujj.kalra10@gmail.com";
@@ -33,33 +42,8 @@ function timeAgo(iso: string) {
 }
 
 // ── Single question card ──────────────────────────────────────────────────────
-function QuestionCard({
-  q,
-  isAdmin,
-  onAnswered,
-}: {
-  q: FaqQuestion;
-  isAdmin: boolean;
-  onAnswered: (id: string, answer: string) => void;
-}) {
-  const [expanded, setExpanded]   = useState(!!q.answer);
-  const [answerDraft, setDraft]   = useState("");
-  const [saving, setSaving]       = useState(false);
-
-  async function submitAnswer() {
-    if (!answerDraft.trim()) return;
-    setSaving(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("faq_questions")
-      .update({ answer: answerDraft.trim(), answered_at: new Date().toISOString() })
-      .eq("id", q.id);
-    setSaving(false);
-    if (error) { toast.error("Failed to save answer"); return; }
-    onAnswered(q.id, answerDraft.trim());
-    setDraft("");
-    toast.success("Answer posted!");
-  }
+function QuestionCard({ q }: { q: FaqQuestion }) {
+  const [expanded, setExpanded] = useState(!!q.answer);
 
   return (
     <motion.div
@@ -76,8 +60,9 @@ function QuestionCard({
     >
       {/* Question row */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => q.answer && setExpanded(!expanded)}
         className="w-full text-left flex items-start gap-3 p-5"
+        style={{ cursor: q.answer ? "pointer" : "default" }}
       >
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
@@ -117,10 +102,13 @@ function QuestionCard({
             className="overflow-hidden"
           >
             <div className="mx-5 mb-5 p-4 rounded-xl" style={{ background: "rgba(122,184,64,0.06)", border: "1px solid rgba(122,184,64,0.12)" }}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Shield className="w-3 h-3 text-[#7ab840]" />
-                <span className="text-[11px] font-semibold text-[#7ab840]">JobSynk Team</span>
-                {q.answered_at && <span className="text-[10px] text-[var(--text-muted)]">· {timeAgo(q.answered_at)}</span>}
+              <div className="flex items-center gap-2 mb-2.5">
+                <img src="/icon.png" alt="JobSynk" className="w-6 h-6 rounded-full flex-shrink-0" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">JobSynk</span>
+                <VerifiedBadge />
+                {q.answered_at && (
+                  <span className="text-[10px] text-[var(--text-muted)]">· {timeAgo(q.answered_at)}</span>
+                )}
               </div>
               <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
                 {q.answer}
@@ -129,27 +117,6 @@ function QuestionCard({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Admin answer input */}
-      {isAdmin && !q.answer && (
-        <div className="mx-5 mb-5 space-y-2">
-          <textarea
-            value={answerDraft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Write your answer…"
-            rows={3}
-            className="w-full px-3 py-2.5 rounded-xl text-[13px] text-[var(--text-primary)] bg-[var(--bg-elevated)] border border-[var(--border-default)] focus:border-[rgba(192,88,0,0.5)] focus:outline-none resize-none placeholder:text-[var(--text-muted)]"
-          />
-          <button
-            onClick={submitAnswer}
-            disabled={!answerDraft.trim() || saving}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40 transition-opacity"
-            style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
-          >
-            {saving ? "Saving…" : <><Send className="w-3 h-3" /> Post answer</>}
-          </button>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -158,17 +125,13 @@ function QuestionCard({
 export default function FaqPage() {
   const [questions, setQuestions] = useState<FaqQuestion[]>([]);
   const [loading, setLoading]     = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId]       = useState<string | null>(null);
   const [newQ, setNewQ]           = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const isAdmin = userEmail === ADMIN_EMAIL;
-
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null);
       setUserId(data.user?.id ?? null);
     });
 
@@ -181,14 +144,6 @@ export default function FaqPage() {
         setLoading(false);
       });
   }, []);
-
-  function handleAnswered(id: string, answer: string) {
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === id ? { ...q, answer, answered_at: new Date().toISOString() } : q
-      )
-    );
-  }
 
   async function handleSubmitQuestion() {
     if (!newQ.trim() || newQ.trim().length < 10) {

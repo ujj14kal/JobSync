@@ -219,11 +219,16 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
     if not emails or not settings.GROQ_API_KEY:
         return []
 
+    # Keep prompt under ~6k chars — use subject+snippet only; add body only when
+    # snippet is very short (< 80 chars). Cap at 20 emails.
+    def _email_block(i: int, e: dict) -> str:
+        snippet = e.get("snippet", "")
+        body = e.get("body", "")
+        context = snippet if len(snippet) >= 80 else (snippet + " " + body[:300]).strip()
+        return f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\nContext: {context[:400]}"
+
     emails_block = "\n\n".join(
-        f"[{i+1}] From: {e['from']}\nSubject: {e['subject']}\n"
-        f"Snippet: {e.get('snippet', '')}\n"
-        f"Body: {e.get('body', '')[:800]}"
-        for i, e in enumerate(emails[:25])
+        _email_block(i, e) for i, e in enumerate(emails[:20])
     )
 
     prompt = f"""You are an AI that detects job application status updates in emails.
@@ -266,6 +271,7 @@ Only include items with confidence >= 0.65, a non-null company, and status != "o
 If nothing qualifies, return [].
 """
 
+    print(f"[gmail_sync] sending {len(emails[:20])} emails to Groq, prompt chars={len(prompt)}", flush=True)
     try:
         raw = await groq_call(
             model=settings.GROQ_FAST_MODEL,
@@ -275,15 +281,17 @@ If nothing qualifies, return [].
             json_mode=True,
             use_cache=False,
         )
+        print(f"[gmail_sync] Groq raw response: {raw[:500]}", flush=True)
         parsed = json.loads(raw)
         if isinstance(parsed, list):
             return parsed
         if isinstance(parsed, dict):
-            for key in ("results", "emails", "items", "data"):
+            for key in ("results", "emails", "items", "data", "classifications"):
                 if isinstance(parsed.get(key), list):
                     return parsed[key]
-    except Exception:
-        pass
+        print(f"[gmail_sync] Groq returned unexpected shape: {type(parsed)}", flush=True)
+    except Exception as e:
+        print(f"[gmail_sync] Groq error: {e}", flush=True)
     return []
 
 
