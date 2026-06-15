@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { Zap, Github } from "lucide-react";
 
 const LINKS = [
   { label: "Privacy Policy",  href: "/legal/privacy-policy" },
   { label: "Terms of Service", href: "/legal/terms" },
   { label: "Support",          href: "/support" },
   { label: "Pricing",          href: "/#pricing" },
-  { label: "GitHub",           href: "https://github.com/ujj14kal/JobSynk", external: true },
 ];
 
 export function Footer() {
@@ -37,30 +35,16 @@ export function Footer() {
 
         {/* Links */}
         <div className="flex items-center gap-5">
-          {LINKS.map((item) =>
-            item.external ? (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs transition-colors hover:text-white"
-                style={{ color: "rgba(100,116,139,0.8)" }}
-              >
-                <Github size={12} />
-                {item.label}
-              </a>
-            ) : (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="text-xs transition-colors hover:text-white"
-                style={{ color: "rgba(100,116,139,0.8)" }}
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          {LINKS.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="text-xs transition-colors hover:text-white"
+              style={{ color: "rgba(100,116,139,0.8)" }}
+            >
+              {item.label}
+            </Link>
+          ))}
         </div>
       </div>
 
