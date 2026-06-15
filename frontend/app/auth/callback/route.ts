@@ -45,17 +45,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // For Google OAuth logins that arrive without an explicit next destination,
-  // send brand-new users (created in the last 5 minutes, no onboarding flag)
-  // to the onboarding wizard. Existing users who simply lack the flag are left alone.
-  if (next === "/dashboard") {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && !user.user_metadata?.onboarding_completed) {
-      const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
-      const isNewAccount = Date.now() - createdAt < 5 * 60 * 1000; // within 5 minutes
-      if (isNewAccount) {
-        return NextResponse.redirect(`${origin}/onboarding`);
-      }
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Existing users who already completed onboarding always go to /dashboard,
+  // regardless of what `next` says. This prevents the signup Google OAuth flow
+  // (which sets next=/onboarding) from re-sending existing users to onboarding.
+  if (user?.user_metadata?.onboarding_completed) {
+    return NextResponse.redirect(`${origin}/dashboard`);
+  }
+
+  // Brand-new users arriving with next=/dashboard (login page Google OAuth)
+  // get routed to onboarding if the account is less than 5 minutes old.
+  if (next === "/dashboard" && user) {
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isNewAccount = Date.now() - createdAt < 5 * 60 * 1000;
+    if (isNewAccount) {
+      return NextResponse.redirect(`${origin}/onboarding`);
     }
   }
 
