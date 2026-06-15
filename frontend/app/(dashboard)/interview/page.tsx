@@ -13,6 +13,8 @@ import {
   Maximize2, X, Zap, Lock, Target, ListChecks, Award, BookOpen, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { FeedbackBanner } from "@/components/feedback/FeedbackBanner";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -534,6 +536,7 @@ export default function InterviewPage() {
     staleTime: 60_000,
     retry: false,
   });
+  const { markServiceUsed } = useFeedback();
   const isPro = mounted && status?.is_pro === true;
   const interviewCreditsLeft = mounted ? (status?.interview_voice_credits ?? 0) : null;
   const hasVoiceCredits = mounted && (status?.interview_voice_credits ?? 0) > 0;
@@ -968,6 +971,7 @@ export default function InterviewPage() {
         setPhase("results");
         document.exitFullscreen?.().catch(() => {});
         refetchStatus();
+        markServiceUsed({ feature: "interview" });
         return;
       }
       setQIndex(nextIdx);
@@ -989,6 +993,7 @@ export default function InterviewPage() {
       setPhase("results");
       document.exitFullscreen?.().catch(() => {});
       refetchStatus();
+      markServiceUsed({ feature: "interview" });
       return;
     }
     setQIndex(nextIdx);
@@ -2001,6 +2006,8 @@ export default function InterviewPage() {
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
               </button>
             </div>
+
+            <FeedbackBanner feature="interview" />
           </motion.div>
         )}
 

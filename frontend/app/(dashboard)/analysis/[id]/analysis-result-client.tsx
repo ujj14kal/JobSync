@@ -25,6 +25,7 @@ import {
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
 import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { FeedbackBanner } from "@/components/feedback/FeedbackBanner";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -152,7 +153,7 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const [pollingActive, setPollingActive] = useState(true);
   const [tracked, setTracked] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { showFeedback } = useFeedback();
+  const { markServiceUsed } = useFeedback();
   useEffect(() => setMounted(true), []);
 
   async function handleTrackJob() {
@@ -187,10 +188,9 @@ export function AnalysisResultClient({ id }: { id: string }) {
       setPollingActive(false);
     }
     if (analysis?.status === "complete") {
-      const t = setTimeout(() => showFeedback({ feature: "ats_analysis", analysisId: id }), 4000);
-      return () => clearTimeout(t);
+      markServiceUsed({ feature: "ats_analysis", analysisId: id });
     }
-  }, [analysis?.status, id, showFeedback]);
+  }, [analysis?.status, id, markServiceUsed]);
 
   if (isLoading) {
     return (
@@ -711,6 +711,8 @@ export function AnalysisResultClient({ id }: { id: string }) {
           {" "}have real mentors you can book directly.
         </p>
       </div>
+
+      <FeedbackBanner feature="ats_analysis" analysisId={id} />
     </div>
   );
 }
