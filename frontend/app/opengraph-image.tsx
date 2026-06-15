@@ -5,7 +5,11 @@ export const alt = "JobSynk — Your Entire Job Search, Handled.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OGImage() {
+export default async function OGImage() {
+  const logoRes = await fetch(new URL("/logo.png", "https://jobsynk.in"));
+  const logoBuffer = await logoRes.arrayBuffer();
+  const logoBase64 = `data:image/png;base64,${Buffer.from(logoBuffer).toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -60,21 +64,14 @@ export default function OGImage() {
 
         {/* Logo + name */}
         <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 36 }}>
-          <div
-            style={{
-              width: 60,
-              height: 60,
-              borderRadius: 16,
-              background: "linear-gradient(135deg, #C05800, #713600)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 32,
-              boxShadow: "0 0 40px rgba(192,88,0,0.5)",
-            }}
-          >
-            💼
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoBase64}
+            width={60}
+            height={60}
+            style={{ borderRadius: 12, objectFit: "contain" }}
+            alt="JobSynk logo"
+          />
           <span
             style={{
               fontSize: 42,
