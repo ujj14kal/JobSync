@@ -525,9 +525,9 @@ export default function InterviewPage() {
     retry: false,
   });
   const isPro = mounted && status?.is_pro === true;
-  const hasInterviewCredits = true; // interviews free with browser audio — ElevenLabs is the paid upgrade
+  const interviewCreditsLeft = mounted ? (status?.interview_voice_credits ?? 0) : null;
   const hasVoiceCredits = mounted && (status?.interview_voice_credits ?? 0) > 0;
-  const canStartInterview = hasInterviewCredits;
+  const canStartInterview = isPro || (mounted && (status?.interview_voice_credits ?? 0) > 0);
   const [showBuySession, setShowBuySession] = useState(false);
   const [showBuyVoice, setShowBuyVoice] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -952,6 +952,7 @@ export default function InterviewPage() {
         stopMic();
         setPhase("results");
         document.exitFullscreen?.().catch(() => {});
+        refetchStatus();
         return;
       }
       setQIndex(nextIdx);
@@ -972,6 +973,7 @@ export default function InterviewPage() {
       stopMic();
       setPhase("results");
       document.exitFullscreen?.().catch(() => {});
+      refetchStatus();
       return;
     }
     setQIndex(nextIdx);
@@ -1003,9 +1005,16 @@ export default function InterviewPage() {
       // Store result; the AnalysisScreen's onDone callback will apply it
       pendingSessionData.current = data;
       setAnalysisReady(true);
-    } catch {
-      toast.error("Failed to generate questions. Try again.");
+    } catch (err: unknown) {
       setPhase("setup");
+      const status = (err as { response?: { status?: number; data?: { detail?: string } } })?.response?.status;
+      if (status === 402) {
+        toast.error("No interview credits remaining — buy a session to continue.", { duration: 6000 });
+        refetchStatus();
+        setShowBuySession(true);
+      } else {
+        toast.error("Failed to generate questions. Try again.");
+      }
     }
   }
 
@@ -1479,6 +1488,20 @@ export default function InterviewPage() {
                     <span className="text-[11px] text-[var(--text-muted)]">Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to backend</span>
                   )}
                 </div>
+
+                {/* Credit count */}
+                {mounted && !isPro && (
+                  <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border"
+                    style={{
+                      background: (interviewCreditsLeft ?? 0) > 0 ? "rgba(192,88,0,0.08)" : "rgba(239,68,68,0.08)",
+                      borderColor: (interviewCreditsLeft ?? 0) > 0 ? "rgba(192,88,0,0.3)" : "rgba(239,68,68,0.3)",
+                    }}>
+                    <span className="text-[11px] font-bold" style={{ color: (interviewCreditsLeft ?? 0) > 0 ? "#C05800" : "#ef4444" }}>
+                      {interviewCreditsLeft ?? "–"}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">session{(interviewCreditsLeft ?? 0) !== 1 ? "s" : ""} left</span>
+                  </div>
+                )}
 
                 {/* CTA */}
                 <button onClick={startInterview} disabled={!role.trim()}
