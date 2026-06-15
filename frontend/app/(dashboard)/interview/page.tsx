@@ -600,8 +600,9 @@ export default function InterviewPage() {
       const all = window.speechSynthesis.getVoices();
       const PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Alex", "Tom", "Daniel", "Karen"];
       // Only show well-known named voices — skip anything with a non-word/gibberish name
+      const BLOCKED = new Set(["Bad","Bahh","Bells","Boing","Bubbles","Cellos","Jester","Organ","Superstar","Trinoids","Whisper","Wobble","Zarvox","Bottle","Boing","Pipe Organ","Good News","Hysterical","Deranged"]);
       const priorityFound = PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[];
-      const fallback = all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name) && /^[A-Z][a-z]{2,}/.test(v.name));
+      const fallback = all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name) && /^[A-Z][a-z]{3,}/.test(v.name) && !BLOCKED.has(v.name));
       const sorted = [...priorityFound, ...fallback].slice(0, 6);
       if (sorted.length) {
         setBrowserVoices(sorted);
@@ -1277,214 +1278,193 @@ export default function InterviewPage() {
               </motion.div>
             )}
 
-            {/* ── Row 1: Company grid ── */}
+            {/* ── Single unified configurator card ── */}
             <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden" style={{ background: "var(--bg-surface)" }}>
-              <div className="px-5 pt-4 pb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[13px] font-bold text-[var(--text-primary)]">Target Company</div>
+
+              {/* ① Company */}
+              <div className="px-6 pt-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Company</span>
                   <button onClick={() => setShowAllCo(v => !v)}
-                    className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
-                    {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
+                    className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
+                    {showAllCo ? "Show less" : "Show all"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
                   </button>
                 </div>
-                <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-13 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {displayedCos.map(co => {
                     const Logo = co.Logo;
                     const isSelected = company === co.name;
                     return (
-                      <button key={co.name} onClick={() => setCompany(co.name)} title={co.name}
-                        className="group relative flex flex-col items-center gap-1 p-2 rounded-xl border transition-all duration-150"
+                      <button key={co.name} onClick={() => setCompany(co.name)}
+                        className="relative group flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-xl border transition-all duration-150"
                         style={isSelected
-                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.45)" }
+                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", boxShadow: "0 0 0 3px rgba(192,88,0,0.08)" }
                           : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                       >
-                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""} transition-transform group-hover:scale-110`}>
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""}`}>
                           <Logo />
                         </span>
-                        <span className={`text-[8px] font-semibold truncate w-full text-center leading-tight ${isSelected ? "text-[#d4aa30]" : "text-[var(--text-muted)]"}`}>
-                          {co.name === "Goldman Sachs" ? "Goldman" : co.name === "BlackRock" ? "BlackRk" : co.name}
+                        <span className={`text-[12px] font-semibold leading-none whitespace-nowrap transition-colors ${isSelected ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"}`}>
+                          {co.name}
                         </span>
-                        {isSelected && <motion.div layoutId="co-sel" className="absolute inset-0 rounded-xl ring-1 ring-[rgba(192,88,0,0.4)] pointer-events-none" />}
+                        {isSelected && <motion.div layoutId="co-sel" className="absolute inset-0 rounded-xl ring-1 ring-[rgba(192,88,0,0.45)] pointer-events-none" />}
                       </button>
                     );
                   })}
                 </div>
               </div>
-              <div className="px-5 py-2.5 border-t border-[var(--border-subtle)] flex items-center gap-2" style={{ background: "var(--bg-elevated)" }}>
-                {(() => {
-                  const co = COMPANIES.find(c => c.name === company);
-                  if (!co) return null;
-                  const Logo = co.Logo;
-                  return <>
-                    <span className={`w-5 h-5 rounded flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""}`}><Logo /></span>
-                    <span className="text-[11px] font-semibold text-[var(--text-primary)]">{co.name}</span>
-                    <span className="text-[11px] text-[var(--text-muted)]">· questions tailored to their interview style</span>
-                  </>;
-                })()}
-              </div>
-            </div>
 
-            {/* ── Row 2: Role + Experience + Type ── */}
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-start">
+              <div className="border-t border-[var(--border-subtle)]" />
 
-              {/* Role */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                <label className="block text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Target Role</label>
-                <input list="roles-list" value={role} onChange={e => setRole(e.target.value)}
-                  placeholder="e.g. Software Engineer, Product Manager…"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-colors"
-                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
-                  onFocus={e => (e.currentTarget.style.borderColor = "#C05800")}
-                  onBlur={e => (e.currentTarget.style.borderColor = "var(--border-default)")}
-                />
-                <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+              {/* ② Role */}
+              <div className="px-6 py-5 flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-2">Role</div>
+                  <input
+                    list="roles-list"
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                    placeholder="What role are you interviewing for?"
+                    className="w-full bg-transparent text-[17px] font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                  />
+                  <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+                </div>
+                {role.trim() && (
+                  <button onClick={() => setRole("")}
+                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                    style={{ background: "var(--bg-elevated)" }}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+                )}
               </div>
 
-              {/* Experience */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] p-4 min-w-[180px]" style={{ background: "var(--bg-surface)" }}>
-                <div className="text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Experience</div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {EXPERIENCE_LEVELS.map(l => (
-                    <button key={l.value} onClick={() => setExpLevel(l.value)}
-                      className="px-2.5 py-2 rounded-xl text-left border transition-all"
-                      style={expLevel === l.value
-                        ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
-                        : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
-                    >
-                      <div className="text-sm mb-0.5">{l.icon}</div>
-                      <div className={`text-[10px] font-semibold leading-tight ${expLevel === l.value ? "text-[#d4aa30]" : "text-[var(--text-muted)]"}`}>{l.label}</div>
-                    </button>
-                  ))}
+              <div className="border-t border-[var(--border-subtle)]" />
+
+              {/* ③ Experience + Format */}
+              <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Experience level</div>
+                  <div className="flex flex-wrap gap-2">
+                    {EXPERIENCE_LEVELS.map(l => (
+                      <button key={l.value} onClick={() => setExpLevel(l.value)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
+                        style={expLevel === l.value
+                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
+                      >
+                        <span>{l.icon}</span>
+                        <span>{l.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Interview format</div>
+                  <div className="flex flex-wrap gap-2">
+                    {INTERVIEW_TYPES.map(t => (
+                      <button key={t.value} onClick={() => setIType(t.value)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all"
+                        style={iType === t.value
+                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
+                      >
+                        <span>{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Interview type */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] p-4 min-w-[190px]" style={{ background: "var(--bg-surface)" }}>
-                <div className="text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Interview type</div>
-                <div className="space-y-1.5">
-                  {INTERVIEW_TYPES.map(t => (
-                    <button key={t.value} onClick={() => setIType(t.value)}
-                      className="w-full px-3 py-2 rounded-xl text-left border transition-all flex items-center gap-2.5"
-                      style={iType === t.value
-                        ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
-                        : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
-                    >
-                      <span className="text-base">{t.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-[11px] font-semibold ${iType === t.value ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
-                        <div className="text-[10px] text-[var(--text-muted)] truncate">{t.desc}</div>
-                      </div>
-                      {iType === t.value && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#C05800" }} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+              <div className="border-t border-[var(--border-subtle)]" />
 
-            {/* ── Row 3: Q count + Voice + CTA ── */}
-            <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_200px] gap-3 items-end">
+              {/* ④ Bottom action bar: Q count + Voice + CTA */}
+              <div className="px-6 py-4 flex flex-wrap items-center gap-4" style={{ background: "var(--bg-elevated)" }}>
 
-              {/* Q count */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[12px] font-bold text-[var(--text-primary)]">Questions</div>
-                  <span className="text-[22px] font-black tabular-nums leading-none" style={{ color: "#C05800" }}>{numQ}</span>
+                {/* Q count */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] whitespace-nowrap">Questions</span>
+                  <input type="range" min={3} max={10} step={1} value={numQ}
+                    onChange={e => setNumQ(Number(e.target.value))}
+                    className="w-20 accent-[#C05800]" />
+                  <span className="text-[12px] font-bold tabular-nums whitespace-nowrap" style={{ color: "#C05800" }}>
+                    {numQ} <span className="text-[10px] font-normal text-[var(--text-muted)]">~{numQ * 5}m</span>
+                  </span>
                 </div>
-                <input type="range" min={3} max={10} step={1} value={numQ}
-                  onChange={e => setNumQ(Number(e.target.value))}
-                  className="w-full accent-[#C05800]" />
-                <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1.5">
-                  <span>3 quick</span>
-                  <span style={{ color: "#C05800" }}>~{numQ * 5} min</span>
-                  <span>10 deep</span>
-                </div>
-              </div>
 
-              {/* Voice */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[12px] font-bold text-[var(--text-primary)]">Interviewer voice</div>
-                  <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
+                <div className="h-4 w-px bg-[var(--border-subtle)] flex-shrink-0 hidden sm:block" />
+
+                {/* Voice */}
+                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] whitespace-nowrap flex-shrink-0">Voice</span>
+                  <div className="flex rounded-md overflow-hidden border border-[var(--border-subtle)] text-[10px] flex-shrink-0">
                     <button onClick={() => setUseElevenLabs(false)}
-                      className="px-3 py-1.5 font-semibold transition-colors"
+                      className="px-2.5 py-1 font-bold transition-colors"
                       style={!useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
                       Free
                     </button>
                     <button onClick={() => { if (!hasVoiceCredits) { setShowBuyVoice(true); return; } setUseElevenLabs(true); }}
-                      className="px-3 py-1.5 font-semibold transition-colors"
+                      className="px-2.5 py-1 font-bold transition-colors"
                       style={useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
-                      ✦ ElevenLabs{!hasVoiceCredits && mounted ? " ₹149" : ""}
+                      ✦ HD{!hasVoiceCredits && mounted ? " ₹149" : ""}
                     </button>
                   </div>
+
+                  {!useElevenLabs && (
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                      {browserVoices.map(v => (
+                        <button key={v.name}
+                          onClick={() => setSelectedBrowserVoice(v.name)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                          style={selectedBrowserVoice === v.name
+                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                            : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                          {v.name.split(" ")[0]}
+                          <span onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                            className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
+                            {previewing === v.name ? "■" : "▶"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {useElevenLabs && ttsAvail && (
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                      {elVoices.map(v => (
+                        <button key={v.id}
+                          onClick={() => setSelectedElVoice(v.id)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                          style={selectedElVoice === v.id
+                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                            : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                          {v.name}
+                          <span onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                            className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
+                            {previewing === v.id ? "■" : "▶"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {useElevenLabs && !ttsAvail && (
+                    <span className="text-[11px] text-[var(--text-muted)]">Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to backend</span>
+                  )}
                 </div>
 
-                {!useElevenLabs && (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {browserVoices.map(v => (
-                      <div key={v.name} onClick={() => setSelectedBrowserVoice(v.name)}
-                        className="p-2 rounded-xl border cursor-pointer transition-all text-center"
-                        style={selectedBrowserVoice === v.name
-                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
-                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
-                      >
-                        <div className={`text-[11px] font-semibold truncate mb-1 ${selectedBrowserVoice === v.name ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>
-                          {v.name.split(" ")[0]}
-                        </div>
-                        <button onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                          className="text-[9px] px-1.5 py-0.5 rounded-full border transition-colors"
-                          style={previewing === v.name
-                            ? { background: "#C05800", color: "white", borderColor: "transparent" }
-                            : { borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                          {previewing === v.name ? "■" : "▶"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {useElevenLabs && !ttsAvail && (
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to backend env to enable HD voices.
-                  </p>
-                )}
-                {useElevenLabs && ttsAvail && (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {elVoices.map(v => (
-                      <div key={v.id} onClick={() => setSelectedElVoice(v.id)}
-                        className="p-2 rounded-xl border cursor-pointer transition-all text-center"
-                        style={selectedElVoice === v.id
-                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
-                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
-                      >
-                        <div className={`text-[11px] font-semibold truncate mb-0.5 ${selectedElVoice === v.id ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>{v.name}</div>
-                        <div className="text-[9px] text-[var(--text-muted)] truncate mb-1">{v.desc.split("·")[0].trim()}</div>
-                        <button onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                          className="text-[9px] px-1.5 py-0.5 rounded-full border transition-colors"
-                          style={previewing === v.id
-                            ? { background: "#C05800", color: "white", borderColor: "transparent" }
-                            : { borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                          {previewing === v.id ? "■" : "▶"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* CTA */}
-              <div className="space-y-2">
+                {/* CTA */}
                 <button onClick={startInterview} disabled={!role.trim()}
-                  className="w-full relative overflow-hidden flex items-center justify-center gap-2 py-4 rounded-2xl text-white font-bold text-[14px] transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
-                  style={{ background: role.trim() ? "linear-gradient(135deg,#C05800 0%,#713600 100%)" : "var(--bg-elevated)", boxShadow: role.trim() ? "0 8px 24px rgba(192,88,0,0.35)" : "none" }}
+                  className="relative overflow-hidden flex items-center gap-2 px-6 py-3 rounded-xl text-white font-bold text-[13px] transition-all disabled:opacity-35 disabled:cursor-not-allowed group flex-shrink-0"
+                  style={{ background: role.trim() ? "linear-gradient(135deg,#C05800 0%,#713600 100%)" : "var(--bg-surface)", boxShadow: role.trim() ? "0 4px 20px rgba(192,88,0,0.4)" : "none" }}
                 >
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ background: "linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.08) 50%,transparent 60%)" }} />
+                    style={{ background: "linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.1) 50%,transparent 60%)" }} />
                   {mounted && !canStartInterview
-                    ? <><Lock className="w-4 h-4" /> Buy Session · ₹149</>
-                    : <><Maximize2 className="w-4 h-4" /> Start Interview <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" /></>
+                    ? <><Lock className="w-3.5 h-3.5" /> Buy · ₹149</>
+                    : <><Maximize2 className="w-3.5 h-3.5" /> Start Interview <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></>
                   }
                 </button>
-                <p className="text-[10px] text-center text-[var(--text-muted)]">Fullscreen · mic required</p>
               </div>
             </div>
           </motion.div>
