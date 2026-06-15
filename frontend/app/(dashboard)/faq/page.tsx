@@ -229,12 +229,7 @@ export default function FaqPage() {
         <div className="space-y-3">
           {/* Unanswered first so admin sees what needs attention; users see them too */}
           {[...unanswered, ...answered].map((q) => (
-            <QuestionCard
-              key={q.id}
-              q={q}
-              isAdmin={isAdmin}
-              onAnswered={handleAnswered}
-            />
+            <QuestionCard key={q.id} q={q} />
           ))}
         </div>
       )}
