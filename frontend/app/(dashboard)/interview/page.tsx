@@ -290,6 +290,16 @@ function FrequencyBars({
   );
 }
 
+// Gender lookup for Web Speech API voices (no native gender property)
+const BROWSER_VOICE_GENDER: Record<string, "M" | "F"> = {
+  Samantha:"F", Ava:"F", Allison:"F", Victoria:"F", Karen:"F", Moira:"F", Tessa:"F",
+  Susan:"F", Hazel:"F", Zira:"F", Fiona:"F", Nicky:"F",
+  "Google US English":"F", "Google UK English Female":"F",
+  Alex:"M", Tom:"M", Daniel:"M", David:"M", Mark:"M", Fred:"M",
+  Bruce:"M", Junior:"M", Ralph:"M",
+  "Google UK English Male":"M",
+};
+
 // ── ElevenLabs logo (their "11" two-bar mark) ────────────────────────────────
 function ElevenLabsLogo({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
@@ -609,12 +619,17 @@ export default function InterviewPage() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const load = () => {
       const all = window.speechSynthesis.getVoices();
-      const PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Alex", "Tom", "Daniel", "Karen"];
-      // Only show well-known named voices — skip anything with a non-word/gibberish name
-      const BLOCKED = new Set(["Bad","Bahh","Bells","Boing","Bubbles","Cellos","Jester","Organ","Superstar","Trinoids","Whisper","Wobble","Zarvox","Bottle","Boing","Pipe Organ","Good News","Hysterical","Deranged"]);
+      const FEMALE_PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Karen", "Moira", "Tessa"];
+      const MALE_PRIORITY   = ["Alex", "Tom", "Daniel", "David", "Mark", "Fred"];
+      const PRIORITY = [...FEMALE_PRIORITY, ...MALE_PRIORITY];
+      const BLOCKED = new Set(["Bad","Bahh","Bells","Boing","Bubbles","Cellos","Jester","Organ","Superstar","Trinoids","Whisper","Wobble","Zarvox","Bottle","Pipe Organ","Good News","Hysterical","Deranged"]);
       const priorityFound = PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[];
       const fallback = all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name) && /^[A-Z][a-z]{3,}/.test(v.name) && !BLOCKED.has(v.name));
-      const sorted = [...priorityFound, ...fallback].slice(0, 6);
+      // 3 female + 3 male from priority, then fill remainder from fallback
+      const females = priorityFound.filter(v => FEMALE_PRIORITY.includes(v.name)).slice(0, 3);
+      const males   = priorityFound.filter(v => MALE_PRIORITY.includes(v.name)).slice(0, 3);
+      const rest    = fallback.filter(v => !females.includes(v) && !males.includes(v));
+      const sorted  = [...females, ...males, ...rest].slice(0, 8);
       if (sorted.length) {
         setBrowserVoices(sorted);
         setSelectedBrowserVoice(sorted[0].name);
@@ -1437,52 +1452,80 @@ export default function InterviewPage() {
                     </button>
                   </div>
 
-                  {/* Browser voice chips */}
-                  {!useElevenLabs && (
-                    <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-                      {browserVoices.map(v => (
-                        <button key={v.name}
-                          onClick={() => setSelectedBrowserVoice(v.name)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
-                          style={selectedBrowserVoice === v.name
-                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
-                            : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                          {v.name.split(" ")[0]}
-                          <span onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                            className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
-                            {previewing === v.name ? "■" : "▶"}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ElevenLabs HD voice chips */}
-                  {useElevenLabs && ttsAvail && (
-                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-                        {elVoices.map(v => (
-                          <button key={v.id}
-                            onClick={() => setSelectedElVoice(v.id)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
-                            style={selectedElVoice === v.id
-                              ? { background: "rgba(124,58,237,0.15)", borderColor: "rgba(124,58,237,0.6)", color: "white" }
-                              : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                            {v.name}
-                            <span onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                              className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
-                              {previewing === v.id ? "■" : "▶"}
-                            </span>
-                          </button>
-                        ))}
+                  {/* Browser voice chips — grouped F then M */}
+                  {!useElevenLabs && (() => {
+                    const femaleVoices = browserVoices.filter(v => (BROWSER_VOICE_GENDER[v.name] ?? "F") === "F");
+                    const maleVoices   = browserVoices.filter(v => BROWSER_VOICE_GENDER[v.name] === "M");
+                    const chip = (v: SpeechSynthesisVoice) => (
+                      <button key={v.name}
+                        onClick={() => setSelectedBrowserVoice(v.name)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                        style={selectedBrowserVoice === v.name
+                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                          : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                        {v.name.split(" ")[0]}
+                        <span onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                          className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
+                          {previewing === v.name ? "■" : "▶"}
+                        </span>
+                      </button>
+                    );
+                    return (
+                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                        {femaleVoices.length > 0 && <>
+                          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♀</span>
+                          {femaleVoices.map(chip)}
+                        </>}
+                        {femaleVoices.length > 0 && maleVoices.length > 0 &&
+                          <div className="w-px h-3.5 bg-[var(--border-subtle)] flex-shrink-0 mx-0.5" />}
+                        {maleVoices.length > 0 && <>
+                          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♂</span>
+                          {maleVoices.map(chip)}
+                        </>}
                       </div>
-                      <span className="flex items-center gap-1 pl-2 flex-shrink-0 border-l border-[var(--border-subtle)]">
-                        <span className="text-[9px] text-[var(--text-muted)] whitespace-nowrap">powered by</span>
-                        <ElevenLabsLogo className="w-3 h-2.5 flex-shrink-0" style={{ color: "#a78bfa" }} />
-                        <span className="text-[9px] font-bold whitespace-nowrap" style={{ color: "#a78bfa" }}>ElevenLabs</span>
-                      </span>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {/* ElevenLabs HD voice chips — grouped F then M */}
+                  {useElevenLabs && ttsAvail && (() => {
+                    const elF = elVoices.filter(v => v.gender === "F");
+                    const elM = elVoices.filter(v => v.gender === "M");
+                    const chip = (v: { id: string; name: string; gender: string; desc: string }) => (
+                      <button key={v.id}
+                        onClick={() => setSelectedElVoice(v.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                        style={selectedElVoice === v.id
+                          ? { background: "rgba(124,58,237,0.15)", borderColor: "rgba(124,58,237,0.6)", color: "white" }
+                          : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                        {v.name}
+                        <span onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                          className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
+                          {previewing === v.id ? "■" : "▶"}
+                        </span>
+                      </button>
+                    );
+                    return (
+                      <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                          {elF.length > 0 && <>
+                            <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♀</span>
+                            {elF.map(chip)}
+                          </>}
+                          {elF.length > 0 && elM.length > 0 &&
+                            <div className="w-px h-3.5 bg-[var(--border-subtle)] flex-shrink-0 mx-0.5" />}
+                          {elM.length > 0 && <>
+                            <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♂</span>
+                            {elM.map(chip)}
+                          </>}
+                        </div>
+                        <span className="flex items-center gap-1 pl-2 flex-shrink-0 border-l border-[var(--border-subtle)]">
+                          <span className="text-[9px] text-[var(--text-muted)] whitespace-nowrap">powered by</span>
+                          <ElevenLabsLogo className="w-3 h-2.5 flex-shrink-0" style={{ color: "#a78bfa" }} />
+                          <span className="text-[9px] font-bold whitespace-nowrap" style={{ color: "#a78bfa" }}>ElevenLabs</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {useElevenLabs && !ttsAvail && (
                     <span className="text-[11px] text-[var(--text-muted)]">Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to backend</span>
