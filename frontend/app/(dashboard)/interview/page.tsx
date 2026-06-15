@@ -804,7 +804,15 @@ export default function InterviewPage() {
       setPendingFollowUp(null);
       setAnswer("");
       setFeedback(null);
-      speakNextQuestion(qIndex);
+      const nextIdx = qIndex + 1;
+      if (nextIdx >= questions.length) {
+        stopMic();
+        setPhase("results");
+        document.exitFullscreen?.().catch(() => {});
+        return;
+      }
+      setQIndex(nextIdx);
+      speakNextQuestion(nextIdx);
       return;
     }
 
