@@ -31,7 +31,7 @@ interface Feedback {
   follow_up: string | null;
 }
 
-type Phase = "setup" | "analyzing" | "session" | "results";
+type Phase = "setup" | "analyzing" | "session" | "results" | "history";
 type SessionMode = "thinking" | "recording" | "evaluating" | "feedback";
 
 // ── Brand SVG Logos ───────────────────────────────────────────────────────────
@@ -1086,19 +1086,21 @@ export default function InterviewPage() {
     : 0;
 
   // ── Report (generated once when results phase begins) ─────────────────────
-  const [report, setReport] = useState<{
+  type ReportData = {
     verdict: string;
     interview_pct: number;
     top_strengths: string[];
     improvement_plan: { area: string; tip: string; priority: string }[];
     skill_gaps: string[];
     next_steps: string[];
-  } | null>(null);
+  };
+  const [report, setReport] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     if (phase !== "results" || allFeedback.length === 0 || report) return;
     setReportLoading(true);
+    const avgScore = allFeedback.reduce((s, f) => s + f.score, 0) / allFeedback.length;
     const items = questions.map((q, i) => ({
       question: q.question,
       question_type: q.type,
@@ -1109,10 +1111,82 @@ export default function InterviewPage() {
       overall_feedback: allFeedback[i]?.overall_feedback ?? "",
     })).filter((_, i) => allFeedback[i]);
     apiClient.post("/interview/report", { role, company, items })
-      .then(({ data }) => setReport(data))
+      .then(({ data }) => {
+        setReport(data);
+        // Auto-save session to history (fire-and-forget)
+        apiClient.post("/interview/sessions", {
+          role,
+          company,
+          questions: questions.map(q => ({ question: q.question, type: q.type, follow_up_hint: q.follow_up_hint, ideal_points: q.ideal_points })),
+          answers: allAnswers,
+          feedback: allFeedback.map(f => ({ score: f.score, overall_feedback: f.overall_feedback, strengths: f.strengths, improvements: f.improvements })),
+          report: data,
+          overall_score: parseFloat(avgScore.toFixed(2)),
+          interview_pct: data.interview_pct,
+        }).then(() => {
+          // Invalidate history cache so the new session appears if user visits history
+          setHistorySessions(null);
+        }).catch(() => {});
+      })
       .catch(() => {})
       .finally(() => setReportLoading(false));
   }, [phase]);
+
+  // ── History ───────────────────────────────────────────────────────────────
+  type HistorySession = {
+    id: string;
+    role: string;
+    company: string;
+    overall_score: number | null;
+    interview_pct: number | null;
+    created_at: string;
+    verdict: string | null;
+    num_questions: number;
+  };
+  type FullSession = {
+    id: string;
+    role: string;
+    company: string;
+    questions: Question[];
+    answers: string[];
+    feedback: Feedback[];
+    report: ReportData | null;
+    overall_score: number | null;
+    interview_pct: number | null;
+    created_at: string;
+  };
+
+  const [historySessions, setHistorySessions] = useState<HistorySession[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<FullSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+
+  useEffect(() => {
+    if (phase !== "history" || historySessions !== null) return;
+    setHistoryLoading(true);
+    apiClient.get("/interview/sessions")
+      .then(({ data }) => setHistorySessions(data.sessions ?? []))
+      .catch(() => setHistorySessions([]))
+      .finally(() => setHistoryLoading(false));
+  }, [phase]);
+
+  function loadSession(id: string) {
+    setSessionLoading(true);
+    setSelectedSession(null);
+    apiClient.get(`/interview/sessions/${id}`)
+      .then(({ data }) => setSelectedSession(data))
+      .catch(() => toast.error("Could not load session"))
+      .finally(() => setSessionLoading(false));
+  }
+
+  function deleteSession(id: string) {
+    apiClient.delete(`/interview/sessions/${id}`)
+      .then(() => {
+        setHistorySessions(prev => (prev ?? []).filter(s => s.id !== id));
+        if (selectedSession?.id === id) setSelectedSession(null);
+      })
+      .catch(() => toast.error("Could not delete session"));
+  }
 
   const currentQuestion = pendingFollowUp ?? questions[qIndex]?.question ?? "";
   const currentType     = pendingFollowUp ? "situational" : questions[qIndex]?.type;
@@ -1124,11 +1198,29 @@ export default function InterviewPage() {
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview</h1>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-            <Zap className="w-2.5 h-2.5" /> HireVue-style
-          </span>
+        <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview</h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
+              <Zap className="w-2.5 h-2.5" /> HireVue-style
+            </span>
+          </div>
+          {phase !== "session" && phase !== "analyzing" && (
+            <button
+              onClick={() => {
+                if (phase === "history") { setPhase("setup"); setSelectedSession(null); }
+                else { setPhase("history"); }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors border ${
+                phase === "history"
+                  ? "border-[var(--accent-primary)]/40 bg-[var(--accent-muted)] text-[var(--accent-hover)]"
+                  : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              {phase === "history" ? "Back to Setup" : "History"}
+            </button>
+          )}
         </div>
         <p className="text-[14px] text-[var(--text-secondary)]">
           Personalised · voice-driven · auto-advances after your answer
@@ -1850,6 +1942,253 @@ export default function InterviewPage() {
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
               </button>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── History ── */}
+        {phase === "history" && (
+          <motion.div key="history" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+
+            {/* Detail view — a past session's full report */}
+            {selectedSession ? (
+              <div className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setSelectedSession(null)}
+                    className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5 rotate-90" /> Back to history
+                  </button>
+                  <span className="text-[var(--border-default)]">·</span>
+                  <span className="text-[12px] text-[var(--text-muted)]">
+                    {new Date(selectedSession.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    {" · "}{selectedSession.role}
+                    {selectedSession.company !== "General" ? ` · ${selectedSession.company}` : ""}
+                  </span>
+                </div>
+
+                {/* Score hero */}
+                <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden relative">
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C05800] via-[#d4aa30] to-[#7ab840]" />
+                  <div className="flex flex-col sm:flex-row items-center gap-5">
+                    {/* Circle */}
+                    <div className="relative flex-shrink-0 w-24 h-24">
+                      <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border-default)" strokeWidth="8"/>
+                        {(() => {
+                          const pct = selectedSession.interview_pct ?? Math.round((selectedSession.overall_score ?? 5) * 10);
+                          const color = pct >= 70 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
+                          return (
+                            <motion.circle cx="50" cy="50" r="42" fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+                              strokeDasharray={`${2 * Math.PI * 42}`}
+                              initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
+                              animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - pct / 100) }}
+                              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                            />
+                          );
+                        })()}
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        {(() => {
+                          const pct = selectedSession.interview_pct ?? Math.round((selectedSession.overall_score ?? 5) * 10);
+                          return (
+                            <span className="text-xl font-black tabular-nums" style={{ color: pct >= 70 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444" }}>
+                              {pct}%
+                            </span>
+                          );
+                        })()}
+                        <span className="text-[9px] text-[var(--text-muted)]">Interview</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest mb-1">Past Session</div>
+                      <div className="text-xl font-bold text-[var(--text-primary)] mb-1.5">
+                        {selectedSession.overall_score?.toFixed(1) ?? "—"}/10 avg · {selectedSession.questions?.length ?? 0} questions
+                      </div>
+                      {selectedSession.report?.verdict && (
+                        <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">{selectedSession.report.verdict}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top strengths */}
+                {selectedSession.report?.top_strengths && selectedSession.report.top_strengths.length > 0 && (
+                  <div className="p-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Award className="w-4 h-4 text-emerald-400" />
+                      <span className="text-[13px] font-semibold text-emerald-400">What you did well</span>
+                    </div>
+                    {selectedSession.report.top_strengths.map((s, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)] mb-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />{s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Q&A breakdown */}
+                {selectedSession.questions && selectedSession.questions.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                      <ListChecks className="w-4 h-4 text-[var(--accent-primary)]" /> Question Breakdown
+                    </h3>
+                    {selectedSession.questions.map((q, i) => {
+                      const f = selectedSession.feedback?.[i];
+                      const ans = selectedSession.answers?.[i];
+                      if (!f) return null;
+                      return <QuestionCard key={i} index={i} question={q} feedback={f} answer={ans ?? ""} />;
+                    })}
+                  </div>
+                )}
+
+                {/* Improvement plan */}
+                {selectedSession.report?.improvement_plan && selectedSession.report.improvement_plan.length > 0 && (
+                  <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border-subtle)]">
+                      <Target className="w-4 h-4 text-[var(--accent-primary)]" />
+                      <span className="text-[13px] font-semibold text-[var(--text-primary)]">AI Improvement Plan</span>
+                    </div>
+                    <div className="divide-y divide-[var(--border-subtle)]">
+                      {selectedSession.report.improvement_plan.map((item, i) => (
+                        <div key={i} className="px-4 py-3 flex items-start gap-3">
+                          <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${item.priority === "high" ? "bg-red-400" : item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
+                          <div>
+                            <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{item.area}</div>
+                            <div className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{item.tip}</div>
+                          </div>
+                          <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${item.priority === "high" ? "text-red-400 bg-red-400/10" : item.priority === "medium" ? "text-amber-400 bg-amber-400/10" : "text-emerald-400 bg-emerald-400/10"}`}>
+                            {item.priority}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Skill gaps */}
+                {selectedSession.report?.skill_gaps && selectedSession.report.skill_gaps.length > 0 && (
+                  <div className="p-4 rounded-xl border border-amber-400/20 bg-amber-400/5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <BookOpen className="w-4 h-4 text-amber-400" />
+                      <span className="text-[13px] font-semibold text-amber-400">Skill gaps to close</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSession.report.skill_gaps.map((g, i) => (
+                        <span key={i} className="text-[11px] px-2.5 py-1 rounded-full border border-amber-400/25 bg-amber-400/10 text-amber-300">{g}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Next steps */}
+                {selectedSession.report?.next_steps && selectedSession.report.next_steps.length > 0 && (
+                  <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ArrowRight className="w-4 h-4 text-[var(--accent-primary)]" />
+                      <span className="text-[13px] font-semibold text-[var(--text-primary)]">Next steps</span>
+                    </div>
+                    <ol className="space-y-1.5">
+                      {selectedSession.report.next_steps.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
+                          <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[var(--accent-muted)] text-[var(--accent-hover)] text-[10px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>{s}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* Delete button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { deleteSession(selectedSession.id); setSelectedSession(null); }}
+                    className="text-[12px] text-red-400/60 hover:text-red-400 transition-colors"
+                  >
+                    Delete this session
+                  </button>
+                </div>
+              </div>
+            ) : (
+
+              /* Session list */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Past Interviews</h2>
+                  {historyLoading && <Loader2 className="w-4 h-4 animate-spin text-[var(--text-muted)]" />}
+                </div>
+
+                {sessionLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-[var(--accent-primary)]" />
+                  </div>
+                )}
+
+                {!historyLoading && !sessionLoading && historySessions?.length === 0 && (
+                  <div className="text-center py-16 text-[var(--text-muted)]">
+                    <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <div className="text-[14px] font-medium mb-1">No past interviews yet</div>
+                    <div className="text-[12px]">Complete an interview to see your history here.</div>
+                  </div>
+                )}
+
+                {(historySessions ?? []).map((session) => {
+                  const pct = session.interview_pct ?? Math.round((session.overall_score ?? 5) * 10);
+                  const pctColor = pct >= 70 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
+                  const date = new Date(session.created_at);
+                  return (
+                    <motion.button
+                      key={session.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => loadSession(session.id)}
+                      className="w-full text-left p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)] transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Score circle */}
+                        <div className="relative flex-shrink-0 w-12 h-12">
+                          <svg className="w-12 h-12 -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border-default)" strokeWidth="10"/>
+                            <circle cx="50" cy="50" r="40" fill="none" stroke={pctColor} strokeWidth="10" strokeLinecap="round"
+                              strokeDasharray={`${2 * Math.PI * 40}`}
+                              strokeDashoffset={2 * Math.PI * 40 * (1 - pct / 100)}
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-[11px] font-black tabular-nums" style={{ color: pctColor }}>{pct}%</span>
+                          </div>
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">{session.role}</span>
+                            {session.company !== "General" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)] flex-shrink-0">
+                                {session.company}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-[var(--text-muted)]">
+                            {session.num_questions} question{session.num_questions !== 1 ? "s" : ""} · {session.overall_score?.toFixed(1) ?? "—"}/10 avg
+                          </div>
+                          {session.verdict && (
+                            <div className="text-[11px] text-[var(--text-muted)] mt-1 line-clamp-1 italic">{session.verdict}</div>
+                          )}
+                        </div>
+
+                        {/* Date + arrow */}
+                        <div className="flex-shrink-0 text-right">
+                          <div className="text-[11px] text-[var(--text-muted)] mb-1">
+                            {date.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors ml-auto" />
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         )}
 

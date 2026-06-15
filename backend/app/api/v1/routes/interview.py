@@ -585,6 +585,119 @@ async def generate_report(
         }
 
 
+class SaveSessionRequest(BaseModel):
+    role: str
+    company: str = "General"
+    questions: list[dict]
+    answers: list[str]
+    feedback: list[dict]
+    report: Optional[dict] = None
+    overall_score: Optional[float] = None
+    interview_pct: Optional[int] = None
+
+
+@router.post("/sessions")
+async def save_session(
+    body: SaveSessionRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Persist a completed interview session for the history view."""
+    try:
+        row = {
+            "user_id": user_id,
+            "role": body.role,
+            "company": body.company,
+            "questions": body.questions,
+            "answers": body.answers,
+            "feedback": body.feedback,
+            "report": body.report,
+            "overall_score": body.overall_score,
+            "interview_pct": body.interview_pct,
+        }
+        result = get_supabase().table("interview_sessions").insert(row).execute()
+        if result.data:
+            return {"id": result.data[0]["id"], "saved": True}
+        raise HTTPException(status_code=500, detail="Insert returned no data")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to save interview session", exc_info=e)
+        raise HTTPException(status_code=500, detail="Could not save session")
+
+
+@router.get("/sessions")
+async def list_sessions(
+    limit: int = 20,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return the user's most recent interview sessions (summary only, no full Q&A)."""
+    try:
+        result = (
+            get_supabase().table("interview_sessions")
+            .select("id, role, company, overall_score, interview_pct, created_at, report->verdict, questions")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(min(limit, 50))
+            .execute()
+        )
+        sessions = []
+        for row in (result.data or []):
+            qs = row.get("questions") or []
+            sessions.append({
+                "id": row["id"],
+                "role": row["role"],
+                "company": row["company"],
+                "overall_score": row.get("overall_score"),
+                "interview_pct": row.get("interview_pct"),
+                "created_at": row["created_at"],
+                "verdict": row.get("verdict"),
+                "num_questions": len(qs),
+            })
+        return {"sessions": sessions}
+    except Exception as e:
+        logger.error("Failed to list interview sessions", exc_info=e)
+        raise HTTPException(status_code=500, detail="Could not fetch sessions")
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Fetch a single saved interview session (full detail)."""
+    try:
+        result = (
+            get_supabase().table("interview_sessions")
+            .select("*")
+            .eq("id", session_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return result.data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to fetch interview session", exc_info=e)
+        raise HTTPException(status_code=500, detail="Could not fetch session")
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Delete a saved session."""
+    try:
+        get_supabase().table("interview_sessions").delete().eq("id", session_id).eq("user_id", user_id).execute()
+        return {"deleted": True}
+    except Exception as e:
+        logger.error("Failed to delete interview session", exc_info=e)
+        raise HTTPException(status_code=500, detail="Could not delete session")
+
+
 @router.get("/voices")
 async def list_voices(user_id: str = Depends(get_current_user_id)):
     """3 female + 3 male professional voices, all pre-made and available on every plan."""
