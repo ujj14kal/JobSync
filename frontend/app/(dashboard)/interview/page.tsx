@@ -9,8 +9,8 @@ import { CheckoutModal } from "@/components/billing/CheckoutModal";
 import {
   Mic, MicOff, ChevronRight, CheckCircle2, AlertCircle,
   RotateCcw, Sparkles, Brain, Loader2, ArrowRight,
-  Building2, FileText, User, Clock, ChevronDown, TrendingUp,
-  Maximize2, X, Zap, Lock,
+  Building2, FileText, User, Clock, ChevronDown, ChevronUp, TrendingUp,
+  Maximize2, X, Zap, Lock, Target, ListChecks, Award, BookOpen, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -378,6 +378,130 @@ function AnalysisScreen({
   );
 }
 
+// ── QuestionCard — collapsible per-question report card ──────────────────────
+
+function QuestionCard({
+  index,
+  question,
+  feedback,
+  answer,
+}: {
+  index: number;
+  question: Question;
+  feedback: Feedback;
+  answer: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const scoreColor = feedback.score >= 7 ? "#10b981" : feedback.score >= 5 ? "#f59e0b" : "#ef4444";
+  const typeBadge = question.type === "technical"
+    ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
+    : question.type === "situational"
+    ? "text-[#d4aa30] bg-[#d4aa30]/10 border-[#d4aa30]/20"
+    : "text-amber-400 bg-amber-400/10 border-amber-400/20";
+
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-start gap-3 p-4 text-left hover:bg-[var(--bg-elevated)] transition-colors"
+      >
+        {/* Score circle */}
+        <div className="flex-shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center text-[12px] font-black tabular-nums"
+          style={{ borderColor: scoreColor, color: scoreColor }}>
+          {feedback.score}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${typeBadge}`}>
+              {question.type}
+            </span>
+            <span className="text-[10px] text-[var(--text-muted)]">Q{index + 1}</span>
+          </div>
+          <p className="text-[13px] text-[var(--text-primary)] font-medium leading-snug line-clamp-2">{question.question}</p>
+        </div>
+
+        {/* Score bar + chevron */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="w-16 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden hidden sm:block">
+            <div className="h-full rounded-full transition-all" style={{ width: `${(feedback.score / 10) * 100}%`, background: scoreColor }} />
+          </div>
+          {open ? <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />}
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-3 border-t border-[var(--border-subtle)]">
+
+              {/* User's answer */}
+              {answer && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
+                    <MessageSquare className="w-3 h-3" /> Your answer
+                  </div>
+                  <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-elevated)] rounded-lg p-3 border border-[var(--border-subtle)] italic">
+                    "{answer}"
+                  </p>
+                </div>
+              )}
+
+              {/* Overall feedback */}
+              <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{feedback.overall_feedback}</p>
+
+              {/* Strengths + Improvements */}
+              <div className="grid grid-cols-2 gap-3">
+                {feedback.strengths.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mb-1.5">
+                      <CheckCircle2 className="w-3 h-3" /> Strengths
+                    </div>
+                    {feedback.strengths.map((s, i) => (
+                      <div key={i} className="text-[11px] text-[var(--text-muted)] flex gap-1.5 mb-1">· {s}</div>
+                    ))}
+                  </div>
+                )}
+                {feedback.improvements.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-400 mb-1.5">
+                      <AlertCircle className="w-3 h-3" /> To improve
+                    </div>
+                    {feedback.improvements.map((s, i) => (
+                      <div key={i} className="text-[11px] text-[var(--text-muted)] flex gap-1.5 mb-1">· {s}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Ideal points hint */}
+              {question.ideal_points?.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-[var(--accent-primary)] mb-1.5 uppercase tracking-wider">What a great answer covers</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {question.ideal_points.map((p, i) => (
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--accent-muted)] text-[var(--accent-hover)] border border-[var(--accent-primary)]/20">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InterviewPage() {
@@ -429,6 +553,7 @@ export default function InterviewPage() {
   const [answer,       setAnswer]       = useState("");
   const [feedback,     setFeedback]     = useState<Feedback | null>(null);
   const [allFeedback,  setAllFeedback]  = useState<Feedback[]>([]);
+  const [allAnswers,   setAllAnswers]   = useState<string[]>([]);
   const [companyInfo,  setCompanyInfo]  = useState<{ name: string; style: string; focus: string[] } | null>(null);
   const [resumeLoaded, setResumeLoaded] = useState(false);
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null);
@@ -773,7 +898,10 @@ export default function InterviewPage() {
       });
       const fb = data as Feedback;
       setFeedback(fb);
-      if (!pendingFollowUp) setAllFeedback(prev => [...prev, fb]);
+      if (!pendingFollowUp) {
+        setAllFeedback(prev => [...prev, fb]);
+        setAllAnswers(prev => [...prev, finalAnswer]);
+      }
       setSessionMode("feedback");
       startAutoAdvance(fb);
     } catch {
@@ -874,6 +1002,8 @@ export default function InterviewPage() {
     setResumeLoaded(data.resume_loaded ?? false);
     setQIndex(0);
     setAllFeedback([]);
+    setAllAnswers([]);
+    setReport(null);
     setFeedback(null);
     setAnswer("");
     setPendingFollowUp(null);
@@ -901,6 +1031,8 @@ export default function InterviewPage() {
     setAnswer("");
     setFeedback(null);
     setAllFeedback([]);
+    setAllAnswers([]);
+    setReport(null);
     setPendingFollowUp(null);
     setSessionMode("thinking");
     ttsSessionRef.current = false;
@@ -952,6 +1084,35 @@ export default function InterviewPage() {
   const overallScore = allFeedback.length
     ? Math.round(allFeedback.reduce((s, f) => s + f.score, 0) / allFeedback.length)
     : 0;
+
+  // ── Report (generated once when results phase begins) ─────────────────────
+  const [report, setReport] = useState<{
+    verdict: string;
+    interview_pct: number;
+    top_strengths: string[];
+    improvement_plan: { area: string; tip: string; priority: string }[];
+    skill_gaps: string[];
+    next_steps: string[];
+  } | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  useEffect(() => {
+    if (phase !== "results" || allFeedback.length === 0 || report) return;
+    setReportLoading(true);
+    const items = questions.map((q, i) => ({
+      question: q.question,
+      question_type: q.type,
+      answer: allAnswers[i] ?? "",
+      score: allFeedback[i]?.score ?? 5,
+      strengths: allFeedback[i]?.strengths ?? [],
+      improvements: allFeedback[i]?.improvements ?? [],
+      overall_feedback: allFeedback[i]?.overall_feedback ?? "",
+    })).filter((_, i) => allFeedback[i]);
+    apiClient.post("/interview/report", { role, company, items })
+      .then(({ data }) => setReport(data))
+      .catch(() => {})
+      .finally(() => setReportLoading(false));
+  }, [phase]);
 
   const currentQuestion = pendingFollowUp ?? questions[qIndex]?.question ?? "";
   const currentType     = pendingFollowUp ? "situational" : questions[qIndex]?.type;
@@ -1501,50 +1662,190 @@ export default function InterviewPage() {
 
         {/* ── Results ── */}
         {phase === "results" && (
-          <motion.div key="results" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-center overflow-hidden relative">
+          <motion.div key="results" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+
+            {/* ── Score hero ── */}
+            <div className="p-6 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden relative">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C05800] via-[#d4aa30] to-[#7ab840]" />
-              <div className="text-[11px] font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-widest">
-                Interview Complete{companyInfo && ` · ${companyInfo.name}`}
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {/* Circular progress */}
+                <div className="relative flex-shrink-0 w-28 h-28">
+                  <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border-default)" strokeWidth="8"/>
+                    <motion.circle
+                      cx="50" cy="50" r="42" fill="none"
+                      stroke={overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444"}
+                      strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 42}`}
+                      initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
+                      animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - (report?.interview_pct ?? overallScore * 10) / 100) }}
+                      transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <motion.span
+                      className="text-2xl font-black tabular-nums leading-none"
+                      style={{ color: overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444" }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      {reportLoading ? "…" : `${report?.interview_pct ?? overallScore * 10}%`}
+                    </motion.span>
+                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5">Interview</span>
+                  </div>
+                </div>
+
+                {/* Text side */}
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-1">
+                    Interview Complete{companyInfo && ` · ${companyInfo.name}`}
+                  </div>
+                  <div className="text-2xl font-bold text-[var(--text-primary)] mb-2">
+                    {overallScore}/10 avg · {allFeedback.length} question{allFeedback.length !== 1 ? "s" : ""}
+                  </div>
+                  {reportLoading ? (
+                    <div className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating your report…
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                      {report?.verdict ?? (
+                        overallScore >= 8 ? "Outstanding — you're interview-ready!" :
+                        overallScore >= 6 ? "Good performance with clear areas to polish." :
+                        overallScore >= 4 ? "Fair start — keep practising the weaker areas." :
+                        "Needs more practice — keep going!"
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="text-6xl font-black mb-2 tabular-nums"
-                style={{ color: overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444" }}>
-                {overallScore}/10
-              </div>
-              <div className="text-[14px] text-[var(--text-secondary)]">
-                {overallScore >= 8 ? "Outstanding — you're interview-ready!" :
-                 overallScore >= 6 ? "Good performance with clear areas to polish." :
-                 overallScore >= 4 ? "Fair start — keep practising the weaker areas." :
-                 "Needs more practice — keep going!"}
+
+              {/* Score bar row */}
+              <div className="mt-5 flex items-center gap-3">
+                <span className="text-[11px] text-[var(--text-muted)] w-24 flex-shrink-0">Overall score</span>
+                <div className="flex-1 h-2 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: overallScore >= 7 ? "#10b981" : overallScore >= 5 ? "#f59e0b" : "#ef4444" }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(overallScore / 10) * 100}%` }}
+                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold tabular-nums text-[var(--text-primary)] w-8 text-right">{overallScore}/10</span>
               </div>
             </div>
 
+            {/* ── Top strengths ── */}
+            {report?.top_strengths && report.top_strengths.length > 0 && (
+              <div className="p-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Award className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[13px] font-semibold text-emerald-400">What you did well</span>
+                </div>
+                <div className="space-y-1.5">
+                  {report.top_strengths.map((s, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Question-by-question breakdown ── */}
             <div className="space-y-3">
-              <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Question Breakdown</h3>
+              <h3 className="text-[13px] font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <ListChecks className="w-4 h-4 text-[var(--accent-primary)]" />
+                Question Breakdown
+              </h3>
               {questions.map((q, i) => {
                 const f = allFeedback[i];
+                const ans = allAnswers[i];
                 if (!f) return null;
                 return (
-                  <div key={i} className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <p className="text-[13px] text-[var(--text-primary)] font-medium leading-snug flex-1">{q.question}</p>
-                      <div className="text-[15px] font-black flex-shrink-0 tabular-nums"
-                        style={{ color: f.score >= 7 ? "#10b981" : f.score >= 5 ? "#f59e0b" : "#ef4444" }}>
-                        {f.score}/10
-                      </div>
-                    </div>
-                    <p className="text-[12px] text-[var(--text-muted)]">{f.overall_feedback}</p>
-                  </div>
+                  <QuestionCard key={i} index={i} question={q} feedback={f} answer={ans} />
                 );
               })}
             </div>
 
+            {/* ── AI Improvement Plan ── */}
+            {(reportLoading || (report?.improvement_plan && report.improvement_plan.length > 0)) && (
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border-subtle)]">
+                  <Target className="w-4 h-4 text-[var(--accent-primary)]" />
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">AI Improvement Plan</span>
+                  <span className="ml-auto text-[10px] text-[var(--text-muted)] italic">personalised from your resume + answers</span>
+                </div>
+                {reportLoading ? (
+                  <div className="flex items-center gap-2 px-4 py-5 text-[13px] text-[var(--text-muted)]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analysing your answers against your resume…
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[var(--border-subtle)]">
+                    {report!.improvement_plan.map((item, i) => (
+                      <div key={i} className="px-4 py-3 flex items-start gap-3">
+                        <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                          item.priority === "high" ? "bg-red-400" :
+                          item.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"
+                        }`} />
+                        <div>
+                          <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{item.area}</div>
+                          <div className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{item.tip}</div>
+                        </div>
+                        <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                          item.priority === "high" ? "text-red-400 bg-red-400/10" :
+                          item.priority === "medium" ? "text-amber-400 bg-amber-400/10" : "text-emerald-400 bg-emerald-400/10"
+                        }`}>{item.priority}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Skill gaps ── */}
+            {report?.skill_gaps && report.skill_gaps.length > 0 && (
+              <div className="p-4 rounded-xl border border-amber-400/20 bg-amber-400/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <span className="text-[13px] font-semibold text-amber-400">Skill gaps to close</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {report.skill_gaps.map((g, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 rounded-full border border-amber-400/25 bg-amber-400/10 text-amber-300">{g}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Next steps ── */}
+            {report?.next_steps && report.next_steps.length > 0 && (
+              <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                <div className="flex items-center gap-2 mb-3">
+                  <ArrowRight className="w-4 h-4 text-[var(--accent-primary)]" />
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">Next steps</span>
+                </div>
+                <ol className="space-y-1.5">
+                  {report.next_steps.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[12px] text-[var(--text-secondary)]">
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[var(--accent-muted)] text-[var(--accent-hover)] text-[10px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                      {s}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* ── Actions ── */}
             <div className="flex gap-3">
               <button onClick={() => setPhase("setup")}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
                 <RotateCcw className="w-3.5 h-3.5" /> New Interview
               </button>
-              <button onClick={() => { setQIndex(0); setAllFeedback([]); setFeedback(null); setAnswer(""); setPendingFollowUp(null); setPhase("session"); if (questions[0]?.question) speakText(questions[0].question); setTimeout(() => { try { document.documentElement.requestFullscreen(); } catch {} }, 100); }}
+              <button onClick={() => { setQIndex(0); setAllFeedback([]); setAllAnswers([]); setReport(null); setFeedback(null); setAnswer(""); setPendingFollowUp(null); setPhase("session"); if (questions[0]?.question) speakText(questions[0].question); setTimeout(() => { try { document.documentElement.requestFullscreen(); } catch {} }, 100); }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white text-[13px] font-semibold transition-all">
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
               </button>

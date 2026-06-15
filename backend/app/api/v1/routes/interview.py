@@ -482,6 +482,109 @@ async def cancel_voice_session(user_id: str = Depends(get_current_user_id)):
     return {"cancelled": False, "refunded": False}
 
 
+class ReportItem(BaseModel):
+    question: str
+    question_type: str = "behavioral"
+    answer: str
+    score: int
+    strengths: list[str] = []
+    improvements: list[str] = []
+    overall_feedback: str = ""
+
+
+class ReportRequest(BaseModel):
+    role: str
+    company: str = "General"
+    items: list[ReportItem]
+
+
+@router.post("/report")
+async def generate_report(
+    body: ReportRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Generate a comprehensive post-interview report.
+    Returns verdict, interview_pct, prioritised improvement plan, and skill gaps.
+    Uses the candidate's active resume for personalised suggestions.
+    """
+    resume_text = ""
+    try:
+        result = (
+            get_supabase().table("resumes")
+            .select("raw_text")
+            .eq("user_id", user_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            resume_text = result.data[0].get("raw_text") or ""
+    except Exception as e:
+        logger.warning("Could not fetch resume for report", error=str(e))
+
+    qa_block = "\n\n".join(
+        f"Q{i+1} [{item.question_type.upper()}] (Score {item.score}/10)\n"
+        f"Question: {item.question}\n"
+        f"Answer: {item.answer[:600]}\n"
+        f"Strengths: {', '.join(item.strengths) or 'none'}\n"
+        f"Areas to improve: {', '.join(item.improvements) or 'none'}"
+        for i, item in enumerate(body.items)
+    )
+
+    avg_score = round(sum(it.score for it in body.items) / len(body.items), 1) if body.items else 0
+    resume_section = f"\n=== CANDIDATE RESUME ===\n{resume_text[:2500]}\n" if resume_text else ""
+
+    prompt = (
+        f"You just interviewed a candidate for a {body.role} position"
+        + (f" at {body.company}" if body.company and body.company != "General" else "")
+        + f". Average score: {avg_score}/10.\n\n"
+        f"=== INTERVIEW Q&A ===\n{qa_block}\n"
+        f"{resume_section}\n"
+        "Generate a comprehensive post-interview report. Return JSON:\n"
+        "{\n"
+        '  "verdict": "2-3 sentence overall assessment of the candidate\'s performance",\n'
+        '  "interview_pct": <integer 0-100, calibrated from their scores and answer quality>,\n'
+        '  "top_strengths": ["strength1", "strength2", "strength3"],\n'
+        '  "improvement_plan": [\n'
+        '    {"area": "short area name", "tip": "specific, actionable advice referencing their actual answers", "priority": "high|medium|low"}\n'
+        "  ],\n"
+        '  "skill_gaps": ["gap1", "gap2"],\n'
+        '  "next_steps": ["specific next step 1", "specific next step 2", "specific next step 3"]\n'
+        "}\n"
+        "improvement_plan should have 3-5 items based on where they actually struggled. "
+        "Use the resume to identify gaps between what they claimed and what they demonstrated. "
+        "Be honest, specific, and constructive."
+    )
+
+    try:
+        raw = await groq_call(
+            model=settings.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a senior hiring manager generating a post-interview candidate report. Be honest, specific, and constructive. Return ONLY valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=1200,
+            json_mode=True,
+            use_cache=False,
+        )
+        report = json.loads(raw) if isinstance(raw, str) else raw
+        report["interview_pct"] = max(0, min(100, int(report.get("interview_pct", round(avg_score * 10)))))
+        return report
+    except Exception as e:
+        logger.error("Report generation failed", exc_info=e)
+        # Fallback: return basic derived report
+        return {
+            "verdict": f"Overall performance: {avg_score}/10 average across {len(body.items)} questions.",
+            "interview_pct": round(avg_score * 10),
+            "top_strengths": [],
+            "improvement_plan": [],
+            "skill_gaps": [],
+            "next_steps": [],
+        }
+
+
 @router.get("/voices")
 async def list_voices(user_id: str = Depends(get_current_user_id)):
     """3 female + 3 male professional voices, all pre-made and available on every plan."""

@@ -4,9 +4,8 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Zap, Crown, Sparkles, X,
-  Brain, Shield, LogIn,
+  Brain, Shield, LogIn, MessageSquare,
 } from "lucide-react";
-import MessageSquare from "lucide-react/dist/esm/icons/message-square.js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
