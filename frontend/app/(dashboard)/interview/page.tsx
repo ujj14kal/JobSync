@@ -1194,16 +1194,33 @@ export default function InterviewPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto space-y-0">
 
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">AI Interview</h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]">
-              <Zap className="w-2.5 h-2.5" /> HireVue-style
-            </span>
+      {/* ── Page hero header ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative rounded-2xl overflow-hidden mb-6 border border-[var(--border-subtle)]"
+        style={{ background: "linear-gradient(135deg, rgba(192,88,0,0.12) 0%, rgba(212,170,48,0.07) 50%, rgba(15,14,13,0) 100%)" }}
+      >
+        {/* Decorative orbs */}
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none" style={{ background: "radial-gradient(circle, rgba(192,88,0,0.15) 0%, transparent 70%)" }} />
+        <div className="absolute bottom-0 left-32 w-40 h-40 rounded-full blur-2xl pointer-events-none" style={{ background: "radial-gradient(circle, rgba(212,170,48,0.10) 0%, transparent 70%)" }} />
+
+        <div className="relative px-6 py-5 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(192,88,0,0.15)", border: "1px solid rgba(192,88,0,0.25)" }}>
+                <Brain className="w-4 h-4" style={{ color: "#C05800" }} />
+              </div>
+              <h1 className="text-[22px] font-bold text-[var(--text-primary)] tracking-tight">AI Interview Practice</h1>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: "rgba(192,88,0,0.12)", color: "#d4aa30", border: "1px solid rgba(212,170,48,0.25)" }}>
+                <Zap className="w-2.5 h-2.5" /> HireVue-style
+              </span>
+            </div>
+            <p className="text-[13px] text-[var(--text-muted)]">
+              Personalised questions from your resume · AI voice interviewer · instant feedback
+            </p>
           </div>
           {phase !== "session" && phase !== "analyzing" && (
             <button
@@ -1211,37 +1228,35 @@ export default function InterviewPage() {
                 if (phase === "history") { setPhase("setup"); setSelectedSession(null); }
                 else { setPhase("history"); }
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors border ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-medium transition-all border ${
                 phase === "history"
                   ? "border-[var(--accent-primary)]/40 bg-[var(--accent-muted)] text-[var(--accent-hover)]"
-                  : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+                  : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              {phase === "history" ? "Back to Setup" : "History"}
+              {phase === "history" ? "← Back" : "History"}
             </button>
           )}
         </div>
-        <p className="text-[14px] text-[var(--text-secondary)]">
-          Personalised · voice-driven · auto-advances after your answer
-        </p>
       </motion.div>
 
       <AnimatePresence mode="wait">
 
         {/* ── Setup ── */}
         {phase === "setup" && (
-          <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} className="space-y-4">
+          <motion.div key="setup" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
 
-            {/* Resume banner — shown when user exited mid-interview */}
+            {/* Resume-in-progress banner */}
             {savedSession && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--accent-primary)]/30 bg-[var(--accent-muted)]"
+                className="flex items-center justify-between gap-4 p-4 rounded-xl mb-4 border"
+                style={{ borderColor: "rgba(192,88,0,0.3)", background: "rgba(192,88,0,0.06)" }}
               >
                 <div>
-                  <div className="text-[13px] font-semibold text-[var(--accent-hover)]">
+                  <div className="text-[13px] font-semibold" style={{ color: "#d4aa30" }}>
                     Interview in progress — {savedSession.company} · {savedSession.role}
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
@@ -1249,222 +1264,247 @@ export default function InterviewPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={handleResume}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[12px] font-semibold transition-colors"
-                  >
+                  <button onClick={handleResume}
+                    className="px-4 py-2 rounded-lg text-white text-[12px] font-semibold transition-all"
+                    style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}>
                     Resume
                   </button>
-                  <button
-                    onClick={() => setSavedSession(null)}
-                    className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] text-[12px] hover:text-[var(--text-secondary)] transition-colors"
-                  >
+                  <button onClick={() => setSavedSession(null)}
+                    className="px-3 py-2 rounded-lg border border-[var(--border-subtle)] text-[var(--text-muted)] text-[12px] hover:text-[var(--text-secondary)] transition-colors">
                     Discard
                   </button>
                 </div>
               </motion.div>
             )}
 
-            {/* Main config card */}
-            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
+            {/* ── Two-column layout ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
 
-              {/* Gradient banner */}
-              <div className="h-1.5 w-full bg-gradient-to-r from-[#C05800] via-[#d4aa30] to-[#7ab840]" />
+              {/* ── LEFT: Company + Role + Features ── */}
+              <div className="space-y-4">
 
-              <div className="p-6 space-y-6">
+                {/* Company grid */}
+                <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden" style={{ background: "var(--bg-surface)" }}>
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-[13px] font-bold text-[var(--text-primary)] mb-0.5">Target Company</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">We tailor questions to their actual interview process</div>
+                      </div>
+                      <button onClick={() => setShowAllCo(v => !v)}
+                        className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
+                        {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
 
-                {/* Company selector */}
-                <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
-                    Target Company
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {displayedCos.map(co => {
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {displayedCos.map(co => {
+                        const Logo = co.Logo;
+                        const isSelected = company === co.name;
+                        return (
+                          <button
+                            key={co.name}
+                            onClick={() => setCompany(co.name)}
+                            title={co.name}
+                            className={`group relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-150 ${
+                              isSelected
+                                ? "border-[var(--accent-primary)]/50 shadow-md shadow-[var(--accent-primary)]/10"
+                                : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
+                            }`}
+                            style={isSelected ? { background: "rgba(192,88,0,0.08)" } : { background: "var(--bg-elevated)" }}
+                          >
+                            <span className={`w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""} transition-transform group-hover:scale-105`}>
+                              <Logo />
+                            </span>
+                            <span className={`text-[9px] font-semibold truncate w-full text-center leading-tight ${isSelected ? "text-[var(--accent-hover)]" : "text-[var(--text-muted)]"}`}>
+                              {co.name === "Goldman Sachs" ? "Goldman" : co.name === "BlackRock" ? "BlackRk" : co.name}
+                            </span>
+                            {isSelected && (
+                              <motion.div layoutId="co-sel" className="absolute inset-0 rounded-xl ring-1 ring-[var(--accent-primary)]/40 pointer-events-none" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Selected company strip */}
+                  <div className="px-5 py-3 border-t border-[var(--border-subtle)] flex items-center gap-2" style={{ background: "var(--bg-elevated)" }}>
+                    {(() => {
+                      const co = COMPANIES.find(c => c.name === company);
+                      if (!co) return null;
                       const Logo = co.Logo;
-                      const isSelected = company === co.name;
                       return (
-                        <button
-                          key={co.name}
-                          onClick={() => setCompany(co.name)}
-                          className={`group flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-150 ${
-                            isSelected
-                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/50 text-[var(--accent-hover)] shadow-sm shadow-[var(--accent-primary)]/10"
-                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
-                          }`}
-                        >
-                          <span className={`flex items-center justify-center w-6 h-6 rounded-lg overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""}`}>
-                            <Logo />
-                          </span>
-                          <span>{co.name}</span>
-                        </button>
+                        <>
+                          <span className={`w-6 h-6 rounded-md flex items-center justify-center overflow-hidden ${co.bg} ${co.logoColor ?? ""}`}><Logo /></span>
+                          <span className="text-[12px] font-semibold text-[var(--text-primary)]">{co.name}</span>
+                          <span className="text-[11px] text-[var(--text-muted)]">selected · questions will reflect their interview style</span>
+                        </>
                       );
-                    })}
-                    <button onClick={() => setShowAllCo(v => !v)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors">
-                      {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
-                    </button>
+                    })()}
                   </div>
                 </div>
 
-                {/* Role */}
-                <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Target Role</label>
-                  <input list="roles-list" value={role} onChange={e => setRole(e.target.value)}
-                    placeholder="e.g. Software Engineer"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] transition-colors" />
+                {/* Role input */}
+                <div className="rounded-2xl border border-[var(--border-subtle)] p-5" style={{ background: "var(--bg-surface)" }}>
+                  <label className="block text-[13px] font-bold text-[var(--text-primary)] mb-1">Target Role</label>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-3">Questions are matched to this exact role at your chosen company</p>
+                  <input
+                    list="roles-list"
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                    placeholder="e.g. Software Engineer, Product Manager…"
+                    className="w-full px-4 py-3 rounded-xl text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-colors"
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+                    onFocus={e => (e.currentTarget.style.borderColor = "#C05800")}
+                    onBlur={e => (e.currentTarget.style.borderColor = "var(--border-default)")}
+                  />
                   <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
                 </div>
 
-                {/* Experience + Type row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Experience</label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {EXPERIENCE_LEVELS.map(l => (
-                        <button key={l.value} onClick={() => setExpLevel(l.value)}
-                          className={`px-3 py-2 rounded-xl text-[12px] font-medium border transition-colors text-left flex items-center gap-1.5 ${
-                            expLevel === l.value
-                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30 text-[var(--accent-hover)]"
-                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                          }`}>
-                          <span className="text-[11px]">{l.icon}</span>
-                          <span className="truncate">{l.label}</span>
-                        </button>
-                      ))}
+                {/* How it works */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { Icon: Target,      title: "Personalised",    desc: "Questions pulled directly from your resume and the company's interview style" },
+                    { Icon: Mic,         title: "Voice-driven",    desc: "AI reads the question aloud — mic opens automatically when it's your turn" },
+                    { Icon: Clock,       title: "60s think time",  desc: "A countdown lets you plan your STAR answer before you start speaking" },
+                    { Icon: TrendingUp,  title: "Live scoring",    desc: "Instant AI feedback after every answer with strengths and improvements" },
+                  ].map(({ Icon, title, desc }) => (
+                    <div key={title} className="flex items-start gap-3 p-4 rounded-xl border border-[var(--border-subtle)]" style={{ background: "var(--bg-surface)" }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(192,88,0,0.1)", border: "1px solid rgba(192,88,0,0.2)" }}>
+                        <Icon className="w-3.5 h-3.5" style={{ color: "#C05800" }} />
+                      </div>
+                      <div>
+                        <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{title}</div>
+                        <div className="text-[11px] text-[var(--text-muted)] leading-relaxed">{desc}</div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              </div>
 
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Interview Type</label>
-                    <div className="space-y-1.5">
-                      {INTERVIEW_TYPES.map(t => (
-                        <button key={t.value} onClick={() => setIType(t.value)}
-                          className={`w-full p-2.5 rounded-xl text-left border transition-colors flex items-center gap-2.5 ${
-                            iType === t.value
-                              ? "bg-[var(--accent-muted)] border-[var(--accent-primary)]/30"
-                              : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]"
-                          }`}>
-                          <span className="text-base">{t.icon}</span>
-                          <div>
-                            <div className={`text-[12px] font-semibold ${iType === t.value ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
-                            <div className="text-[10px] text-[var(--text-muted)]">{t.desc}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+              {/* ── RIGHT: Config + CTA ── */}
+              <div className="space-y-3">
+
+                {/* Experience */}
+                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                  <div className="text-[12px] font-bold text-[var(--text-primary)] mb-3">Experience level</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {EXPERIENCE_LEVELS.map(l => (
+                      <button key={l.value} onClick={() => setExpLevel(l.value)}
+                        className={`px-3 py-2.5 rounded-xl text-[12px] font-medium border transition-all text-left ${
+                          expLevel === l.value
+                            ? "text-[var(--accent-hover)]"
+                            : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]"
+                        }`}
+                        style={expLevel === l.value ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
+                      >
+                        <div className="text-base mb-0.5">{l.icon}</div>
+                        <div className="text-[11px] leading-tight">{l.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Interview type */}
+                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                  <div className="text-[12px] font-bold text-[var(--text-primary)] mb-3">Interview type</div>
+                  <div className="space-y-2">
+                    {INTERVIEW_TYPES.map(t => (
+                      <button key={t.value} onClick={() => setIType(t.value)}
+                        className={`w-full p-3 rounded-xl text-left border transition-all flex items-center gap-3 ${
+                          iType === t.value
+                            ? "text-[var(--accent-hover)]"
+                            : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
+                        }`}
+                        style={iType === t.value ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
+                      >
+                        <span className="text-lg">{t.icon}</span>
+                        <div className="flex-1">
+                          <div className={`text-[12px] font-semibold ${iType === t.value ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
+                          <div className="text-[10px] text-[var(--text-muted)]">{t.desc}</div>
+                        </div>
+                        {iType === t.value && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#C05800" }} />}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 {/* Question count */}
-                <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
-                    Questions: <span className="text-[var(--accent-hover)] font-bold normal-case">{numQ}</span>
-                  </label>
-                  <div className="relative">
-                    <input type="range" min={3} max={10} step={1} value={numQ}
-                      onChange={e => setNumQ(Number(e.target.value))}
-                      className="w-full accent-[var(--accent-primary)]" />
-                    <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1">
-                      <span>3 (quick)</span><span>10 (thorough)</span>
-                    </div>
+                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[12px] font-bold text-[var(--text-primary)]">Number of questions</div>
+                    <span className="text-[18px] font-black tabular-nums" style={{ color: "#C05800" }}>{numQ}</span>
+                  </div>
+                  <input type="range" min={3} max={10} step={1} value={numQ}
+                    onChange={e => setNumQ(Number(e.target.value))}
+                    className="w-full accent-[#C05800] h-1.5 rounded-full" />
+                  <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-2">
+                    <span>3 — Quick</span>
+                    <span className="text-center">{numQ <= 5 ? "~" + numQ * 5 + " min" : "~" + numQ * 5 + " min"}</span>
+                    <span>10 — Thorough</span>
                   </div>
                 </div>
 
                 {/* Voice picker */}
-                <div>
+                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Interviewer Voice</label>
+                    <div className="text-[12px] font-bold text-[var(--text-primary)]">Interviewer voice</div>
                     <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
-                      <button
-                        onClick={() => setUseElevenLabs(false)}
-                        className={`px-3 py-1.5 transition-colors font-medium ${!useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                      >
-                        Free ∞
+                      <button onClick={() => setUseElevenLabs(false)}
+                        className={`px-3 py-1.5 font-semibold transition-colors ${!useElevenLabs ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                        style={!useElevenLabs ? { background: "#C05800" } : {}}>
+                        Free
                       </button>
                       <button
-                        onClick={() => {
-                          if (!hasVoiceCredits) { setShowBuyVoice(true); return; }
-                          setUseElevenLabs(true);
-                        }}
-                        className={`px-3 py-1.5 transition-colors font-medium ${useElevenLabs ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                      >
-                        ✨ ElevenLabs {!hasVoiceCredits && mounted ? "· ₹149" : ""}
+                        onClick={() => { if (!hasVoiceCredits) { setShowBuyVoice(true); return; } setUseElevenLabs(true); }}
+                        className={`px-3 py-1.5 font-semibold transition-colors ${useElevenLabs ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
+                        style={useElevenLabs ? { background: "#C05800" } : {}}>
+                        ✦ ElevenLabs{!hasVoiceCredits && mounted ? " ₹149" : ""}
                       </button>
                     </div>
                   </div>
 
                   {!useElevenLabs && (
-                    <div>
-                      <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                        Built-in device voices — 100% free, no API calls.
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {browserVoices.map(v => (
-                          <div key={v.name}
-                            onClick={() => setSelectedBrowserVoice(v.name)}
-                            className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
-                              selectedBrowserVoice === v.name
-                                ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
-                            }`}
-                          >
-                            <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                              {v.name.split(" ")[0]}
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)] truncate">{v.lang}</div>
-                            <button
-                              onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                              className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                                previewing === v.name
-                                  ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
-                              }`}
-                            >
-                              {previewing === v.name ? "■" : "▶"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {browserVoices.map(v => (
+                        <div key={v.name} onClick={() => setSelectedBrowserVoice(v.name)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedBrowserVoice === v.name ? "" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}
+                          style={selectedBrowserVoice === v.name ? { background: "rgba(192,88,0,0.07)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
+                        >
+                          <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{v.name.split(" ")[0]}</div>
+                          <div className="text-[10px] text-[var(--text-muted)] truncate mb-1.5">{v.lang}</div>
+                          <button onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${previewing === v.name ? "text-white border-transparent" : "border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
+                            style={previewing === v.name ? { background: "#C05800" } : {}}>
+                            {previewing === v.name ? "■ Stop" : "▶ Preview"}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {useElevenLabs && !ttsAvail && (
-                    <div className="p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] text-[var(--text-muted)]">
-                      ElevenLabs API key not configured. Add <code className="text-[var(--accent-primary)]">ELEVENLABS_API_KEY</code> to your backend environment to enable HD voices.
+                    <div className="p-3 rounded-xl border border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)]" style={{ background: "var(--bg-elevated)" }}>
+                      ElevenLabs API key not configured. Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to enable HD voices.
                     </div>
                   )}
                   {useElevenLabs && ttsAvail && (
-                    <div>
-                      <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                        ElevenLabs API credits (~200 per question).
-                      </p>
+                    <div className="space-y-3">
                       {(["F", "M"] as const).map(gender => (
-                        <div key={gender} className="mb-2">
-                          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
-                            {gender === "F" ? "♀ Female" : "♂ Male"}
-                          </div>
+                        <div key={gender}>
+                          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">{gender === "F" ? "Female" : "Male"}</div>
                           <div className="grid grid-cols-3 gap-2">
                             {elVoices.filter(v => v.gender === gender).map(v => (
-                              <div key={v.id}
-                                onClick={() => setSelectedElVoice(v.id)}
-                                className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                                  selectedElVoice === v.id
-                                    ? "border-[var(--accent-primary)]/40 bg-[var(--accent-subtle)]"
-                                    : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)]"
-                                }`}
+                              <div key={v.id} onClick={() => setSelectedElVoice(v.id)}
+                                className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedElVoice === v.id ? "" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}
+                                style={selectedElVoice === v.id ? { background: "rgba(192,88,0,0.07)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
                               >
-                                <div className={`text-[13px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>
-                                  {v.name}
-                                </div>
-                                <div className="text-[10px] text-[var(--text-muted)] leading-tight">{v.desc}</div>
-                                <button
-                                  onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                                  className={`mt-1.5 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                                    previewing === v.id
-                                      ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white"
-                                      : "border-[var(--border-subtle)] text-[var(--text-muted)]"
-                                  }`}
-                                >
+                                <div className={`text-[12px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{v.name}</div>
+                                <div className="text-[10px] text-[var(--text-muted)] leading-tight mb-1.5">{v.desc}</div>
+                                <button onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${previewing === v.id ? "text-white border-transparent" : "border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
+                                  style={previewing === v.id ? { background: "#C05800" } : {}}>
                                   {previewing === v.id ? "■ Stop" : "▶ Hear"}
                                 </button>
                               </div>
@@ -1477,29 +1517,23 @@ export default function InterviewPage() {
                 </div>
 
                 {/* CTA */}
-                <button onClick={startInterview} disabled={!role.trim()}
-                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white font-semibold text-[14px] transition-all shadow-lg shadow-[#C05800]/20 hover:shadow-[#C05800]/30 disabled:opacity-50 disabled:shadow-none">
-                  {mounted && !canStartInterview ? <Lock className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                  {mounted && !canStartInterview ? "Start Interview · Buy Session ₹149" : "Start Interview — Fullscreen"}
-                  <ArrowRight className="w-4 h-4" />
+                <button
+                  onClick={startInterview}
+                  disabled={!role.trim()}
+                  className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 py-4 rounded-2xl text-white font-bold text-[15px] transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
+                  style={{ background: role.trim() ? "linear-gradient(135deg,#C05800 0%,#713600 100%)" : "var(--bg-elevated)", boxShadow: role.trim() ? "0 8px 32px rgba(192,88,0,0.3), 0 2px 8px rgba(0,0,0,0.4)" : "none" }}
+                >
+                  {/* Shimmer on hover */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%)" }} />
+                  {mounted && !canStartInterview
+                    ? <><Lock className="w-4 h-4" /> Buy Session · ₹149</>
+                    : <><Maximize2 className="w-4 h-4" /> Start Interview<ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" /></>
+                  }
                 </button>
-              </div>
-            </div>
 
-            {/* How it works */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { icon: "🎯", title: "Personalised", desc: "Questions matched to your role & company" },
-                { icon: "🎙️", title: "Voice-driven", desc: "AI reads questions, mic opens automatically" },
-                { icon: "⏱️", title: "60s think time", desc: "Plan your STAR answer before speaking" },
-                { icon: "📊", title: "Live scoring", desc: "Instant feedback after every answer" },
-              ].map(item => (
-                <div key={item.title} className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                  <div className="text-xl mb-1.5">{item.icon}</div>
-                  <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{item.title}</div>
-                  <div className="text-[11px] text-[var(--text-muted)] leading-tight">{item.desc}</div>
-                </div>
-              ))}
+                <p className="text-[10px] text-center text-[var(--text-muted)]">Enters fullscreen · mic access required</p>
+              </div>
             </div>
           </motion.div>
         )}
