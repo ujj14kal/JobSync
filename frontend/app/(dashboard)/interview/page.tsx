@@ -599,10 +599,10 @@ export default function InterviewPage() {
     const load = () => {
       const all = window.speechSynthesis.getVoices();
       const PRIORITY = ["Samantha", "Ava", "Allison", "Victoria", "Alex", "Tom", "Daniel", "Karen"];
-      const sorted = [
-        ...PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[],
-        ...all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name)),
-      ].slice(0, 8);
+      // Only show well-known named voices — skip anything with a non-word/gibberish name
+      const priorityFound = PRIORITY.map(n => all.find(v => v.name === n)).filter(Boolean) as SpeechSynthesisVoice[];
+      const fallback = all.filter(v => v.lang.startsWith("en") && !PRIORITY.includes(v.name) && /^[A-Z][a-z]{2,}/.test(v.name));
+      const sorted = [...priorityFound, ...fallback].slice(0, 6);
       if (sorted.length) {
         setBrowserVoices(sorted);
         setSelectedBrowserVoice(sorted[0].name);
@@ -1277,262 +1277,214 @@ export default function InterviewPage() {
               </motion.div>
             )}
 
-            {/* ── Two-column layout ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
-
-              {/* ── LEFT: Company + Role + Features ── */}
-              <div className="space-y-4">
-
-                {/* Company grid */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden" style={{ background: "var(--bg-surface)" }}>
-                  <div className="px-5 pt-5 pb-3">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mb-0.5">Target Company</div>
-                        <div className="text-[11px] text-[var(--text-muted)]">We tailor questions to their actual interview process</div>
-                      </div>
-                      <button onClick={() => setShowAllCo(v => !v)}
-                        className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
-                        {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
+            {/* ── Row 1: Company grid ── */}
+            <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden" style={{ background: "var(--bg-surface)" }}>
+              <div className="px-5 pt-4 pb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[13px] font-bold text-[var(--text-primary)]">Target Company</div>
+                  <button onClick={() => setShowAllCo(v => !v)}
+                    className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
+                    {showAllCo ? "Less" : "More"} <ChevronDown className={`w-3 h-3 transition-transform ${showAllCo ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-13 gap-2">
+                  {displayedCos.map(co => {
+                    const Logo = co.Logo;
+                    const isSelected = company === co.name;
+                    return (
+                      <button key={co.name} onClick={() => setCompany(co.name)} title={co.name}
+                        className="group relative flex flex-col items-center gap-1 p-2 rounded-xl border transition-all duration-150"
+                        style={isSelected
+                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.45)" }
+                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+                      >
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""} transition-transform group-hover:scale-110`}>
+                          <Logo />
+                        </span>
+                        <span className={`text-[8px] font-semibold truncate w-full text-center leading-tight ${isSelected ? "text-[#d4aa30]" : "text-[var(--text-muted)]"}`}>
+                          {co.name === "Goldman Sachs" ? "Goldman" : co.name === "BlackRock" ? "BlackRk" : co.name}
+                        </span>
+                        {isSelected && <motion.div layoutId="co-sel" className="absolute inset-0 rounded-xl ring-1 ring-[rgba(192,88,0,0.4)] pointer-events-none" />}
                       </button>
-                    </div>
-
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                      {displayedCos.map(co => {
-                        const Logo = co.Logo;
-                        const isSelected = company === co.name;
-                        return (
-                          <button
-                            key={co.name}
-                            onClick={() => setCompany(co.name)}
-                            title={co.name}
-                            className={`group relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-150 ${
-                              isSelected
-                                ? "border-[var(--accent-primary)]/50 shadow-md shadow-[var(--accent-primary)]/10"
-                                : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
-                            }`}
-                            style={isSelected ? { background: "rgba(192,88,0,0.08)" } : { background: "var(--bg-elevated)" }}
-                          >
-                            <span className={`w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""} transition-transform group-hover:scale-105`}>
-                              <Logo />
-                            </span>
-                            <span className={`text-[9px] font-semibold truncate w-full text-center leading-tight ${isSelected ? "text-[var(--accent-hover)]" : "text-[var(--text-muted)]"}`}>
-                              {co.name === "Goldman Sachs" ? "Goldman" : co.name === "BlackRock" ? "BlackRk" : co.name}
-                            </span>
-                            {isSelected && (
-                              <motion.div layoutId="co-sel" className="absolute inset-0 rounded-xl ring-1 ring-[var(--accent-primary)]/40 pointer-events-none" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Selected company strip */}
-                  <div className="px-5 py-3 border-t border-[var(--border-subtle)] flex items-center gap-2" style={{ background: "var(--bg-elevated)" }}>
-                    {(() => {
-                      const co = COMPANIES.find(c => c.name === company);
-                      if (!co) return null;
-                      const Logo = co.Logo;
-                      return (
-                        <>
-                          <span className={`w-6 h-6 rounded-md flex items-center justify-center overflow-hidden ${co.bg} ${co.logoColor ?? ""}`}><Logo /></span>
-                          <span className="text-[12px] font-semibold text-[var(--text-primary)]">{co.name}</span>
-                          <span className="text-[11px] text-[var(--text-muted)]">selected · questions will reflect their interview style</span>
-                        </>
-                      );
-                    })()}
-                  </div>
+                    );
+                  })}
                 </div>
+              </div>
+              <div className="px-5 py-2.5 border-t border-[var(--border-subtle)] flex items-center gap-2" style={{ background: "var(--bg-elevated)" }}>
+                {(() => {
+                  const co = COMPANIES.find(c => c.name === company);
+                  if (!co) return null;
+                  const Logo = co.Logo;
+                  return <>
+                    <span className={`w-5 h-5 rounded flex items-center justify-center overflow-hidden flex-shrink-0 ${co.bg} ${co.logoColor ?? ""}`}><Logo /></span>
+                    <span className="text-[11px] font-semibold text-[var(--text-primary)]">{co.name}</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">· questions tailored to their interview style</span>
+                  </>;
+                })()}
+              </div>
+            </div>
 
-                {/* Role input */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] p-5" style={{ background: "var(--bg-surface)" }}>
-                  <label className="block text-[13px] font-bold text-[var(--text-primary)] mb-1">Target Role</label>
-                  <p className="text-[11px] text-[var(--text-muted)] mb-3">Questions are matched to this exact role at your chosen company</p>
-                  <input
-                    list="roles-list"
-                    value={role}
-                    onChange={e => setRole(e.target.value)}
-                    placeholder="e.g. Software Engineer, Product Manager…"
-                    className="w-full px-4 py-3 rounded-xl text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-colors"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
-                    onFocus={e => (e.currentTarget.style.borderColor = "#C05800")}
-                    onBlur={e => (e.currentTarget.style.borderColor = "var(--border-default)")}
-                  />
-                  <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
-                </div>
+            {/* ── Row 2: Role + Experience + Type ── */}
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-start">
 
-                {/* How it works */}
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { Icon: Target,      title: "Personalised",    desc: "Questions pulled directly from your resume and the company's interview style" },
-                    { Icon: Mic,         title: "Voice-driven",    desc: "AI reads the question aloud — mic opens automatically when it's your turn" },
-                    { Icon: Clock,       title: "60s think time",  desc: "A countdown lets you plan your STAR answer before you start speaking" },
-                    { Icon: TrendingUp,  title: "Live scoring",    desc: "Instant AI feedback after every answer with strengths and improvements" },
-                  ].map(({ Icon, title, desc }) => (
-                    <div key={title} className="flex items-start gap-3 p-4 rounded-xl border border-[var(--border-subtle)]" style={{ background: "var(--bg-surface)" }}>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(192,88,0,0.1)", border: "1px solid rgba(192,88,0,0.2)" }}>
-                        <Icon className="w-3.5 h-3.5" style={{ color: "#C05800" }} />
-                      </div>
-                      <div>
-                        <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">{title}</div>
-                        <div className="text-[11px] text-[var(--text-muted)] leading-relaxed">{desc}</div>
-                      </div>
-                    </div>
+              {/* Role */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                <label className="block text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Target Role</label>
+                <input list="roles-list" value={role} onChange={e => setRole(e.target.value)}
+                  placeholder="e.g. Software Engineer, Product Manager…"
+                  className="w-full px-3.5 py-2.5 rounded-xl text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-colors"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+                  onFocus={e => (e.currentTarget.style.borderColor = "#C05800")}
+                  onBlur={e => (e.currentTarget.style.borderColor = "var(--border-default)")}
+                />
+                <datalist id="roles-list">{ROLES.map(r => <option key={r} value={r} />)}</datalist>
+              </div>
+
+              {/* Experience */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] p-4 min-w-[180px]" style={{ background: "var(--bg-surface)" }}>
+                <div className="text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Experience</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {EXPERIENCE_LEVELS.map(l => (
+                    <button key={l.value} onClick={() => setExpLevel(l.value)}
+                      className="px-2.5 py-2 rounded-xl text-left border transition-all"
+                      style={expLevel === l.value
+                        ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
+                        : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+                    >
+                      <div className="text-sm mb-0.5">{l.icon}</div>
+                      <div className={`text-[10px] font-semibold leading-tight ${expLevel === l.value ? "text-[#d4aa30]" : "text-[var(--text-muted)]"}`}>{l.label}</div>
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {/* ── RIGHT: Config + CTA ── */}
-              <div className="space-y-3">
+              {/* Interview type */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] p-4 min-w-[190px]" style={{ background: "var(--bg-surface)" }}>
+                <div className="text-[12px] font-bold text-[var(--text-primary)] mb-2.5">Interview type</div>
+                <div className="space-y-1.5">
+                  {INTERVIEW_TYPES.map(t => (
+                    <button key={t.value} onClick={() => setIType(t.value)}
+                      className="w-full px-3 py-2 rounded-xl text-left border transition-all flex items-center gap-2.5"
+                      style={iType === t.value
+                        ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
+                        : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+                    >
+                      <span className="text-base">{t.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-[11px] font-semibold ${iType === t.value ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] truncate">{t.desc}</div>
+                      </div>
+                      {iType === t.value && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#C05800" }} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-                {/* Experience */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                  <div className="text-[12px] font-bold text-[var(--text-primary)] mb-3">Experience level</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {EXPERIENCE_LEVELS.map(l => (
-                      <button key={l.value} onClick={() => setExpLevel(l.value)}
-                        className={`px-3 py-2.5 rounded-xl text-[12px] font-medium border transition-all text-left ${
-                          expLevel === l.value
-                            ? "text-[var(--accent-hover)]"
-                            : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--border-default)] hover:text-[var(--text-secondary)]"
-                        }`}
-                        style={expLevel === l.value ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
+            {/* ── Row 3: Q count + Voice + CTA ── */}
+            <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_200px] gap-3 items-end">
+
+              {/* Q count */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[12px] font-bold text-[var(--text-primary)]">Questions</div>
+                  <span className="text-[22px] font-black tabular-nums leading-none" style={{ color: "#C05800" }}>{numQ}</span>
+                </div>
+                <input type="range" min={3} max={10} step={1} value={numQ}
+                  onChange={e => setNumQ(Number(e.target.value))}
+                  className="w-full accent-[#C05800]" />
+                <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-1.5">
+                  <span>3 quick</span>
+                  <span style={{ color: "#C05800" }}>~{numQ * 5} min</span>
+                  <span>10 deep</span>
+                </div>
+              </div>
+
+              {/* Voice */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[12px] font-bold text-[var(--text-primary)]">Interviewer voice</div>
+                  <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
+                    <button onClick={() => setUseElevenLabs(false)}
+                      className="px-3 py-1.5 font-semibold transition-colors"
+                      style={!useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
+                      Free
+                    </button>
+                    <button onClick={() => { if (!hasVoiceCredits) { setShowBuyVoice(true); return; } setUseElevenLabs(true); }}
+                      className="px-3 py-1.5 font-semibold transition-colors"
+                      style={useElevenLabs ? { background: "#C05800", color: "white" } : { color: "var(--text-muted)" }}>
+                      ✦ ElevenLabs{!hasVoiceCredits && mounted ? " ₹149" : ""}
+                    </button>
+                  </div>
+                </div>
+
+                {!useElevenLabs && (
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {browserVoices.map(v => (
+                      <div key={v.name} onClick={() => setSelectedBrowserVoice(v.name)}
+                        className="p-2 rounded-xl border cursor-pointer transition-all text-center"
+                        style={selectedBrowserVoice === v.name
+                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
+                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                       >
-                        <div className="text-base mb-0.5">{l.icon}</div>
-                        <div className="text-[11px] leading-tight">{l.label}</div>
-                      </button>
+                        <div className={`text-[11px] font-semibold truncate mb-1 ${selectedBrowserVoice === v.name ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>
+                          {v.name.split(" ")[0]}
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
+                          className="text-[9px] px-1.5 py-0.5 rounded-full border transition-colors"
+                          style={previewing === v.name
+                            ? { background: "#C05800", color: "white", borderColor: "transparent" }
+                            : { borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                          {previewing === v.name ? "■" : "▶"}
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </div>
+                )}
 
-                {/* Interview type */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                  <div className="text-[12px] font-bold text-[var(--text-primary)] mb-3">Interview type</div>
-                  <div className="space-y-2">
-                    {INTERVIEW_TYPES.map(t => (
-                      <button key={t.value} onClick={() => setIType(t.value)}
-                        className={`w-full p-3 rounded-xl text-left border transition-all flex items-center gap-3 ${
-                          iType === t.value
-                            ? "text-[var(--accent-hover)]"
-                            : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
-                        }`}
-                        style={iType === t.value ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
+                {useElevenLabs && !ttsAvail && (
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to backend env to enable HD voices.
+                  </p>
+                )}
+                {useElevenLabs && ttsAvail && (
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {elVoices.map(v => (
+                      <div key={v.id} onClick={() => setSelectedElVoice(v.id)}
+                        className="p-2 rounded-xl border cursor-pointer transition-all text-center"
+                        style={selectedElVoice === v.id
+                          ? { background: "rgba(192,88,0,0.08)", borderColor: "rgba(192,88,0,0.35)" }
+                          : { background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                       >
-                        <span className="text-lg">{t.icon}</span>
-                        <div className="flex-1">
-                          <div className={`text-[12px] font-semibold ${iType === t.value ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{t.label}</div>
-                          <div className="text-[10px] text-[var(--text-muted)]">{t.desc}</div>
-                        </div>
-                        {iType === t.value && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#C05800" }} />}
-                      </button>
+                        <div className={`text-[11px] font-semibold truncate mb-0.5 ${selectedElVoice === v.id ? "text-[#d4aa30]" : "text-[var(--text-primary)]"}`}>{v.name}</div>
+                        <div className="text-[9px] text-[var(--text-muted)] truncate mb-1">{v.desc.split("·")[0].trim()}</div>
+                        <button onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
+                          className="text-[9px] px-1.5 py-0.5 rounded-full border transition-colors"
+                          style={previewing === v.id
+                            ? { background: "#C05800", color: "white", borderColor: "transparent" }
+                            : { borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                          {previewing === v.id ? "■" : "▶"}
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Question count */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-[12px] font-bold text-[var(--text-primary)]">Number of questions</div>
-                    <span className="text-[18px] font-black tabular-nums" style={{ color: "#C05800" }}>{numQ}</span>
-                  </div>
-                  <input type="range" min={3} max={10} step={1} value={numQ}
-                    onChange={e => setNumQ(Number(e.target.value))}
-                    className="w-full accent-[#C05800] h-1.5 rounded-full" />
-                  <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-2">
-                    <span>3 — Quick</span>
-                    <span className="text-center">{numQ <= 5 ? "~" + numQ * 5 + " min" : "~" + numQ * 5 + " min"}</span>
-                    <span>10 — Thorough</span>
-                  </div>
-                </div>
-
-                {/* Voice picker */}
-                <div className="rounded-2xl border border-[var(--border-subtle)] p-4" style={{ background: "var(--bg-surface)" }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-[12px] font-bold text-[var(--text-primary)]">Interviewer voice</div>
-                    <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)] text-[11px]">
-                      <button onClick={() => setUseElevenLabs(false)}
-                        className={`px-3 py-1.5 font-semibold transition-colors ${!useElevenLabs ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                        style={!useElevenLabs ? { background: "#C05800" } : {}}>
-                        Free
-                      </button>
-                      <button
-                        onClick={() => { if (!hasVoiceCredits) { setShowBuyVoice(true); return; } setUseElevenLabs(true); }}
-                        className={`px-3 py-1.5 font-semibold transition-colors ${useElevenLabs ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}
-                        style={useElevenLabs ? { background: "#C05800" } : {}}>
-                        ✦ ElevenLabs{!hasVoiceCredits && mounted ? " ₹149" : ""}
-                      </button>
-                    </div>
-                  </div>
-
-                  {!useElevenLabs && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {browserVoices.map(v => (
-                        <div key={v.name} onClick={() => setSelectedBrowserVoice(v.name)}
-                          className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedBrowserVoice === v.name ? "" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}
-                          style={selectedBrowserVoice === v.name ? { background: "rgba(192,88,0,0.07)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
-                        >
-                          <div className={`text-[12px] font-semibold truncate ${selectedBrowserVoice === v.name ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{v.name.split(" ")[0]}</div>
-                          <div className="text-[10px] text-[var(--text-muted)] truncate mb-1.5">{v.lang}</div>
-                          <button onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${previewing === v.name ? "text-white border-transparent" : "border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
-                            style={previewing === v.name ? { background: "#C05800" } : {}}>
-                            {previewing === v.name ? "■ Stop" : "▶ Preview"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {useElevenLabs && !ttsAvail && (
-                    <div className="p-3 rounded-xl border border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)]" style={{ background: "var(--bg-elevated)" }}>
-                      ElevenLabs API key not configured. Add <code style={{ color: "#C05800" }}>ELEVENLABS_API_KEY</code> to enable HD voices.
-                    </div>
-                  )}
-                  {useElevenLabs && ttsAvail && (
-                    <div className="space-y-3">
-                      {(["F", "M"] as const).map(gender => (
-                        <div key={gender}>
-                          <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">{gender === "F" ? "Female" : "Male"}</div>
-                          <div className="grid grid-cols-3 gap-2">
-                            {elVoices.filter(v => v.gender === gender).map(v => (
-                              <div key={v.id} onClick={() => setSelectedElVoice(v.id)}
-                                className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedElVoice === v.id ? "" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}
-                                style={selectedElVoice === v.id ? { background: "rgba(192,88,0,0.07)", borderColor: "rgba(192,88,0,0.35)" } : { background: "var(--bg-elevated)" }}
-                              >
-                                <div className={`text-[12px] font-semibold mb-0.5 ${selectedElVoice === v.id ? "text-[var(--accent-hover)]" : "text-[var(--text-primary)]"}`}>{v.name}</div>
-                                <div className="text-[10px] text-[var(--text-muted)] leading-tight mb-1.5">{v.desc}</div>
-                                <button onClick={e => { e.stopPropagation(); previewVoice(v.id); }}
-                                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${previewing === v.id ? "text-white border-transparent" : "border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
-                                  style={previewing === v.id ? { background: "#C05800" } : {}}>
-                                  {previewing === v.id ? "■ Stop" : "▶ Hear"}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* CTA */}
-                <button
-                  onClick={startInterview}
-                  disabled={!role.trim()}
-                  className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 py-4 rounded-2xl text-white font-bold text-[15px] transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
-                  style={{ background: role.trim() ? "linear-gradient(135deg,#C05800 0%,#713600 100%)" : "var(--bg-elevated)", boxShadow: role.trim() ? "0 8px 32px rgba(192,88,0,0.3), 0 2px 8px rgba(0,0,0,0.4)" : "none" }}
+              {/* CTA */}
+              <div className="space-y-2">
+                <button onClick={startInterview} disabled={!role.trim()}
+                  className="w-full relative overflow-hidden flex items-center justify-center gap-2 py-4 rounded-2xl text-white font-bold text-[14px] transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
+                  style={{ background: role.trim() ? "linear-gradient(135deg,#C05800 0%,#713600 100%)" : "var(--bg-elevated)", boxShadow: role.trim() ? "0 8px 24px rgba(192,88,0,0.35)" : "none" }}
                 >
-                  {/* Shimmer on hover */}
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%)" }} />
+                    style={{ background: "linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.08) 50%,transparent 60%)" }} />
                   {mounted && !canStartInterview
                     ? <><Lock className="w-4 h-4" /> Buy Session · ₹149</>
-                    : <><Maximize2 className="w-4 h-4" /> Start Interview<ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" /></>
+                    : <><Maximize2 className="w-4 h-4" /> Start Interview <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" /></>
                   }
                 </button>
-
-                <p className="text-[10px] text-center text-[var(--text-muted)]">Enters fullscreen · mic access required</p>
+                <p className="text-[10px] text-center text-[var(--text-muted)]">Fullscreen · mic required</p>
               </div>
             </div>
           </motion.div>
