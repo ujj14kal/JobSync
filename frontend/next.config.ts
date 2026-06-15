@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  typescript: { ignoreBuildErrors: true },
+  typescript: { ignoreBuildErrors: false },
 
   // ── Static-asset caching (production only) ────────────────────────────────
   // Next.js hashes /_next/static/* filenames in production builds — immutable

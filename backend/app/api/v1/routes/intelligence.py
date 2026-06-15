@@ -237,17 +237,30 @@ async def hybrid_job_search(
         if not keywords:
             keywords = "software engineer"
 
-        # Run hybrid search via SQL function
-        result = supabase.rpc(
-            "find_matching_jobs",
-            {
-                "resume_embedding": resume_embedding,
-                "keyword_query": keywords,
-                "limit_n": request.limit,
-                "vector_weight": 0.65,
-                "keyword_weight": 0.35,
-            }
-        ).execute()
+        # If resume has no embedding (e.g. the embedding model failed at upload time),
+        # fall back to keyword-only search by zeroing the vector weight.
+        if resume_embedding is None:
+            result = supabase.rpc(
+                "find_matching_jobs",
+                {
+                    "resume_embedding": [0.0] * 384,
+                    "keyword_query": keywords,
+                    "limit_n": request.limit,
+                    "vector_weight": 0.0,
+                    "keyword_weight": 1.0,
+                }
+            ).execute()
+        else:
+            result = supabase.rpc(
+                "find_matching_jobs",
+                {
+                    "resume_embedding": resume_embedding,
+                    "keyword_query": keywords,
+                    "limit_n": request.limit,
+                    "vector_weight": 0.65,
+                    "keyword_weight": 0.35,
+                }
+            ).execute()
 
         return {
             "success": True,

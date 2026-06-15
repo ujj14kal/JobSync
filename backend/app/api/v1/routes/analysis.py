@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.core.security import get_current_user_id
@@ -283,8 +286,13 @@ async def run_analysis(
         use_claude = is_pro or ats_credits > 0
 
         if use_claude and not is_pro:
-            # Consume one ats_deep credit atomically before calling Claude
-            await consume_credit(user_id, "ats_deep")
+            # Consume one ats_deep credit atomically before calling Claude.
+            # If the RPC fails (network/DB error) we fall back to Groq so the
+            # user doesn't receive Claude feedback without a credit being deducted.
+            consumed = await consume_credit(user_id, "ats_deep")
+            if not consumed:
+                logger.warning("consume_credit failed for user %s — falling back to Groq", user_id)
+                use_claude = False
 
         feedback_model = "claude-sonnet" if use_claude else "groq"
 
@@ -370,6 +378,7 @@ async def run_analysis(
         supabase.table("analyses").update(update_data).eq("id", analysis_id).execute()
 
     except Exception as e:
+        logger.exception("run_analysis failed for analysis_id=%s user=%s", analysis_id, user_id)
         supabase.table("analyses").update({
             "status": "failed",
             "error_message": str(e)[:500],
