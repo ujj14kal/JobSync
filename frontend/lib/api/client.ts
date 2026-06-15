@@ -32,6 +32,16 @@ export class CreditWarningError extends Error {
   }
 }
 
+// Custom error class that preserves the HTTP status code
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -80,6 +90,6 @@ apiClient.interceptors.response.use(
       error.message ||
       "An unexpected error occurred";
 
-    return Promise.reject(new Error(message));
+    return Promise.reject(new ApiError(message, error.response.status));
   }
 );

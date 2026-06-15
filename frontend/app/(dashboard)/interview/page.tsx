@@ -1027,9 +1027,10 @@ export default function InterviewPage() {
       setAnalysisReady(true);
     } catch (err: unknown) {
       setPhase("setup");
-      const status = (err as { response?: { status?: number; data?: { detail?: string } } })?.response?.status;
-      if (status === 402) {
-        toast.error("No interview credits remaining — buy a session to continue.", { duration: 6000 });
+      const httpStatus = (err as { status?: number })?.status;
+      if (httpStatus === 402) {
+        const detail = err instanceof Error ? err.message : "No interview credits remaining.";
+        toast.error(detail, { duration: 6000 });
         refetchStatus();
         setShowBuySession(true);
       } else {
