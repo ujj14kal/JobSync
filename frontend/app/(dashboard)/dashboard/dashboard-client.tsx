@@ -59,10 +59,11 @@ const tooltipStyle = {
 function ScoreTrendChart({ analyses }: { analyses: { created_at: string; scores: { overall_score: number } }[] }) {
   const data = [...analyses]
     .reverse()
+    .filter((a) => (a.scores?.overall_score ?? 0) > 0)
     .slice(-8)
     .map((a) => ({
       date: new Date(a.created_at).toLocaleDateString("en", { month: "short", day: "numeric" }),
-      score: a.scores?.overall_score ?? 0,
+      score: a.scores.overall_score,
     }));
 
   if (data.length < 2) return null;
