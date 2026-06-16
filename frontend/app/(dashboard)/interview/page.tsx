@@ -596,6 +596,7 @@ export default function InterviewPage() {
   const [companyInfo,  setCompanyInfo]  = useState<{ name: string; style: string; focus: string[] } | null>(null);
   const [resumeLoaded, setResumeLoaded] = useState(false);
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null);
+  const [elevenLabsRetryUsed, setElevenLabsRetryUsed] = useState(false);
 
   const [thinkSecs,  setThinkSecs]  = useState(THINK_SECONDS);
   const thinkIntRef  = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -1251,6 +1252,7 @@ export default function InterviewPage() {
     setAllFeedback([]);
     setAllAnswers([]);
     setReport(null);
+    setElevenLabsRetryUsed(false);
     setFeedback(null);
     setAnswer("");
     setPendingFollowUp(null);
@@ -2190,20 +2192,23 @@ export default function InterviewPage() {
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
                 <RotateCcw className="w-3.5 h-3.5" /> New Interview
               </button>
-              <button onClick={() => {
-                if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                  window.speechSynthesis.cancel();
-                  const unlock = new SpeechSynthesisUtterance(' ');
-                  unlock.volume = 0;
-                  window.speechSynthesis.speak(unlock);
-                }
-                setQIndex(0); setAllFeedback([]); setAllAnswers([]); setReport(null); setFeedback(null); setAnswer("");
-                setPendingFollowUp(null); setSessionMode("ready"); setPhase("session");
-                setTimeout(() => { if (questions[0]?.question) queueQuestionPlayback(); else startThinkTime(); }, 250);
-              }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white text-[13px] font-semibold transition-all">
-                <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
-              </button>
+              {(!useElevenLabs || !elevenLabsRetryUsed) && (
+                <button onClick={() => {
+                  if (useElevenLabs) setElevenLabsRetryUsed(true);
+                  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                    window.speechSynthesis.cancel();
+                    const unlock = new SpeechSynthesisUtterance(' ');
+                    unlock.volume = 0;
+                    window.speechSynthesis.speak(unlock);
+                  }
+                  setQIndex(0); setAllFeedback([]); setAllAnswers([]); setReport(null); setFeedback(null); setAnswer("");
+                  setPendingFollowUp(null); setSessionMode("ready"); setPhase("session");
+                  setTimeout(() => { if (questions[0]?.question) queueQuestionPlayback(); else startThinkTime(); }, 250);
+                }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white text-[13px] font-semibold transition-all">
+                  <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
+                </button>
+              )}
             </div>
 
             <FeedbackBanner feature="interview" />
