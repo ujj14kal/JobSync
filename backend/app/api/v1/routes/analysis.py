@@ -224,6 +224,22 @@ async def run_analysis(
         parsed_resume = resume_data.get("parsed_data", {})
         parsed_job = job_data.get("parsed_data", {})
 
+        # ── Validate document looks like a resume ─────────────────────────────
+        resume_lower = resume_text.lower()
+        _resume_signals = sum([
+            any(w in resume_lower for w in ["experience", "work history", "employment"]),
+            any(w in resume_lower for w in ["education", "degree", "university", "bachelor", "master"]),
+            any(w in resume_lower for w in ["skills", "technologies", "proficiency"]),
+            any(w in resume_lower for w in ["projects", "github", "portfolio"]),
+            any(w in resume_lower for w in ["@", "linkedin", "phone", "email"]),
+        ])
+        if _resume_signals < 2:
+            supabase.table("analyses").update({
+                "status": "failed",
+                "error_message": "The uploaded document does not appear to be a resume. Please upload a resume or CV.",
+            }).eq("id", analysis_id).execute()
+            return
+
         # ── Parse cached embeddings (pgvector returns strings) ────────────────
         def _parse_embedding(val) -> list[float] | None:
             if not val:
