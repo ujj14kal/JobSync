@@ -449,31 +449,13 @@ async def scrape_url_with_httpx(url: str) -> Optional[str]:
     return None
 
 
-# Domains that are full SPAs — need networkidle to finish loading job content
-_SPA_DOMAINS = {
-    "careers.microsoft.com", "apply.careers.microsoft.com",
-    "careers.google.com", "hire.withgoogle.com",
-    "metacareers.com",
-    "amazon.jobs",
-    "jobs.apple.com",
-    "myworkdayjobs.com",   # covers *.myworkdayjobs.com via endswith check below
-    "icims.com",
-    "successfactors.com", "successfactors.eu",
-    "smartrecruiters.com",
-    "jobs.spotify.com",
-    # Company career portals (JS SPAs)
-    "careers.honeywell.com",
-    "jobs.siemens.com",
-    "careers.ge.com",
-    "careers.boeing.com",
-    "careers.3m.com",
-}
 
 
 async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[str]:
     """
-    Full Playwright scrape with stealth mode — bypasses bot detection on Indeed,
-    Glassdoor, Workday, and company career portals.
+    Full Playwright scrape with stealth mode — always waits for networkidle so
+    JS SPAs (Workday, Honeywell, iCIMS, SuccessFactors, etc.) fully render.
+    No domain list needed — networkidle works universally.
     """
     try:
         from playwright.async_api import async_playwright
@@ -482,14 +464,6 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
             _stealth_available = True
         except ImportError:
             _stealth_available = False
-
-        # SPA portals need networkidle to finish API-driven content loading
-        host = urlparse(url).netloc.lower().lstrip("www.")
-        is_spa = any(host == d or host.endswith("." + d) for d in _SPA_DOMAINS)
-        # Also treat any Workday-hosted domain as SPA
-        if not is_spa and "myworkdayjobs.com" in host:
-            is_spa = True
-        wait_until = "networkidle" if is_spa else "domcontentloaded"
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -531,7 +505,7 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
             )
 
             try:
-                await page.goto(url, wait_until=wait_until, timeout=timeout * 1000)
+                await page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
 
                 # Wait up to 5s for the job description to appear
                 desc_selectors = [
@@ -583,169 +557,15 @@ async def scrape_url_with_playwright(url: str, timeout: int = 35) -> Optional[st
 
 # ─── Content Extraction from HTML ────────────────────────────────────────────
 
-# Platform-specific selector lists (ordered by specificity)
-_SELECTORS: dict[str, list[str]] = {
-    "linkedin.com": [
-        "div.jobs-description__content",
-        "div.jobs-box__html-content",
-        "section.description__text",
-        "div.show-more-less-html__markup",
-        "div[class*='jobs-description']",
-        "div.description__text",
-    ],
-    "indeed.com": [
-        "div#jobDescriptionText",
-        "div.jobsearch-jobDescriptionText",
-        "div[data-testid='jobsearch-jobDescriptionText']",
-        "div.job_seen_beacon",
-    ],
-    "greenhouse.io": [
-        "div#content",
-        "div.job-post-description",
-        "div.job__description",
-        "div[class*='job-description']",
-    ],
-    "lever.co": [
-        "div.section-wrapper",
-        "div.content",
-        "div[class*='posting-description']",
-    ],
-    "myworkdayjobs.com": [
-        "div[data-automation-id='jobPostingDescription']",
-        "div[class*='job-description']",
-    ],
-    "smartrecruiters.com": [
-        "div.job-description",
-        "section[class*='description']",
-    ],
-    "ashbyhq.com": [
-        "div[class*='ashby-job-posting']",
-        "div.prose",
-        "div[class*='description']",
-    ],
-    "naukri.com": [
-        "div.job-desc",
-        "div[class*='job-description']",
-        "section.job-desc",
-    ],
-    "careers.microsoft.com": [
-        "div[class*='job-description']",
-        "div[class*='jobDescription']",
-        "section[class*='description']",
-        "div[data-automationid='jobDescription']",
-        "div[class*='ms-DocumentCard']",
-        "div[class*='description']",
-        "main",
-    ],
-    # apply.careers.microsoft.com — the job apply/listing SPA
-    "apply.careers.microsoft.com": [
-        "div#job-description-container",
-        "div[class*='job-description']",
-        "div[class*='jobDescription']",
-        "div[data-ph-at-id='job-description']",
-        "section[class*='description']",
-        "div[class*='description']",
-        "main",
-    ],
-    "unstop.com": [
-        "div.opportunity-details",
-        "div[class*='description']",
-    ],
-    # iCIMS
-    "icims.com": [
-        "div.iCIMS_JobContent",
-        "div#iCIMS_Content",
-        "div[class*='iCIMS']",
-        "div[class*='job-description']",
-    ],
-    # SAP SuccessFactors
-    "successfactors.com": [
-        "div.jobDescription",
-        "div[class*='jobDescription']",
-        "section[class*='job-description']",
-        "div[data-bind*='jobDescription']",
-    ],
-    "successfactors.eu": [
-        "div.jobDescription",
-        "div[class*='jobDescription']",
-    ],
-    # Taleo
-    "taleo.net": [
-        "div#requisitionDescriptionInterface",
-        "div.requisitionDescription",
-        "div[class*='description']",
-    ],
-    # Workday (all subdomains via myworkdayjobs.com)
-    "myworkdayjobs.com": [
-        "div[data-automation-id='jobPostingDescription']",
-        "div[data-automation-id='job-posting-description']",
-        "div[class*='job-description']",
-        "section[data-automation-id='jobReqDescription']",
-    ],
-    # Meta Careers
-    "metacareers.com": [
-        "div[data-testid='job-description']",
-        "div._8muv",
-        "div[class*='job-description']",
-        "section[class*='description']",
-        "div._9ata",
-    ],
-    # Apple Jobs
-    "jobs.apple.com": [
-        "div.content-copy",
-        "section.job-description",
-        "div[class*='job-description']",
-        "div[id*='job-description']",
-        "div.accordion__content",
-    ],
-    # Amazon Jobs
-    "amazon.jobs": [
-        "div.job-description",
-        "section[class*='description']",
-        "div[class*='job-details']",
-        "div#job-detail",
-    ],
-    # Jobvite
-    "jobvite.com": [
-        "div.jobdescription",
-        "div#jobdescription",
-        "div[class*='description']",
-    ],
-    # BambooHR
-    "bamboohr.com": [
-        "div.BambooHR-ATS-body",
-        "div[class*='description']",
-        "section[class*='job']",
-    ],
-    # Greenhouse short links & EU board
-    "grnh.se": [
-        "div#content",
-        "div.job-post-description",
-    ],
-    # Spotify
-    "jobs.spotify.com": [
-        "div[class*='job-description']",
-        "section[class*='description']",
-        "div[data-testid='job-description']",
-    ],
-    # Salesforce (Workday-based)
-    "salesforce.wd12.myworkdayjobs.com": [
-        "div[data-automation-id='jobPostingDescription']",
-    ],
-    # Honeywell careers portal
-    "careers.honeywell.com": [
-        "div[class*='job-description']",
-        "div[class*='jobDescription']",
-        "div[class*='description']",
-        "section[class*='job']",
-        "div[data-ph-at-id='job-description']",
-        "div.job-details",
-        "div#job-details",
-        "main",
-    ],
-}
-
 _GENERIC_SELECTORS = [
+    # Semantic job-description containers (works across most ATS platforms)
+    "[data-automation-id='jobPostingDescription']",   # Workday
+    "[data-automation='jobAdDetails']",               # Seek
+    "div.iCIMS_JobContent",                           # iCIMS
+    "div#jobDescriptionText",                         # Indeed
+    "div.jobs-description__content",                  # LinkedIn
+    "div.show-more-less-html__markup",                # LinkedIn guest API
+    "div.job-post-description",                       # Greenhouse
     "div[class*='job-description']",
     "div[id*='job-description']",
     "div[class*='jobDescription']",
@@ -760,41 +580,28 @@ _GENERIC_SELECTORS = [
 
 def extract_job_content_from_html(html: str, url: str) -> Optional[str]:
     """
-    Extract the job description text from HTML.
-    Uses platform-specific selectors first, then generic fallback.
-    Returns cleaned text or None.
+    Extract job description text from HTML using generic selectors only.
+    No hardcoded domain lists — falls back to the largest text block.
     """
     soup = BeautifulSoup(html, "lxml")
 
-    # Remove noise elements
     for tag in soup.find_all([
         "script", "style", "nav", "header", "footer", "iframe",
         "noscript", "aside", "form", "svg",
     ]):
         tag.decompose()
 
-    # Pick selector list for this platform
-    domain = urlparse(url).netloc.lower()
-    selectors: list[str] = []
-    for platform, sels in _SELECTORS.items():
-        if platform in domain:
-            selectors = sels + _GENERIC_SELECTORS
-            break
-    if not selectors:
-        selectors = _GENERIC_SELECTORS
-
-    for selector in selectors:
+    for selector in _GENERIC_SELECTORS:
         try:
             el = soup.select_one(selector)
         except Exception:
             continue
         if el:
             text = el.get_text(separator="\n", strip=True)
-            # Require substantial content
             if len(text) > 300:
                 return _clean_text(text)
 
-    # Fallback: find the single div with the most text
+    # Final fallback: the single element with the most text content
     all_divs = soup.find_all(["div", "section", "article"])
     if all_divs:
         best = max(all_divs, key=lambda d: len(d.get_text()), default=None)
@@ -1075,48 +882,42 @@ async def search_and_scrape_job(
                     return content, meta
             return None
 
+        # Stage 1: fast no-JS scrapers in parallel (LinkedIn API, httpx, Jina, Firecrawl)
+        # Playwright is heavy — only run it if the fast stage misses.
         try:
-            results = await asyncio.wait_for(
+            fast_results = await asyncio.wait_for(
                 asyncio.gather(
                     _try_linkedin(),
                     _try_httpx(),
                     _try_jina(),
                     _try_firecrawl(),
-                    _try_playwright(),
                     return_exceptions=True,
                 ),
-                timeout=30.0,
+                timeout=25.0,
             )
         except asyncio.TimeoutError:
-            results = [None, None, None, None, None]
+            fast_results = [None, None, None, None]
 
-        for res in results:
-            if res and not isinstance(res, Exception):
-                if isinstance(res, tuple):
-                    raw_text, metadata = res
-                else:
-                    raw_text, metadata = res if isinstance(res, tuple) else (None, {})
+        for res in fast_results:
+            if res and not isinstance(res, Exception) and isinstance(res, tuple):
+                raw_text, metadata = res
                 if raw_text:
                     source_url = url
-                    logger.info("Scrape success", strategy="parallel-race", chars=len(raw_text))
+                    logger.info("Scrape success (fast stage)", chars=len(raw_text))
                     break
 
-        # Sequential fallbacks if parallel race came up empty
+        # Stage 2: Playwright with networkidle — handles any JS SPA universally
         if not raw_text:
-            logger.info("Parallel race missed — trying sequential fallbacks", url=url)
-            for fallback_fn, label in [
-                (lambda: scrape_url_with_jina(url), "Jina-retry"),
-                (lambda: scrape_url_with_firecrawl(url), "Firecrawl-retry"),
-            ]:
-                try:
-                    result = await fallback_fn()
-                    if result:
-                        raw_text, metadata = result
+            logger.info("Fast stage missed — launching Playwright (networkidle)", url=url)
+            try:
+                res = await _try_playwright()
+                if res and isinstance(res, tuple):
+                    raw_text, metadata = res
+                    if raw_text:
                         source_url = url
-                        logger.info(f"{label} succeeded", chars=len(raw_text))
-                        break
-                except Exception:
-                    pass
+                        logger.info("Scrape success (Playwright)", chars=len(raw_text))
+            except Exception:
+                pass
 
         if not raw_text:
             logger.warning("All URL strategies failed", url=url)
