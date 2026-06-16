@@ -68,27 +68,27 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
     # Plan IDs created once in Razorpay dashboard:
-    RAZORPAY_PLAN_MONTHLY: str = ""   # ₹299/month
-    RAZORPAY_PLAN_YEARLY: str = ""    # ₹2499/year
+    RAZORPAY_PLAN_MONTHLY: str = ""   # ₹449/month
+    RAZORPAY_PLAN_YEARLY: str = ""    # ₹3599/year
 
     # INR/USD rate for cost tracking
     USD_TO_INR: float = 83.5
 
     # Pro tier monthly limits (enforced server-side)
-    # Cost breakdown per Pro user worst-case (₹299/month revenue):
-    #   Resume × 8  : Claude Sonnet ~₹44  (8 × 4K output + 2K input)
-    #   Chat 50K tok: Claude Sonnet ~₹25.00
-    #   Voice: credit-only purchase at ₹149/session (ElevenLabs upgrade only)
-    #   Interviews : Groq = ₹0.00 (free tier, browser audio default)
-    #   ATS × 20   : Groq = ₹0.00 (free tier)
+    # Cost breakdown per Pro user worst-case (₹449/month revenue):
+    #   ATS × 15    : Claude Sonnet ~₹28  (15 × ~1K input + 600 output)
+    #   Resume × 8  : Claude Sonnet ~₹16  (8 × 2K input + 1.5K output)
+    #   Interviews×8: Claude Sonnet ~₹14  (8 × 3.5K input + 2.8K output)
+    #   Chat 50K tok: Claude Sonnet ~₹33
+    #   Voice: credit-only (ElevenLabs upgrade, not included here)
     #   ─────────────────────────────────────────────────────
-    #   Total worst-case AI cost (Claude only): ~₹132  →  margin ~56% on ₹299
-    PRO_MONTHLY_ATS: int = 20           # Groq → free; fair-use cap
-    PRO_MONTHLY_RESUMES: int = 8        # Claude → ~₹44 total worst-case
+    #   Total worst-case AI cost: ~₹91  →  margin ~80% on ₹449 (before Razorpay 2%)
+    PRO_MONTHLY_ATS: int = 15           # Claude Sonnet → ~₹28 total worst-case
+    PRO_MONTHLY_RESUMES: int = 8        # Claude Sonnet → ~₹16 total worst-case
     PRO_MONTHLY_COVERS: int = 5         # Groq → free
-    PRO_MONTHLY_INTERVIEWS: int = 10    # Groq → free; browser audio default
-    PRO_MONTHLY_VOICE: int = 0          # ElevenLabs voice = credit-only ₹149/session
-    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # Claude → ~₹25 worst-case (~35-40 msgs)
+    PRO_MONTHLY_INTERVIEWS: int = 8     # Claude Sonnet questions → ~₹14 worst-case
+    PRO_MONTHLY_VOICE: int = 0          # ElevenLabs voice = credit-only
+    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # Claude Sonnet → ~₹33 worst-case (~35-40 msgs)
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"

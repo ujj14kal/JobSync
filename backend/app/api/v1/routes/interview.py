@@ -140,10 +140,12 @@ async def start_interview(
     """Generate questions using the user's active resume as context."""
     body.num_questions = max(3, min(10, body.num_questions))
 
+    # ── Plan check (needed for both voice gate and question quality tier) ────────
+    plan = await get_user_plan(user_id)
+
     # ── Credit gate (ElevenLabs HD voice only) ────────────────────────────────
-    # Groq questions + browser TTS are always free. Credits only needed for HD.
+    # Groq/Claude questions + browser TTS are always free. Credits only needed for HD.
     if body.use_voice:
-        plan = await get_user_plan(user_id)
         if plan != "pro":
             credits = await get_user_credits(user_id, "interview_voice")
             if credits <= 0:
@@ -195,24 +197,51 @@ async def start_interview(
     )
 
     try:
-        raw = await groq_call(
-            model=settings.GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": INTERVIEW_SYSTEM},
-                {"role": "user",   "content": prompt_content},
-            ],
-            temperature=0.7,
-            max_tokens=2200,
-            json_mode=True,
-            use_cache=False,
-        )
+        model_used = "groq-llama"
+        if plan == "pro":
+            try:
+                from app.services.claude_client import claude_complete
+                raw = await claude_complete(
+                    user_id=user_id,
+                    feature="interview",
+                    system=INTERVIEW_SYSTEM,
+                    messages=[{"role": "user", "content": prompt_content}],
+                    max_tokens=2200,
+                )
+                model_used = "claude-sonnet"
+                logger.info("Interview questions generated via Claude for Pro user %s", user_id)
+            except Exception as claude_err:
+                logger.warning("Claude interview generation failed, falling back to Groq: %s", claude_err)
+                raw = await groq_call(
+                    model=settings.GROQ_MODEL,
+                    messages=[
+                        {"role": "system", "content": INTERVIEW_SYSTEM},
+                        {"role": "user",   "content": prompt_content},
+                    ],
+                    temperature=0.7,
+                    max_tokens=2200,
+                    json_mode=True,
+                    use_cache=False,
+                )
+        else:
+            raw = await groq_call(
+                model=settings.GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": INTERVIEW_SYSTEM},
+                    {"role": "user",   "content": prompt_content},
+                ],
+                temperature=0.7,
+                max_tokens=2200,
+                json_mode=True,
+                use_cache=False,
+            )
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
         return {
             "questions": questions[:body.num_questions],
             "role": body.role,
-            "_model": "groq-llama",
+            "_model": model_used,
         }
     except Exception as e:
         logger.error("Interview question generation failed", exc_info=e)
@@ -229,10 +258,12 @@ async def start_hirevue_interview(
     """Generate deeply personalised questions from the candidate's actual resume + target company."""
     body.num_questions = max(3, min(10, body.num_questions))
 
+    # ── Plan check (needed for both voice gate and question quality tier) ────────
+    plan = await get_user_plan(user_id)
+
     # ── Credit gate (ElevenLabs HD voice only) ────────────────────────────────
     # Groq questions + browser TTS are always free. Credits only needed for HD.
     if body.use_voice:
-        plan = await get_user_plan(user_id)
         if plan != "pro":
             credits = await get_user_credits(user_id, "interview_voice")
             if credits <= 0:
@@ -293,17 +324,46 @@ async def start_hirevue_interview(
     )
 
     try:
-        raw = await groq_call(
-            model=settings.GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": INTERVIEW_SYSTEM},
-                {"role": "user",   "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=2800,
-            json_mode=True,
-            use_cache=False,
-        )
+        model_used = "groq-llama"
+        if plan == "pro":
+            # Pro: Claude Sonnet for deeper, more personalised questions
+            try:
+                from app.services.claude_client import claude_complete
+                raw = await claude_complete(
+                    user_id=user_id,
+                    feature="interview",
+                    system=INTERVIEW_SYSTEM,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=2800,
+                )
+                model_used = "claude-sonnet"
+                logger.info("HireVue questions generated via Claude for Pro user %s", user_id)
+            except Exception as claude_err:
+                logger.warning("Claude interview generation failed, falling back to Groq: %s", claude_err)
+                raw = await groq_call(
+                    model=settings.GROQ_MODEL,
+                    messages=[
+                        {"role": "system", "content": INTERVIEW_SYSTEM},
+                        {"role": "user",   "content": prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=2800,
+                    json_mode=True,
+                    use_cache=False,
+                )
+        else:
+            raw = await groq_call(
+                model=settings.GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": INTERVIEW_SYSTEM},
+                    {"role": "user",   "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=2800,
+                json_mode=True,
+                use_cache=False,
+            )
+
         questions = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(questions, dict):
             questions = questions.get("questions") or list(questions.values())[0]
@@ -313,7 +373,7 @@ async def start_hirevue_interview(
             "role": body.role,
             "company": body.company,
             "resume_loaded": bool(resume_text),
-            "_model": "groq-llama",
+            "_model": model_used,
         }
     except Exception as e:
         logger.error("HireVue question generation failed", exc_info=e)

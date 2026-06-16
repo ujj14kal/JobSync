@@ -260,6 +260,7 @@ async def run_analysis(
             parsed_resume=parsed_resume,
             parsed_job=parsed_job,
             timeout=50.0,
+            user_id=user_id,
         )
 
         # Extract structured scores — int() ensures DB integer columns accept values

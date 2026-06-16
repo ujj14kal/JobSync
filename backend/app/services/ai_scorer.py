@@ -125,16 +125,23 @@ async def score_with_ai(
     job_text: str,
     parsed_resume: dict,
     parsed_job: dict,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """
-    Score resume vs JD — tries neural model first, Groq second, rules last.
+    Score resume vs JD.
 
-    Returns full score dict compatible with compute_all_scores output,
-    plus extra AI fields (reasoning, hire_recommendation, etc.).
+    Pro users:  Claude Sonnet → Neural → Groq → Rules
+    Free users: Neural → Groq → Rules
     """
     if not resume_text.strip() or not job_text.strip():
         logger.warning("Empty resume or job text — falling back to rules")
         return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+
+    # ── Tier 0 (Pro only): Claude Sonnet ──────────────────────────────────────
+    if user_id:
+        result = await _try_claude_scoring(resume_text, job_text, user_id)
+        if result:
+            return _post_process(result, resume_text, parsed_resume, parsed_job)
 
     # ── Tier 1: Custom Neural Model ────────────────────────────────────────────
     result = await _try_neural_scoring(resume_text, job_text, parsed_resume, parsed_job)
@@ -151,6 +158,45 @@ async def score_with_ai(
     # ── Tier 3: Rule-based engine ───────────────────────────────────────────────
     logger.warning("All AI scorers failed — using rule-based fallback")
     return await _rule_fallback(resume_text, job_text, parsed_resume, parsed_job)
+
+
+async def _try_claude_scoring(
+    resume_text: str,
+    job_text: str,
+    user_id: str,
+) -> dict | None:
+    """Claude Sonnet scoring for Pro users. Returns None if plan is free or call fails."""
+    try:
+        from app.services.claude_client import claude_complete, get_user_plan
+        plan = await get_user_plan(user_id)
+        if plan != "pro":
+            return None
+
+        prompt = _SCORING_PROMPT.format(
+            resume_text=resume_text[:3000],
+            job_text=job_text[:2000],
+        )
+        raw = await claude_complete(
+            user_id=user_id,
+            feature="ats_feedback",
+            system="You are a senior ATS scoring engine. Return only valid JSON — no markdown, no commentary.",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=900,
+            skip_quota_check=True,  # quota checked upstream in analysis route
+        )
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("```", 2)[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.rstrip("`").strip()
+        result = _parse_llm_response(text)
+        result["scored_by"] = "claude-sonnet"
+        logger.info("Claude ATS scoring succeeded", user_id=user_id)
+        return result
+    except Exception as e:
+        logger.warning("Claude ATS scoring failed (falling back to neural/groq)", error=str(e))
+        return None
 
 
 async def _try_neural_scoring(
@@ -546,11 +592,12 @@ async def score_with_ai_timeout(
     parsed_resume: dict,
     parsed_job: dict,
     timeout: float = 45.0,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Score with a hard timeout — returns rule fallback if LLM is too slow."""
     try:
         return await asyncio.wait_for(
-            score_with_ai(resume_text, job_text, parsed_resume, parsed_job),
+            score_with_ai(resume_text, job_text, parsed_resume, parsed_job, user_id=user_id),
             timeout=timeout,
         )
     except asyncio.TimeoutError:

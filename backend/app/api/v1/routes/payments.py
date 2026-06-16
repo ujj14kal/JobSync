@@ -34,8 +34,8 @@ PRODUCTS = {
 }
 
 SUBSCRIPTIONS = {
-    "pro_monthly": {"label": "Pro Monthly", "amount": 29900},   # ₹299
-    "pro_yearly":  {"label": "Pro Yearly",  "amount": 249900},  # ₹2499
+    "pro_monthly": {"label": "Pro Monthly", "amount": 44900},   # ₹449
+    "pro_yearly":  {"label": "Pro Yearly",  "amount": 359900},  # ₹3599
 }
 
 
