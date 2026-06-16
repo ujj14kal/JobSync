@@ -153,9 +153,20 @@ def extract_metadata_from_html(html: str, url: str = "") -> dict:
 
 # ─── URL Normalizers ─────────────────────────────────────────────────────────
 
+_STRIP_PARAMS = {"mode", "tracking_id", "trk", "src", "ref", "referer", "utm_source", "utm_medium", "utm_campaign"}
+
+
 def normalize_job_url(url: str) -> str:
-    """Normalize ATS-specific redirect URLs. Currently a pass-through."""
-    return url
+    """Strip display/tracking params that can trigger modals or redirect loops."""
+    try:
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        parsed = urlparse(url)
+        qs = parse_qs(parsed.query, keep_blank_values=True)
+        cleaned = {k: v for k, v in qs.items() if k.lower() not in _STRIP_PARAMS}
+        new_query = urlencode(cleaned, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    except Exception:
+        return url
 
 
 # ─── LinkedIn Guest API ──────────────────────────────────────────────────────
@@ -450,6 +461,12 @@ _SPA_DOMAINS = {
     "successfactors.com", "successfactors.eu",
     "smartrecruiters.com",
     "jobs.spotify.com",
+    # Company career portals (JS SPAs)
+    "careers.honeywell.com",
+    "jobs.siemens.com",
+    "careers.ge.com",
+    "careers.boeing.com",
+    "careers.3m.com",
 }
 
 
@@ -714,6 +731,17 @@ _SELECTORS: dict[str, list[str]] = {
     # Salesforce (Workday-based)
     "salesforce.wd12.myworkdayjobs.com": [
         "div[data-automation-id='jobPostingDescription']",
+    ],
+    # Honeywell careers portal
+    "careers.honeywell.com": [
+        "div[class*='job-description']",
+        "div[class*='jobDescription']",
+        "div[class*='description']",
+        "section[class*='job']",
+        "div[data-ph-at-id='job-description']",
+        "div.job-details",
+        "div#job-details",
+        "main",
     ],
 }
 
