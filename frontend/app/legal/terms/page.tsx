@@ -54,7 +54,7 @@ export default function TermsOfService() {
                 <div className="font-semibold text-[var(--text-primary)] mb-2">Pro subscription — ₹299/month or ₹2,499/year</div>
                 <ul className="space-y-1 list-disc list-inside text-[13px]">
                   <li>Billed via Razorpay. Renews automatically until cancelled.</li>
-                  <li>Monthly limits: 15 ATS analyses, 5 resumes, 3 cover letters, 2 text interviews, 1 voice interview, 50,000 chat tokens.</li>
+                  <li>Monthly limits: 15 Claude Sonnet ATS analyses, 8 AI resume generations, 5 cover letters, 8 AI interview sessions, 150,000 chat tokens (~100–120 messages).</li>
                   <li>Unused quota does not roll over to the next month.</li>
                   <li>Cancel anytime from your billing dashboard. Access continues until end of the billing period. No refunds for partial periods.</li>
                   <li>Yearly plan: cancel within 7 days of purchase for a full refund. After 7 days, no refunds — access continues to year-end.</li>
@@ -63,11 +63,9 @@ export default function TermsOfService() {
               <div className="p-4 rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
                 <div className="font-semibold text-[var(--text-primary)] mb-2">Individual pay-per-use purchases</div>
                 <ul className="space-y-1 list-disc list-inside text-[13px]">
-                  <li>ATS Deep Analysis: ₹59 per use</li>
-                  <li>Resume Pack (10 generations): ₹299</li>
-                  <li>Cover Letter: ₹99 per letter</li>
-                  <li>AI Interview (Text): ₹149 per session</li>
-                  <li>AI Interview (Voice, ElevenLabs): ₹349 per session</li>
+                  <li>ATS Deep Analysis: ₹99 for a 5-pack (₹19.80/use)</li>
+                  <li>Resume Builder: ₹149 for a 3-pack</li>
+                  <li>AI Interview (Voice, ElevenLabs): ₹149 per session</li>
                   <li>Credits are non-expiring (unless otherwise stated) and non-refundable once used.</li>
                 </ul>
               </div>
@@ -82,7 +80,7 @@ export default function TermsOfService() {
             <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-3">5. Token usage (Pro)</h2>
             <p>Every Claude Sonnet AI call consumes tokens. Token usage is tracked and visible in your billing dashboard. Monthly limits exist to keep pricing sustainable:</p>
             <ul className="space-y-1 list-disc list-inside mt-2">
-              <li>Chat: 50,000 tokens/month (~35–40 messages)</li>
+              <li>Chat: 150,000 tokens/month (~100–120 messages)</li>
               <li>Each ATS analysis: ~6,000 tokens</li>
               <li>Each resume generation: ~6,000 tokens</li>
             </ul>

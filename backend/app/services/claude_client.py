@@ -410,7 +410,7 @@ async def claude_stream(
     if feature == "chat":
         usage = await get_monthly_usage(user_id)
         if usage.get("chat_tokens", 0) >= settings.PRO_MONTHLY_CHAT_TOKENS:
-            yield f"data: {json.dumps({'error': 'Monthly chat token limit (50,000) reached. Resets on the 1st.'})}\n\n"
+            yield f"data: {json.dumps({'error': f'Monthly chat token limit ({settings.PRO_MONTHLY_CHAT_TOKENS:,}) reached. Resets on the 1st.'})}\n\n"
             return
 
     total_input = total_output = 0

@@ -1004,7 +1004,7 @@ export default function InterviewPage() {
       const audio = new Audio(url);
       audioElRef.current = audio;
       audio.onended = () => { setPreviewing(null); URL.revokeObjectURL(url); audioElRef.current = null; };
-      audio.onerror = () => { setPreviewing(null); };
+      audio.onerror = () => { setPreviewing(null); audioElRef.current = null; URL.revokeObjectURL(url); };
       await audio.play();
     } catch {
       setPreviewing(null);

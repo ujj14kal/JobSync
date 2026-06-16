@@ -72,6 +72,12 @@ async def _warm_start_services() -> None:
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     global _ready
+
+    if settings.SECRET_KEY == "change-me-in-production-minimum-32-chars":
+        raise RuntimeError("SECRET_KEY is not set — refusing to start.")
+    if not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is not set — refusing to start.")
+
     logger.info("Starting JobSync API", version=settings.APP_VERSION)
 
     # 1. Configure concurrency slots

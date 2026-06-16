@@ -215,6 +215,16 @@ async def verify_payment(
         raise HTTPException(400, "Unknown product.")
 
     supabase = get_supabase()
+    # Idempotency guard: don't double-grant credits for the same order
+    existing = await asyncio.to_thread(
+        lambda: supabase.table("user_credits")
+        .select("id")
+        .eq("razorpay_order_id", req.razorpay_order_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return {"success": True, "credits_added": 0, "type": product["type"], "already_applied": True}
     await asyncio.to_thread(
         lambda: supabase.table("user_credits").insert({
             "user_id":          user_id,
@@ -406,15 +416,16 @@ async def razorpay_webhook(
 ):
     body = await request.body()
 
-    # Verify webhook signature
-    if settings.RAZORPAY_WEBHOOK_SECRET:
-        expected = hmac.new(
-            settings.RAZORPAY_WEBHOOK_SECRET.encode(),
-            body,
-            hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(expected, x_razorpay_signature or ""):
-            raise HTTPException(400, "Webhook signature invalid.")
+    # Verify webhook signature — always required
+    if not settings.RAZORPAY_WEBHOOK_SECRET:
+        raise HTTPException(503, "Webhook secret not configured.")
+    expected = hmac.new(
+        settings.RAZORPAY_WEBHOOK_SECRET.encode(),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, x_razorpay_signature or ""):
+        raise HTTPException(400, "Webhook signature invalid.")
 
     event = json.loads(body)
     event_type = event.get("event", "")
