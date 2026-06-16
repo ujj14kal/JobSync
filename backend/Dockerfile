@@ -60,8 +60,9 @@ COPY . .
 RUN mkdir -p /app/models
 
 # Install Playwright Chromium (runs as root before user switch)
+# All system deps already installed above; skip install-deps (uses ubuntu fallback list with missing packages)
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN playwright install chromium && playwright install-deps chromium
+RUN playwright install chromium
 
 # Non-root user (Cloud Run best practice)
 RUN useradd -m -u 1000 appuser \
