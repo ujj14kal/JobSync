@@ -76,19 +76,19 @@ class Settings(BaseSettings):
 
     # Pro tier monthly limits (enforced server-side)
     # Cost breakdown per Pro user worst-case (₹449/month revenue):
-    #   ATS × 15    : Claude Sonnet ~₹28  (15 × ~1K input + 600 output)
-    #   Resume × 8  : Claude Sonnet ~₹16  (8 × 2K input + 1.5K output)
-    #   Interviews×8: Claude Sonnet ~₹14  (8 × 3.5K input + 2.8K output)
-    #   Chat 50K tok: Claude Sonnet ~₹33
+    #   ATS × 15     : Claude Sonnet ~₹28  (15 × ~1K input + 600 output)
+    #   Resume × 8   : Claude Sonnet ~₹16  (8 × 2K input + 1.5K output)
+    #   Interviews × 8: Claude Sonnet ~₹14  (8 × 3.5K input + 2.8K output)
+    #   Chat 150K tok: Claude Sonnet ~₹100
     #   Voice: credit-only (ElevenLabs upgrade, not included here)
     #   ─────────────────────────────────────────────────────
-    #   Total worst-case AI cost: ~₹91  →  margin ~80% on ₹449 (before Razorpay 2%)
+    #   Total worst-case AI cost: ~₹158  →  ~₹135 gross profit on ₹299 (45% margin)
     PRO_MONTHLY_ATS: int = 15           # Claude Sonnet → ~₹28 total worst-case
     PRO_MONTHLY_RESUMES: int = 8        # Claude Sonnet → ~₹16 total worst-case
     PRO_MONTHLY_COVERS: int = 5         # Groq → free
     PRO_MONTHLY_INTERVIEWS: int = 8     # Claude Sonnet questions → ~₹14 worst-case
     PRO_MONTHLY_VOICE: int = 0          # ElevenLabs voice = credit-only
-    PRO_MONTHLY_CHAT_TOKENS: int = 50000   # Claude Sonnet → ~₹33 worst-case (~35-40 msgs)
+    PRO_MONTHLY_CHAT_TOKENS: int = 150000  # Claude Sonnet → ~₹100 worst-case (~100-120 msgs)
 
     # Embeddings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
