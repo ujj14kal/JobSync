@@ -38,7 +38,7 @@ print("JobSync AI Trainer v3 — Groq-Judged Labels")
 print("=" * 65)
 
 # ── Deps ───────────────────────────────────────────────────────────────────────
-os.system("pip install -q sentence-transformers pandas torch groq")
+os.system("pip install -q sentence-transformers groq")  # torch/pandas already installed on Kaggle
 
 import torch
 import torch.nn as nn
@@ -59,7 +59,7 @@ from groq import Groq
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ── Hyperparams ────────────────────────────────────────────────────────────────
-TARGET_PAIRS   = 15_000   # total labeled pairs
+TARGET_PAIRS   = 3_000    # 3K pairs = ~107 min labeling, fits in Kaggle 9h session + Groq 500K TPD
 LABEL_BATCH    = 20       # pairs per Groq call (one prompt = one pair)
 GROQ_RPM_LIMIT = 28       # stay under 30 req/min free tier
 SCORER_EPOCHS  = 400
@@ -346,30 +346,12 @@ def sample_jd(cat, exclude=None):
     return random.choice(pool)
 
 # ── Groq labeling ──────────────────────────────────────────────────────────────
-LABEL_PROMPT = """You are a senior technical recruiter with 20 years at top companies.
-Score how well this resume matches this job description. Be STRICT and REALISTIC.
+LABEL_PROMPT = """Recruiter scoring resume vs job. Be strict. Different fields=0-15. No skill overlap=tech 0-20. Only 75+ for strong match.
 
-SCORING RULES:
-- If resume and job are completely different fields: all scores 0-15
-- If tech stacks don't overlap: technical_fit_score 0-20, ats_score 20-40
-- Only give 75+ when there is genuinely strong alignment
-- Consider: actual skills match, experience level match, domain relevance
-- ATS score: do resume keywords match JD keywords?
-- Technical fit: do technical skills/tools match requirements?
-- Semantic match: overall content alignment (writing style, domain language)
-- Recruiter impression: would a recruiter shortlist this? (format, impact, relevance)
-- Project relevance: do projects/past work relate to this role?
+RESUME: {resume}
+JOB: {jd}
 
-RESUME (truncated):
-{resume}
-
-JOB DESCRIPTION (truncated):
-{jd}
-
-Respond with JSON ONLY (no markdown, no explanation):
-{{"ats_score":{{"value":0}},"technical_fit_score":{{"value":0}},"semantic_match_score":{{"value":0}},"recruiter_impression_score":{{"value":0}},"project_relevance_score":{{"value":0}}}}
-
-Replace 0 with actual integer scores 0-100."""
+JSON only: {{"ats_score":0,"technical_fit_score":0,"semantic_match_score":0,"recruiter_impression_score":0,"project_relevance_score":0}}"""
 
 _last_groq_call = 0.0
 
@@ -381,15 +363,15 @@ def groq_label(resume: str, jd: str, retries: int = 3) -> dict | None:
         time.sleep((60.0 / GROQ_RPM_LIMIT) - elapsed)
 
     prompt = LABEL_PROMPT.format(
-        resume=resume[:900].replace("{","(").replace("}",")"),
-        jd=jd[:700].replace("{","(").replace("}",")")
+        resume=resume[:500].replace("{","(").replace("}",")"),
+        jd=jd[:400].replace("{","(").replace("}",")")
     )
 
     for attempt in range(retries):
         try:
             _last_groq_call = time.time()
             resp = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 max_tokens=200,
@@ -402,13 +384,11 @@ def groq_label(resume: str, jd: str, retries: int = 3) -> dict | None:
             data = json.loads(match.group())
             scores = {}
             for dim in DIMENSION_NAMES:
-                v = data.get(dim, {})
+                v = data.get(dim, 50)
                 if isinstance(v, dict):
                     scores[dim] = float(v.get("value", 50))
-                elif isinstance(v, (int, float)):
-                    scores[dim] = float(v)
                 else:
-                    scores[dim] = 50.0
+                    scores[dim] = float(v) if isinstance(v, (int, float)) else 50.0
             # Validate range
             if all(0 <= scores[d] <= 100 for d in DIMENSION_NAMES):
                 return scores
