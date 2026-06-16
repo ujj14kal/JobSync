@@ -11,6 +11,7 @@ import {
   RotateCcw, Sparkles, Brain, Loader2, ArrowRight,
   Building2, FileText, User, Clock, ChevronDown, ChevronUp, TrendingUp,
   Maximize2, X, Zap, Lock, Target, ListChecks, Award, BookOpen, MessageSquare,
+  Volume2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFeedback } from "@/components/feedback/FeedbackProvider";
@@ -34,7 +35,7 @@ interface Feedback {
 }
 
 type Phase = "setup" | "analyzing" | "session" | "results" | "history";
-type SessionMode = "thinking" | "recording" | "evaluating" | "feedback";
+type SessionMode = "ready" | "thinking" | "recording" | "evaluating" | "feedback";
 
 // ── Brand SVG Logos ───────────────────────────────────────────────────────────
 
@@ -313,6 +314,17 @@ function ElevenLabsLogo({ className, style }: { className?: string; style?: Reac
   );
 }
 
+// Mounts invisibly and fires onReady on the next tick so the question plays automatically.
+function ReadyAutoPlay({ onReady }: { onReady: () => void }) {
+  const called = useRef(false);
+  useEffect(() => {
+    if (called.current) return;
+    called.current = true;
+    onReady();
+  }, [onReady]);
+  return null;
+}
+
 // ── Analysis Screen ───────────────────────────────────────────────────────────
 
 function AnalysisScreen({
@@ -566,6 +578,7 @@ export default function InterviewPage() {
   const [selectedElVoice, setSelectedElVoice] = useState("EXAVITQu4vr4xnSDxMaL");
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedBrowserVoice, setSelectedBrowserVoice] = useState("");
+  const [selectedBrowserGender, setSelectedBrowserGender] = useState<"F" | "M">("F");
 
   const [role,      setRole]      = useState("Software Engineer");
   const [company,   setCompany]   = useState("General");
@@ -601,6 +614,8 @@ export default function InterviewPage() {
   const silenceStartRef = useRef<number | null>(null);
   const ttsAbortRef   = useRef<AbortController | null>(null);
   const ttsSessionRef = useRef(false);  // true once ElevenLabs credit was consumed this session
+  const aiSpeakingRef = useRef(false);
+  const playbackSeqRef = useRef(0);
 
   const [micActive, setMicActive] = useState(false);
   const [analysisReady, setAnalysisReady] = useState(false);
@@ -653,9 +668,158 @@ export default function InterviewPage() {
     return audioCtxRef.current;
   }
 
+  function setAiSpeakingState(value: boolean) {
+    aiSpeakingRef.current = value;
+    setAiSpeaking(value);
+  }
+
+  function finishQuestionPlayback(seq: number) {
+    if (seq !== playbackSeqRef.current) return;
+    setAiSpeakingState(false);
+    startThinkTime();
+  }
+
+  async function speakWithBrowserTts(text: string, seq: number) {
+    if (!("speechSynthesis" in window)) {
+      finishQuestionPlayback(seq);
+      return;
+    }
+
+    // resume() ensures Chrome isn't silently paused.
+    // stopAudio() already cancel()ed; a second cancel() here can confuse Chrome's TTS subprocess.
+    window.speechSynthesis.resume();
+
+    let retryUsed = false;
+
+    const speak = () => {
+      if (seq !== playbackSeqRef.current) return;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate   = 0.9;
+      utt.pitch  = 1.0;
+      utt.volume = 1;
+
+      const allVoices = window.speechSynthesis.getVoices();
+      const pick = allVoices.find(v => v.name === selectedBrowserVoice)
+        ?? allVoices.find(v => v.name === "Samantha")
+        ?? allVoices.find(v => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("google"))
+        ?? allVoices.find(v => v.lang.startsWith("en"))
+        ?? null;
+      if (pick) utt.voice = pick;
+      console.log("[TTS] speak() — voice:", pick?.name ?? "default", "| text:", text.slice(0, 60));
+
+      let started = false;
+      // eslint-disable-next-line prefer-const
+      let startCheck: ReturnType<typeof setTimeout>;
+      // eslint-disable-next-line prefer-const
+      let emergencyFail: ReturnType<typeof setTimeout>;
+      // eslint-disable-next-line prefer-const
+      let resumeInterval: ReturnType<typeof setInterval>;
+
+      const cleanup = () => {
+        clearTimeout(startCheck);
+        clearTimeout(emergencyFail);
+        clearInterval(resumeInterval);
+      };
+
+      const retryOnce = () => {
+        if (retryUsed || seq !== playbackSeqRef.current) return false;
+        retryUsed = true;
+        cleanup();
+        window.speechSynthesis.cancel();
+        setTimeout(() => {
+          // resume() can unstick Chrome when it holds speaking=true but never fires onstart
+          try { window.speechSynthesis.resume(); } catch {}
+          speak();
+        }, 300);
+        return true;
+      };
+
+      utt.onstart = () => {
+        started = true;
+        console.log("[TTS] onstart fired ✓");
+      };
+      utt.onend = () => {
+        console.log("[TTS] onend fired ✓");
+        cleanup();
+        finishQuestionPlayback(seq);
+      };
+      utt.onerror = (e) => {
+        const err = (e as SpeechSynthesisErrorEvent).error;
+        console.error("[TTS] onerror:", err, "| started:", started);
+        cleanup();
+        // "interrupted"/"canceled" fire when we call cancel() ourselves — not real errors.
+        // The retry's speak() will handle the continuation.
+        if (err === "interrupted" || err === "canceled") return;
+        if (!started && retryOnce()) return;
+        toast("Voice unavailable — please read the question above.", { icon: "🔇" });
+        finishQuestionPlayback(seq);
+      };
+
+      window.speechSynthesis.speak(utt);
+      console.log("[TTS] after speak() — speaking:", window.speechSynthesis.speaking, "pending:", window.speechSynthesis.pending);
+
+      startCheck = setTimeout(() => {
+        if (started || seq !== playbackSeqRef.current) return;
+        // speaking=true but onstart never fired = Chrome stuck holding utterance silently.
+        // Retry in both cases (stuck or never accepted).
+        console.warn("[TTS] startCheck: onstart not fired after 2.5s, speaking:", window.speechSynthesis.speaking);
+        if (retryOnce()) return;
+        // Both attempts failed — browser TTS is broken (Chrome TTS subprocess bug).
+        // Fall back to server-side gTTS which returns a regular audio file.
+        console.warn("[TTS] browser TTS failed twice — falling back to server TTS");
+        window.speechSynthesis.cancel();
+        speakViaServerTts(text, seq);
+      }, 500);
+
+      // Last-resort unblock only; normal questions should finish via onend.
+      emergencyFail = setTimeout(() => {
+        cleanup();
+        finishQuestionPlayback(seq);
+      }, Math.max(90_000, text.length * 120));
+
+      // Poll every 250ms: resume if Chrome silently pauses mid-speech.
+      let resumeChecks = 0;
+      resumeInterval = setInterval(() => {
+        if (++resumeChecks > 240 || !window.speechSynthesis.speaking || seq !== playbackSeqRef.current) {
+          clearInterval(resumeInterval);
+          return;
+        }
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      }, 250);
+    };
+
+    const voices = window.speechSynthesis.getVoices();
+    console.log("[TTS] voices available:", voices.length, voices.map(v => v.name));
+    console.log("[TTS] synth state — speaking:", window.speechSynthesis.speaking, "paused:", window.speechSynthesis.paused, "pending:", window.speechSynthesis.pending);
+
+    if (voices.length === 0) {
+      console.log("[TTS] no voices yet, waiting for voiceschanged (2s timeout fallback)");
+      let fired = false;
+      const handleVoicesChanged = () => {
+        if (fired) return;
+        fired = true;
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoicesChanged);
+        console.log("[TTS] voiceschanged fired, voices now:", window.speechSynthesis.getVoices().length);
+        if (seq === playbackSeqRef.current) speak();
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged);
+      setTimeout(() => {
+        if (fired || seq !== playbackSeqRef.current) return;
+        fired = true;
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoicesChanged);
+        console.warn("[TTS] voiceschanged never fired — attempting with default system voice");
+        speak();
+      }, 2000);
+    } else {
+      speak();
+    }
+  }
+
   async function speakText(text: string) {
     stopAudio();
-    setAiSpeaking(true);
+    const seq = ++playbackSeqRef.current;
+    setSessionMode("evaluating");
+    setAiSpeakingState(true);
 
     if (useElevenLabs && ttsAvail) {
       const controller = new AbortController();
@@ -690,91 +854,98 @@ export default function InterviewPage() {
         src.connect(analyser);
         analyser.connect(ctx.destination);
         aiAnalyserRef.current = analyser;
-        audio.onended = () => { setAiSpeaking(false); aiAnalyserRef.current = null; URL.revokeObjectURL(url); startThinkTime(); };
-        audio.onerror = () => { setAiSpeaking(false); startThinkTime(); };
+        audio.onended = () => {
+          aiAnalyserRef.current = null;
+          audioElRef.current = null;
+          URL.revokeObjectURL(url);
+          finishQuestionPlayback(seq);
+        };
+        audio.onerror = () => {
+          aiAnalyserRef.current = null;
+          audioElRef.current = null;
+          URL.revokeObjectURL(url);
+          speakWithBrowserTts(text, seq);
+        };
         await audio.play();
         return;
       } catch (err: unknown) {
         if ((err as Error)?.name === "AbortError") {
           // Cleanly cancelled by stopAudio() — don't start think time
-          setAiSpeaking(false);
+          setAiSpeakingState(false);
           return;
         }
-        // ElevenLabs failed — stop partial audio, skip browser TTS (question is visible on screen)
+        // ElevenLabs failed — fall back to browser TTS so the question is still audible.
         audioElRef.current?.pause();
         audioElRef.current = null;
         aiAnalyserRef.current = null;
         ttsAbortRef.current = null;
-        setAiSpeaking(false);
-        startThinkTime();
+        speakWithBrowserTts(text, seq);
         return;
       }
     }
 
-    if (!("speechSynthesis" in window)) {
-      setAiSpeaking(false);
-      startThinkTime();
-      return;
-    }
+    speakWithBrowserTts(text, seq);
+  }
 
-    // Chrome bug: speechSynthesis gets paused after fullscreen / focus changes
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
-
-    const speak = () => {
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate   = 0.9;
-      utt.pitch  = 1.0;
-      utt.volume = 1;
-
-      const allVoices = window.speechSynthesis.getVoices();
-      const pick = allVoices.find(v => v.name === selectedBrowserVoice)
-        ?? allVoices.find(v => v.name === "Samantha")
-        ?? allVoices.find(v => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("google"))
-        ?? allVoices.find(v => v.lang.startsWith("en"))
-        ?? null;
-      if (pick) utt.voice = pick;
-
-      utt.onend   = () => { setAiSpeaking(false); startThinkTime(); };
-      utt.onerror = (e) => {
-        // "interrupted" fires when we cancel() a previous utterance — not a real error
-        if ((e as SpeechSynthesisErrorEvent).error === "interrupted") return;
-        setAiSpeaking(false);
-        startThinkTime();
-      };
-      window.speechSynthesis.speak(utt);
-
-      // Chrome bug: speechSynthesis can be paused silently (e.g. after state changes).
-      // Poll every 250ms for up to 5s and resume if paused.
-      let resumeChecks = 0;
-      const resumeInterval = setInterval(() => {
-        if (++resumeChecks > 20 || !window.speechSynthesis.speaking) {
-          clearInterval(resumeInterval);
-          return;
+  async function speakViaServerTts(text: string, seq: number) {
+    if (seq !== playbackSeqRef.current) return;
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const token = await createClient().auth.getSession()
+        .then(r => r.data.session?.access_token ?? "");
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts/free`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ text, gender: selectedBrowserGender }),
         }
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      }, 250);
-    };
-
-    // If voices haven't loaded yet, wait for them
-    if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        speak();
-      };
-    } else {
-      speak();
+      );
+      if (!resp.ok || seq !== playbackSeqRef.current) {
+        finishQuestionPlayback(seq);
+        return;
+      }
+      const blob = await resp.blob();
+      if (seq !== playbackSeqRef.current) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioElRef.current = audio;
+      audio.onended = () => { audioElRef.current = null; URL.revokeObjectURL(url); finishQuestionPlayback(seq); };
+      audio.onerror = () => { audioElRef.current = null; URL.revokeObjectURL(url); finishQuestionPlayback(seq); };
+      await audio.play();
+    } catch {
+      finishQuestionPlayback(seq);
     }
   }
 
   function stopAudio() {
+    playbackSeqRef.current++;
     ttsAbortRef.current?.abort();
     ttsAbortRef.current = null;
     audioElRef.current?.pause();
     audioElRef.current = null;
     window.speechSynthesis?.cancel();
     aiAnalyserRef.current = null;
-    setAiSpeaking(false);
+    setAiSpeakingState(false);
+  }
+
+  function unlockSpeechSynthesis() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const unlock = new SpeechSynthesisUtterance(" ");
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+  }
+
+  function queueQuestionPlayback() {
+    stopAudio();
+    if (thinkIntRef.current) clearInterval(thinkIntRef.current);
+    setSessionMode("ready");
+  }
+
+  function playCurrentQuestion() {
+    if (!currentQuestion) return;
+    speakText(currentQuestion);
   }
 
   async function previewVoice(voiceId: string, isBrowser = false) {
@@ -783,27 +954,44 @@ export default function InterviewPage() {
     const SAMPLE = "Hi, I'm your interviewer. Ready?";
 
     if (isBrowser) {
-      if (!("speechSynthesis" in window)) { setPreviewing(null); return; }
-      const utt  = new SpeechSynthesisUtterance(SAMPLE);
-      utt.rate   = 0.9; utt.pitch = 1.0; utt.volume = 1;
-      const pick = window.speechSynthesis.getVoices().find(v => v.name === voiceId) ?? null;
-      if (pick) utt.voice = pick;
-      utt.onend   = () => setPreviewing(null);
-      utt.onerror = () => {
+      // Browser TTS is unreliable on Chrome/macOS — use the free server TTS for previews too.
+      // voiceId is "free-F" or "free-M"; extract the gender from it.
+      const previewGender = voiceId.endsWith("-M") ? "M" : "F";
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const token = await createClient().auth.getSession()
+          .then(r => r.data.session?.access_token ?? "");
+        const resp = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts/free`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ text: SAMPLE, gender: previewGender }),
+          }
+        );
+        if (!resp.ok) throw new Error();
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioElRef.current = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); audioElRef.current = null; setPreviewing(null); };
+        audio.onerror = () => { URL.revokeObjectURL(url); audioElRef.current = null; setPreviewing(null); };
+        await audio.play();
+      } catch {
         setPreviewing(null);
-        toast.error(`"${voiceId.split(" ")[0]}" preview unavailable on this device`);
-      };
-      window.speechSynthesis.speak(utt);
+        toast.error("Preview unavailable");
+      }
       return;
     }
 
+    // ElevenLabs preview — uses /tts/preview (no session required, just auth)
     if (!ttsAvail) { toast.error("ElevenLabs not configured"); setPreviewing(null); return; }
     try {
       const { createClient } = await import("@/lib/supabase/client");
       const token = await createClient().auth.getSession()
         .then(r => r.data.session?.access_token ?? "");
       const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts`,
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/interview/tts/preview`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -815,8 +1003,8 @@ export default function InterviewPage() {
       const url   = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioElRef.current = audio;
-      audio.onended = () => { setPreviewing(null); URL.revokeObjectURL(url); };
-      audio.onerror = () => setPreviewing(null);
+      audio.onended = () => { setPreviewing(null); URL.revokeObjectURL(url); audioElRef.current = null; };
+      audio.onerror = () => { setPreviewing(null); };
       await audio.play();
     } catch {
       setPreviewing(null);
@@ -827,6 +1015,7 @@ export default function InterviewPage() {
   // ── Think time ────────────────────────────────────────────────────────────
 
   function startThinkTime() {
+    if (aiSpeakingRef.current) return;
     if (thinkIntRef.current) clearInterval(thinkIntRef.current);
     setThinkSecs(THINK_SECONDS);
     setSessionMode("thinking");
@@ -850,6 +1039,9 @@ export default function InterviewPage() {
   // ── Recording ────────────────────────────────────────────────────────────
 
   const beginRecording = useCallback(async () => {
+    if (aiSpeakingRef.current || audioElRef.current || window.speechSynthesis?.speaking) {
+      return;
+    }
     setSessionMode("recording");
     setAnswer("");
     hasSpeechRef.current   = false;
@@ -991,7 +1183,7 @@ export default function InterviewPage() {
       setPendingFollowUp(fb.follow_up);
       setAnswer("");
       setFeedback(null);
-      speakText(fb.follow_up);
+      queueQuestionPlayback();
       return;
     }
 
@@ -1013,7 +1205,7 @@ export default function InterviewPage() {
 
   function speakNextQuestion(idx: number) {
     const q = questions[idx];
-    if (q) speakText(q.question);
+    if (q) queueQuestionPlayback();
     else startThinkTime();
   }
 
@@ -1021,15 +1213,6 @@ export default function InterviewPage() {
     if (!canStartInterview) {
       setShowBuySession(true);
       return;
-    }
-
-    // Unlock Web Speech API inside the user gesture. Chrome blocks speechSynthesis
-    // outside a direct user-initiated event; speaking an empty utterance here grants
-    // permission so the deferred speakText() call inside applySessionData works.
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const unlock = new SpeechSynthesisUtterance("");
-      window.speechSynthesis.speak(unlock);
-      window.speechSynthesis.cancel();
     }
 
     setPhase("analyzing");
@@ -1071,13 +1254,12 @@ export default function InterviewPage() {
     setFeedback(null);
     setAnswer("");
     setPendingFollowUp(null);
+    setSessionMode("ready");
     setPhase("session");
 
-    // Delay speech until React has committed the phase change.
-    // Calling speechSynthesis immediately after batched setState can cause
-    // Chrome to silently drop the utterance.
     const firstQ = data.questions[0]?.question;
-    if (firstQ) setTimeout(() => speakText(firstQ), 250);
+    if (firstQ) queueQuestionPlayback();
+    else startThinkTime();
   }
 
   function exitSession() {
@@ -1094,7 +1276,7 @@ export default function InterviewPage() {
     setAllAnswers([]);
     setReport(null);
     setPendingFollowUp(null);
-    setSessionMode("thinking");
+    setSessionMode("ready");
     ttsSessionRef.current = false;
   }
 
@@ -1118,12 +1300,6 @@ export default function InterviewPage() {
 
   function handleResume() {
     if (!savedSession) return;
-    // Unlock Web Speech API in user-gesture context (same as startInterview)
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const unlock = new SpeechSynthesisUtterance("");
-      window.speechSynthesis.speak(unlock);
-      window.speechSynthesis.cancel();
-    }
     const { questions: qs, qIndex: qi, allFeedback: af, role: r, company: co, resumeLoaded: rl } = savedSession;
     setSavedSession(null);
     setQuestions(qs);
@@ -1135,11 +1311,11 @@ export default function InterviewPage() {
     setFeedback(null);
     setAnswer("");
     setPendingFollowUp(null);
-    setSessionMode("thinking");
+    setSessionMode("ready");
     setPhase("session");
     setTimeout(() => {
       const q = qs[qi];
-      if (q) speakText(q.question);
+      if (q) queueQuestionPlayback();
       else startThinkTime();
     }, 250);
   }
@@ -1476,39 +1652,22 @@ export default function InterviewPage() {
                     </button>
                   </div>
 
-                  {/* Browser voice chips — grouped F then M */}
-                  {!useElevenLabs && (() => {
-                    const femaleVoices = browserVoices.filter(v => (BROWSER_VOICE_GENDER[v.name] ?? "F") === "F");
-                    const maleVoices   = browserVoices.filter(v => BROWSER_VOICE_GENDER[v.name] === "M");
-                    const chip = (v: SpeechSynthesisVoice) => (
-                      <button key={v.name}
-                        onClick={() => setSelectedBrowserVoice(v.name)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all flex-shrink-0"
-                        style={selectedBrowserVoice === v.name
-                          ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
-                          : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
-                        {v.name.split(" ")[0]}
-                        <span onClick={e => { e.stopPropagation(); previewVoice(v.name, true); }}
-                          className="text-[9px] opacity-60 hover:opacity-100 transition-opacity ml-0.5">
-                          {previewing === v.name ? "■" : "▶"}
-                        </span>
-                      </button>
-                    );
-                    return (
-                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-                        {femaleVoices.length > 0 && <>
-                          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♀</span>
-                          {femaleVoices.map(chip)}
-                        </>}
-                        {femaleVoices.length > 0 && maleVoices.length > 0 &&
-                          <div className="w-px h-3.5 bg-[var(--border-subtle)] flex-shrink-0 mx-0.5" />}
-                        {maleVoices.length > 0 && <>
-                          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">♂</span>
-                          {maleVoices.map(chip)}
-                        </>}
-                      </div>
-                    );
-                  })()}
+                  {/* Browser voice — simple gender selector */}
+                  {!useElevenLabs && (
+                    <div className="flex items-center gap-2">
+                      {(["F", "M"] as const).map(g => (
+                        <button key={g}
+                          onClick={() => { setSelectedBrowserGender(g); previewVoice(`free-${g}`, true); }}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap transition-all"
+                          style={selectedBrowserGender === g
+                            ? { background: "rgba(192,88,0,0.10)", borderColor: "rgba(192,88,0,0.50)", color: "var(--text-primary)" }
+                            : { background: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                          {g === "F" ? "♀ Female" : "♂ Male"}
+                          <span className="text-[9px] opacity-60">{previewing === `free-${g}` ? "■" : "▶"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* ElevenLabs HD voice chips — grouped F then M */}
                   {useElevenLabs && ttsAvail && (() => {
@@ -1556,8 +1715,8 @@ export default function InterviewPage() {
                   )}
                 </div>
 
-                {/* Credit count */}
-                {mounted && !isPro && (
+                {/* Credit count — only relevant for HD (ElevenLabs) voice */}
+                {mounted && !isPro && useElevenLabs && (
                   <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border"
                     style={{
                       background: (interviewCreditsLeft ?? 0) > 0 ? "rgba(192,88,0,0.08)" : "rgba(239,68,68,0.08)",
@@ -1566,7 +1725,7 @@ export default function InterviewPage() {
                     <span className="text-[11px] font-bold" style={{ color: (interviewCreditsLeft ?? 0) > 0 ? "#C05800" : "#ef4444" }}>
                       {interviewCreditsLeft ?? "–"}
                     </span>
-                    <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">session{(interviewCreditsLeft ?? 0) !== 1 ? "s" : ""} left</span>
+                    <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">HD session{(interviewCreditsLeft ?? 0) !== 1 ? "s" : ""} left</span>
                   </div>
                 )}
 
@@ -1685,7 +1844,7 @@ export default function InterviewPage() {
                     {companyInfo?.name ?? "AI"} Interviewer
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)]">
-                    {aiSpeaking ? "Speaking…" : sessionMode === "thinking" ? "Waiting for you to think" : "Listening"}
+                    {aiSpeaking ? "Speaking…" : sessionMode === "ready" ? "Ready to ask" : sessionMode === "thinking" ? "Waiting for you to think" : "Listening"}
                   </div>
                 </div>
 
@@ -1712,6 +1871,10 @@ export default function InterviewPage() {
               {/* User side */}
               <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-10 gap-5">
                 <AnimatePresence mode="wait">
+
+                  {sessionMode === "ready" && (
+                    <ReadyAutoPlay onReady={playCurrentQuestion} />
+                  )}
 
                   {sessionMode === "thinking" && (
                     <motion.div key="thinking" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -1775,7 +1938,14 @@ export default function InterviewPage() {
                     <motion.div key="evaluating" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="flex flex-col items-center gap-4">
                       <Loader2 className="w-10 h-10 animate-spin text-[var(--accent-primary)]" />
-                      <div className="text-[14px] text-[var(--text-secondary)]">Evaluating your answer…</div>
+                      <div className="text-[14px] text-[var(--text-secondary)]">
+                        {aiSpeaking ? "Listen to the question…" : "Evaluating your answer…"}
+                      </div>
+                      {aiSpeaking && (
+                        <p className="text-[11px] text-[var(--text-muted)] text-center max-w-[200px]">
+                          Think time starts after the question finishes
+                        </p>
+                      )}
                     </motion.div>
                   )}
 
@@ -2020,7 +2190,17 @@ export default function InterviewPage() {
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--border-default)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
                 <RotateCcw className="w-3.5 h-3.5" /> New Interview
               </button>
-              <button onClick={() => { setQIndex(0); setAllFeedback([]); setAllAnswers([]); setReport(null); setFeedback(null); setAnswer(""); setPendingFollowUp(null); setPhase("session"); if (questions[0]?.question) speakText(questions[0].question); setTimeout(() => { try { document.documentElement.requestFullscreen(); } catch {} }, 100); }}
+              <button onClick={() => {
+                if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                  window.speechSynthesis.cancel();
+                  const unlock = new SpeechSynthesisUtterance(' ');
+                  unlock.volume = 0;
+                  window.speechSynthesis.speak(unlock);
+                }
+                setQIndex(0); setAllFeedback([]); setAllAnswers([]); setReport(null); setFeedback(null); setAnswer("");
+                setPendingFollowUp(null); setSessionMode("ready"); setPhase("session");
+                setTimeout(() => { if (questions[0]?.question) queueQuestionPlayback(); else startThinkTime(); }, 250);
+              }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#C05800] to-[#713600] hover:from-[#D06818] hover:to-[#C05800] text-white text-[13px] font-semibold transition-all">
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Same Questions
               </button>

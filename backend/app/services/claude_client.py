@@ -7,7 +7,7 @@ Every call through this module:
   3. Calls Claude Sonnet
   4. Logs exact token usage + INR cost to token_usage and monthly_usage tables
 
-Pricing (claude-sonnet-4-5, June 2026):
+Pricing (claude-sonnet-4-6, June 2026):
   Input  : $3.00 / 1M tokens = ₹0.0002505 per token
   Output : $15.00 / 1M tokens = ₹0.0012525 per token
   1 USD  = ₹83.5
@@ -156,19 +156,37 @@ async def get_user_credits(user_id: str, credit_type: str) -> int:
 
 async def consume_credit(user_id: str, credit_type: str) -> bool:
     """
-    Atomically decrements credits_remaining by 1 (if > 0).
-    Calls the consume_user_credit Postgres function to avoid race conditions.
+    Decrements credits_used by 1 on the first row that has remaining credits.
+    Uses an optimistic lock (eq on credits_used) to avoid double-spending.
     Returns True on success.
     """
     supabase = get_supabase()
     try:
-        await asyncio.to_thread(
-            lambda: supabase.rpc("consume_user_credit", {
-                "p_user_id": user_id,
-                "p_credit_type": credit_type,
-            }).execute()
+        result = await asyncio.to_thread(
+            lambda: supabase.table("user_credits")
+            .select("id, credits_total, credits_used")
+            .eq("user_id", user_id)
+            .eq("credit_type", credit_type)
+            .execute()
         )
-        return True
+        if not result.data:
+            return False
+
+        for row in result.data:
+            if row["credits_total"] - row["credits_used"] <= 0:
+                continue
+            new_used = row["credits_used"] + 1
+            update = await asyncio.to_thread(
+                lambda: supabase.table("user_credits")
+                .update({"credits_used": new_used})
+                .eq("id", row["id"])
+                .eq("credits_used", row["credits_used"])  # optimistic lock
+                .execute()
+            )
+            if update.data:
+                return True
+
+        return False
     except Exception as e:
         logger.warning("consume_credit failed (non-fatal): %s", e)
         return False

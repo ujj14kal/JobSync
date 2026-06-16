@@ -444,7 +444,10 @@ async def text_to_speech(
                 ),
             )
 
-    text = body.text[:300].strip()  # hard cap: 300 chars per TTS call
+    # Keep the full interview question audible. Generated questions often exceed
+    # 300 chars once resume/company context is included, so only trim extreme
+    # inputs instead of cutting normal questions mid-sentence.
+    text = body.text[:1200].strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty text")
 
@@ -491,6 +494,99 @@ async def text_to_speech(
 async def tts_status(user_id: str = Depends(get_current_user_id)):
     """Check if TTS is configured."""
     return {"available": bool(settings.ELEVENLABS_API_KEY)}
+
+
+class FreeTTSRequest(BaseModel):
+    text: str
+    gender: str = "F"  # "F" → Jenny (female neural), "M" → Guy (male neural)
+
+
+# Microsoft Edge neural TTS — real male/female voices, completely free, no API key
+_EDGE_VOICE = {"F": "en-US-JennyNeural", "M": "en-US-GuyNeural"}
+
+
+async def _edge_tts_bytes(text: str, gender: str) -> bytes:
+    import edge_tts
+    voice = _EDGE_VOICE.get(gender.upper(), "en-US-JennyNeural")
+    communicate = edge_tts.Communicate(text, voice)
+    chunks: list[bytes] = []
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            chunks.append(chunk["data"])
+    return b"".join(chunks)
+
+
+@router.post("/tts/free")
+async def free_text_to_speech(
+    body: FreeTTSRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Free TTS via Microsoft Edge neural voices (edge-tts). No API key needed.
+    Female: en-US-JennyNeural  |  Male: en-US-GuyNeural
+    Any authenticated user can call this — no credit check.
+    """
+    text = body.text[:1200].strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty text")
+
+    try:
+        audio = await _edge_tts_bytes(text, body.gender)
+        return StreamingResponse(
+            io.BytesIO(audio),
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-cache"},
+        )
+    except Exception as e:
+        logger.error("edge-tts failed", exc_info=e)
+        raise HTTPException(status_code=502, detail="Free TTS unavailable")
+
+
+class PreviewTTSRequest(BaseModel):
+    text: str
+    voice_id: str
+
+
+@router.post("/tts/preview")
+async def preview_text_to_speech(
+    body: PreviewTTSRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Short ElevenLabs preview — no session required, just authentication.
+    Text capped at 120 chars so this can't be abused as a free TTS proxy.
+    """
+    if not settings.ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="ElevenLabs not configured")
+
+    text = body.text[:120].strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty text")
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{body.voice_id}"
+    payload = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {"stability": 0.4, "similarity_boost": 0.85, "style": 0.3},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                url,
+                headers={"xi-api-key": settings.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
+                json=payload,
+            )
+        if resp.status_code == 401:
+            raise HTTPException(status_code=503, detail="Invalid ElevenLabs API key")
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Preview unavailable")
+        return StreamingResponse(io.BytesIO(resp.content), media_type="audio/mpeg",
+                                 headers={"Cache-Control": "no-cache"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("ElevenLabs preview failed", exc_info=e)
+        raise HTTPException(status_code=502, detail="Preview unavailable")
 
 
 @router.post("/voice/cancel")
@@ -736,15 +832,12 @@ async def list_voices(user_id: str = Depends(get_current_user_id)):
     return {
         "voices": [
             # Female
-            {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",    "gender": "F", "desc": "Determined · American · Clear"},
-            {"id": "XrExE9yKIg1WjnnlVkGX", "name": "Matilda",  "gender": "F", "desc": "Warm · Confident · Natural"},
-            {"id": "XB0fDUnXU5powFXDhCwa", "name": "Charlotte", "gender": "F", "desc": "Authoritative · European · Crisp"},
+            {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",  "gender": "F", "desc": "Determined · American · Clear"},
+            {"id": "XrExE9yKIg1WjnnlVkGX", "name": "Matilda","gender": "F", "desc": "Warm · Confident · Natural"},
             # Male
-            {"id": "JBFqnCBsd6RMkjVDRZzb", "name": "George",   "gender": "M", "desc": "Warm · British · Professional"},
-            {"id": "pNInz6obpgDQGcFmaJgB", "name": "Adam",     "gender": "M", "desc": "Deep · American · Authoritative"},
-            {"id": "nPczCjzI2devNBz1zQrb", "name": "Brian",    "gender": "M", "desc": "Natural · Clear · American"},
+            {"id": "JBFqnCBsd6RMkjVDRZzb", "name": "George", "gender": "M", "desc": "Warm · British · Professional"},
+            {"id": "nPczCjzI2devNBz1zQrb", "name": "Brian",  "gender": "M", "desc": "Natural · Clear · American"},
         ],
         "default": "EXAVITQu4vr4xnSDxMaL",
     }
-
 

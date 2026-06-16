@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # Anthropic Claude (paid features only — Sonnet for all Pro tier)
     ANTHROPIC_API_KEY: str = ""
-    CLAUDE_MODEL: str = "claude-sonnet-4-5"      # Pro tier: all features
+    CLAUDE_MODEL: str = "claude-sonnet-4-6"      # Pro tier: all features
     CLAUDE_MODEL_FAST: str = "claude-haiku-4-5"  # reserved for future lightweight tasks
 
     # Resend (transactional email — free tier 3,000 emails/month)

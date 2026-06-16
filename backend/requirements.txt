@@ -48,3 +48,5 @@ cachetools==5.4.0
 # ─── Payments & Claude ────────────────────────────────────────
 anthropic==0.40.0          # Claude Sonnet — paid features only
 razorpay==1.4.2            # Indian payment gateway (2% fee, no monthly cost)
+gTTS==2.5.1                # Free TTS via Google Translate (no API key, browser TTS fallback)
+edge-tts>=7.0.0            # Microsoft Edge neural TTS — real male/female voices, completely free
