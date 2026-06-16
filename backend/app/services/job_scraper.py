@@ -340,6 +340,7 @@ async def scrape_url_with_firecrawl(url: str) -> Optional[tuple[str, dict]]:
                     "formats": ["markdown"],
                     "onlyMainContent": True,
                     "excludeTags": ["nav", "header", "footer", "aside", ".cookie", ".banner"],
+                    "waitFor": 3000,  # wait 3s for JS to render content
                 },
             )
             if resp.status_code == 200:

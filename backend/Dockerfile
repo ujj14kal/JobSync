@@ -2,14 +2,9 @@
 # JobSync API — Cloud Run optimised multi-stage Dockerfile
 #
 # Stage 1 (builder): install Python deps + pre-download ML model
-# Stage 2 (runtime): lean image, no build tools, baked-in model
+# Stage 2 (runtime): runtime image with Playwright Chromium for JS scraping
 #
-# Playwright Chromium is intentionally NOT installed here — it adds ~200 MB.
-# job_scraper.py imports playwright lazily inside a try/except; when the
-# browser is absent it falls through to the httpx → LLM-synthetic fallback.
-# Install Playwright locally (playwright install chromium) for full scraping.
-#
-# Final image ≈ 550 MB  (PyTorch CPU-only + sentence-transformers, no browser)
+# Final image ≈ 750 MB  (PyTorch CPU-only + sentence-transformers + Chromium)
 # Cloud Run:  2 GB RAM · 2 vCPU · min-instances=0
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -46,6 +41,10 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl \
+    # Chromium system deps for Playwright
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+    libgbm1 libasound2 libpango-1.0-0 libcairo2 libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages and binaries from builder
@@ -60,9 +59,13 @@ COPY . .
 
 RUN mkdir -p /app/models
 
+# Install Playwright Chromium (runs as root before user switch)
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install chromium && playwright install-deps chromium
+
 # Non-root user (Cloud Run best practice)
 RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app /model_cache
+    && chown -R appuser:appuser /app /model_cache /ms-playwright
 USER appuser
 
 ENV HF_HOME=/model_cache
