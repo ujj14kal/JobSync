@@ -68,8 +68,8 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
     # Plan IDs created once in Razorpay dashboard:
-    RAZORPAY_PLAN_MONTHLY: str = ""   # ₹449/month
-    RAZORPAY_PLAN_YEARLY: str = ""    # ₹3599/year
+    RAZORPAY_PLAN_MONTHLY: str = ""   # ₹299/month
+    RAZORPAY_PLAN_YEARLY: str = ""    # ₹2499/year
 
     # INR/USD rate for cost tracking
     USD_TO_INR: float = 83.5
