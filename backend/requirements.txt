@@ -13,7 +13,7 @@ asyncpg==0.29.0
 # ─── AI / ML ──────────────────────────────────────────────────
 groq==0.9.0
 sentence-transformers==3.0.1
-accelerate>=0.26.0             # required by sentence-transformers 3.x for meta-tensor → CPU loading
+accelerate>=0.26.0,<1.0.0      # required by sentence-transformers 3.x; accelerate 1.x broke meta-tensor loading
 numpy==1.26.4
 scikit-learn==1.5.1
 joblib==1.4.2              # model serialisation
