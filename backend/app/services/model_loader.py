@@ -1,9 +1,10 @@
 """
 Model Loader — downloads the latest trained JobSync AI from GitHub Releases.
 
-Supports two model formats:
+Supports model formats:
   v1 (legacy): encoder.pt + scorer.pt + tokenizer.json (custom tokenizer dict)
   v2 (current): scorer.pt + tokenizer.json (type=minilm, uses sentence-transformers)
+  v3 (latest):  scorer.pt + tokenizer.json (type=minilm, version=3, residual architecture)
 
 Flow:
   1. Check GitHub Releases API for latest model version
@@ -220,62 +221,102 @@ def _load_v2_minilm(tok_data: dict, torch, nn) -> bool:
         logger.error("Failed to load sentence-transformers model", error=str(e))
         return False
 
-    # Load scorer head — auto-detect architecture from weights
+    # Load scorer head
     scr_state = torch.load(MODELS_DIR / "scorer.pt", map_location="cpu", weights_only=True)
-    first_key = [k for k in scr_state if "trunk.0.weight" in k]
-    actual_inp = scr_state[first_key[0]].shape[1] if first_key else inp_dim
 
-    # Detect trunk depth from weight keys
-    trunk_keys = sorted(k for k in scr_state if k.startswith("trunk.") and "weight" in k)
-    trunk_layers = []
-    i = 0
-    while True:
-        w_key = f"trunk.{i}.weight"
-        if w_key not in scr_state:
-            break
-        out_dim = scr_state[w_key].shape[0]
-        trunk_layers.extend([nn.Linear(actual_inp if i == 0 else prev_dim, out_dim),
-                              nn.LayerNorm(out_dim), nn.GELU(), nn.Dropout(0.25)])
-        prev_dim = out_dim
-        i += 3  # Linear, LayerNorm, GELU, Dropout = 4 items but only Linear has weight
-        # advance past LayerNorm
-        while f"trunk.{i}.weight" not in scr_state and i < 20:
-            i += 1
+    if "proj.0.weight" in scr_state:
+        # ── v3: residual architecture ─────────────────────────────────────────
+        # proj → residual trunk → 5 independent heads
+        proj_inp  = scr_state["proj.0.weight"].shape[1]   # 1546
+        proj_out  = scr_state["proj.0.weight"].shape[0]   # 768
+        # detect cross-block linear dims (trunk.1, trunk.5 are Linear in v3)
+        # trunk structure: ResidualBlock(768) → Linear(768→512) → ResidualBlock(512)
+        #                → Linear(512→256) → ResidualBlock(256)
+        t1_key = "trunk.1.weight"
+        t5_key = "trunk.5.weight"
+        mid_dim1 = scr_state[t1_key].shape[0] if t1_key in scr_state else 512
+        mid_dim2 = scr_state[t5_key].shape[0] if t5_key in scr_state else 256
+        head_in   = scr_state["heads.0.0.weight"].shape[1]  # 256
 
-    # Auto-detect architecture from saved weights
-    # Supports both v2-large (768/384/192) and v2-small (256/128) architectures
-    trunk_linear_keys = sorted([k for k in scr_state if k.startswith("trunk.") and k.endswith(".weight")])
-    trunk_dims = [scr_state[k].shape for k in trunk_linear_keys]
-    head_hidden = scr_state["heads.0.0.weight"].shape[1] if "heads.0.0.weight" in scr_state else 128
+        class _ResBlock(nn.Module):
+            def __init__(self, dim, drop=0.2):
+                super().__init__()
+                self.block = nn.Sequential(
+                    nn.Linear(dim, dim), nn.LayerNorm(dim), nn.GELU(), nn.Dropout(drop),
+                    nn.Linear(dim, dim), nn.LayerNorm(dim),
+                )
+                self.act = nn.GELU()
+            def forward(self, x):
+                return self.act(x + self.block(x))
 
-    class _Scorer(nn.Module):
-        def __init__(self, inp, dims, hh):
-            super().__init__()
-            layers = []
-            in_d = inp
-            for out_d in dims:
-                layers += [nn.Linear(in_d, out_d), nn.LayerNorm(out_d), nn.GELU(), nn.Dropout(0.3)]
-                in_d = out_d
-            self.trunk = nn.Sequential(*layers)
-            self.heads = nn.ModuleList([
-                nn.Sequential(nn.Linear(hh, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
-                for _ in range(5)
-            ])
-        def forward(self, x):
-            s = self.trunk(x)
-            return torch.cat([h(s) * 100.0 for h in self.heads], dim=1)
+        class _ScorerV3(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.proj = nn.Sequential(
+                    nn.Linear(proj_inp, proj_out), nn.LayerNorm(proj_out), nn.GELU(), nn.Dropout(0.3),
+                )
+                self.trunk = nn.Sequential(
+                    _ResBlock(proj_out, 0.25),
+                    nn.Linear(proj_out, mid_dim1), nn.LayerNorm(mid_dim1), nn.GELU(), nn.Dropout(0.2),
+                    _ResBlock(mid_dim1, 0.2),
+                    nn.Linear(mid_dim1, mid_dim2), nn.LayerNorm(mid_dim2), nn.GELU(), nn.Dropout(0.15),
+                    _ResBlock(mid_dim2, 0.15),
+                )
+                self.heads = nn.ModuleList([
+                    nn.Sequential(
+                        nn.Linear(head_in, 128), nn.GELU(), nn.Dropout(0.1),
+                        nn.Linear(128, 64), nn.GELU(),
+                        nn.Linear(64, 1), nn.Sigmoid(),
+                    ) for _ in range(5)
+                ])
+            def forward(self, x):
+                h = self.proj(x)
+                h = self.trunk(h)
+                return torch.cat([head(h) * 100.0 for head in self.heads], dim=1)
 
-    hidden_dims = [shape[0] for shape in trunk_dims]
-    _scorer = _Scorer(actual_inp, hidden_dims, head_hidden)
-    try:
-        _scorer.load_state_dict(scr_state, strict=False)
-    except Exception:
-        # Hard fallback: small architecture
-        _scorer = _Scorer(actual_inp, [256, 128], 128)
-        _scorer.load_state_dict(scr_state, strict=False)
-    _scorer.eval()
-    n_scr = sum(p.numel() for p in _scorer.parameters())
-    logger.info("v2 Scorer loaded", parameters=f"{n_scr:,}", input_dim=actual_inp)
+        _scorer = _ScorerV3()
+        _scorer.load_state_dict(scr_state)
+        _scorer.eval()
+        n_scr = sum(p.numel() for p in _scorer.parameters())
+        logger.info("v3 Scorer loaded (residual arch)", parameters=f"{n_scr:,}",
+                    input_dim=proj_inp, proj_out=proj_out, dims=[proj_out, mid_dim1, mid_dim2])
+
+    else:
+        # ── v2: auto-detect architecture from saved weight shapes ─────────────
+        first_key = [k for k in scr_state if "trunk.0.weight" in k]
+        actual_inp = scr_state[first_key[0]].shape[1] if first_key else inp_dim
+
+        trunk_linear_keys = sorted([k for k in scr_state if k.startswith("trunk.") and k.endswith(".weight")])
+        trunk_dims = [scr_state[k].shape for k in trunk_linear_keys]
+        head_hidden = scr_state["heads.0.0.weight"].shape[1] if "heads.0.0.weight" in scr_state else 128
+
+        class _ScorerV2(nn.Module):
+            def __init__(self, inp, dims, hh):
+                super().__init__()
+                layers = []
+                in_d = inp
+                for out_d in dims:
+                    layers += [nn.Linear(in_d, out_d), nn.LayerNorm(out_d), nn.GELU(), nn.Dropout(0.3)]
+                    in_d = out_d
+                self.trunk = nn.Sequential(*layers)
+                self.heads = nn.ModuleList([
+                    nn.Sequential(nn.Linear(hh, 32), nn.GELU(), nn.Linear(32, 1), nn.Sigmoid())
+                    for _ in range(5)
+                ])
+            def forward(self, x):
+                s = self.trunk(x)
+                return torch.cat([h(s) * 100.0 for h in self.heads], dim=1)
+
+        hidden_dims = [shape[0] for shape in trunk_dims]
+        _scorer = _ScorerV2(actual_inp, hidden_dims, head_hidden)
+        try:
+            _scorer.load_state_dict(scr_state, strict=False)
+        except Exception:
+            _scorer = _ScorerV2(actual_inp, [256, 128], 128)
+            _scorer.load_state_dict(scr_state, strict=False)
+        _scorer.eval()
+        n_scr = sum(p.numel() for p in _scorer.parameters())
+        logger.info("v2 Scorer loaded", parameters=f"{n_scr:,}", input_dim=actual_inp)
 
     _is_minilm = True
     _loaded    = True
