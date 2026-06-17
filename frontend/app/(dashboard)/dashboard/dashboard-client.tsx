@@ -637,11 +637,10 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
               rgb: "113,54,0",
               color: "#8c4a18",
             },
-          ].map(({ href, icon: Icon, label, desc, rgb, color, external }) => (
+          ].map(({ href, icon: Icon, label, desc, rgb, color }) => (
             <motion.div key={label} variants={cardItem}>
               <Link
                 href={href as any}
-                {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className="group flex flex-col gap-2 p-4 rounded-2xl transition-all duration-200 hover:border-opacity-60"
                 style={{
                   background: `rgba(${rgb},0.06)`,
