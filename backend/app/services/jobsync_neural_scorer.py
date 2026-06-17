@@ -317,8 +317,15 @@ class NeuralScorerPredictor:
             raw = self.model(x)  # (1, 5)
             scores_list = raw.squeeze(0).tolist()
 
+        def _calibrate(s: float) -> float:
+            # v3 training targets clustered in 0-85 range (mean ~21).
+            # Power transform stretches the distribution so scores feel natural:
+            # raw 20 → 35, raw 50 → 66, raw 85 → 91.
+            c = max(0.0, min(100.0, s))
+            return round((c / 100.0) ** 0.60 * 100.0, 1)
+
         result = {
-            dim: round(float(s), 1)
+            dim: _calibrate(float(s))
             for dim, s in zip(DIMENSION_NAMES, scores_list)
         }
 
