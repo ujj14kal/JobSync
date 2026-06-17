@@ -287,9 +287,15 @@ async def _try_neural_scoring(
 
         raw_scores = await asyncio.to_thread(_infer)
 
+        def _calibrate(s: float) -> float:
+            # v3 training targets topped at 85.2 (mean ~21). Map to full 0-100:
+            # raw 21 → 34, raw 40 → 58, raw 60 → 76, raw 85 → 100.
+            c = max(0.0, min(85.0, s))
+            return round((c / 85.0) ** 0.70 * 100.0, 1)
+
         DIMS = ["ats_score","technical_fit_score","semantic_match_score",
                 "recruiter_impression_score","project_relevance_score"]
-        prediction = {d: round(float(s), 1) for d, s in zip(DIMS, raw_scores)}
+        prediction = {d: _calibrate(float(s)) for d, s in zip(DIMS, raw_scores)}
         weights = [0.20, 0.25, 0.25, 0.20, 0.10]
         prediction["overall_score"] = round(sum(prediction[d]*w for d,w in zip(DIMS,weights)), 1)
         prediction["scored_by"] = "jobsync-custom-ai"
