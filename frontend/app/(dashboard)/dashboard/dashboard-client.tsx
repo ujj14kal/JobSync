@@ -614,13 +614,12 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
               color: "#C05800",
             },
             {
-              href: `mailto:ujj.kalra10@gmail.com?subject=JobSynk Support`,
+              href: "/support",
               icon: Mail,
               label: "Contact Support",
-              desc: "Email us directly",
+              desc: "Raise a concern",
               rgb: "122,184,64",
               color: "#7ab840",
-              external: true,
             },
             {
               href: "/analysis",
