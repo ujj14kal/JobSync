@@ -249,9 +249,10 @@ for p in resume_paths:
             log(f"LinkedIn postings: {p.name} — {len(jd_df)} rows | cols: {list(jd_df.columns[:8])}")
 
         # ── Naukri.com postings (promptcloud/jobs-on-naukricom) ───────────────────
-        # Detected by presence of key_skills + role_category columns (Naukri-specific)
-        elif any(c in cols_lower for c in ["key_skills", "keyskills"]) and \
-             any(c in cols_lower for c in ["role_category", "rolecategory", "functional_area", "functionalarea"]):
+        # cols_lower uses spaces (not underscores), so check both forms
+        elif any(c in cols_lower for c in ["key_skills", "key skills", "keyskills"]) and \
+             any(c in cols_lower for c in ["role_category", "role category", "rolecategory",
+                                           "functional_area", "functional area", "functionalarea"]):
             naukri_df = df
             naukri_df.columns = [c.lower().replace(" ", "_") for c in naukri_df.columns]
             log(f"Naukri dataset: {p.name} — {len(naukri_df)} rows | cols: {list(naukri_df.columns[:8])}")
@@ -490,6 +491,7 @@ if jd2025_df is not None:
 # ── Naukri.com JDs (Indian market — vocabulary directly matches Indian CV datasets) ──
 if naukri_df is not None:
     added_naukri = 0
+    # naukri_df.columns already normalized to lowercase_underscore at detection time
     _n_title  = next((c for c in ["job_title","jobtitle","title","position"] if c in naukri_df.columns), None)
     _n_desc   = next((c for c in ["job_description","jobdescription","description","job_summary"] if c in naukri_df.columns), None)
     _n_skills = next((c for c in ["key_skills","keyskills","skills","required_skills"] if c in naukri_df.columns), None)
@@ -1047,16 +1049,20 @@ log(f"Quality gate PASSED  (spread={spread:.1f}pts, mid-pile={mid_pile:.0%}, n={
 # Linear rescale using dataset min/max so the model outputs the full 0-100 range
 # in production. Relative ordering is fully preserved.
 _all_dims = DIMENSION_NAMES + ["overall_score"]
-_score_min = min(r["overall_score"] for r in labeled)
-_score_max = max(r["overall_score"] for r in labeled)
+# Use global min/max across ALL dimensions so no score goes negative
+_all_scores = [r[d] for r in labeled for d in _all_dims]
+_score_min  = min(_all_scores)
+_score_max  = max(_all_scores)
 if _score_max > _score_min:
     _range = _score_max - _score_min
     for r in labeled:
         for _d in _all_dims:
-            r[_d] = round((r[_d] - _score_min) / _range * 100, 1)
-    log(f"Labels rescaled: [{_score_min:.1f}, {_score_max:.1f}] → [0, 100]")
+            r[_d] = round(max(0.0, min(100.0, (r[_d] - _score_min) / _range * 100)), 1)
+    log(f"Labels rescaled: [{_score_min:.1f}, {_score_max:.1f}] → [0, 100]  (global across all dims)")
 else:
     log("WARNING: score range is zero — skipping rescale")
+# Refresh overalls list so metadata + quality reporting reflects rescaled values
+overalls = [r["overall_score"] for r in labeled]
 
 # ── Model architecture ─────────────────────────────────────────────────────────
 EMB_DIM = 384   # all-MiniLM-L6-v2
@@ -1110,10 +1116,22 @@ class JobSyncScorerV3(nn.Module):
 
 # ── Handcrafted features (must match ai_scorer.py exactly) ────────────────────
 SKILLS_SET = {
+    # Global tech
     "python","java","javascript","typescript","react","sql","aws","docker",
     "kubernetes","tensorflow","pytorch","fastapi","django","golang","scala",
     "spark","kafka","redis","mongodb","postgresql","mysql","html","css",
     "spring","microservices","rest","api","git","linux","agile","scrum",
+    # Indian market tech vocabulary
+    "tally","erp","sap","gst","tds","mis","vba","excel","tableau","powerbi",
+    "autocad","solidworks","catia","ansys","matlab","plc","scada","revit",
+    "photoshop","illustrator","corel","figma","canva","wordpress","php","laravel",
+    "dotnet","c#","angular","vue","jquery","bootstrap","selenium","appium",
+    "oracle","sybase","db2","informatica","talend","pentaho","qlikview",
+    "hadoop","hive","pig","mapreduce","nifi","airflow","mlflow","databricks",
+    "azure","gcp","jenkins","ansible","terraform","puppet","chef","nagios",
+    "nmap","metasploit","burpsuite","wireshark","splunk","qradar","nessus",
+    "ipc","crpc","companies","rbi","sebi","rera","fema","gstin","audit",
+    "haccp","fssai","iso","lean","sixsigma","kaizen","dmaic","pmbok","prince2",
 }
 
 def hc_features(r_emb, j_emb, res_txt, jd_txt):
@@ -1202,20 +1220,16 @@ def focal_mse(pred, target, gamma=2.0):
 
 
 def ranking_loss(preds, targets, margin=5.0):
+    """Vectorized pairwise ranking loss — O(n²) tensor ops instead of Python loops."""
     overall_p = preds.mean(dim=1)
     overall_t = targets.mean(dim=1)
-    n = len(overall_p)
-    loss = torch.zeros(1, device=preds.device)
-    count = 0
-    for i in range(n):
-        for j in range(i+1, n):
-            if overall_t[i] > overall_t[j] + margin:
-                loss += torch.clamp(overall_p[j] - overall_p[i] + 1.0, min=0.0)
-                count += 1
-            elif overall_t[j] > overall_t[i] + margin:
-                loss += torch.clamp(overall_p[i] - overall_p[j] + 1.0, min=0.0)
-                count += 1
-    return loss / max(count, 1)
+    # diff[i,j] = t[i] - t[j];  mask[i,j]=True when i should rank higher than j
+    diff_t = overall_t.unsqueeze(1) - overall_t.unsqueeze(0)
+    diff_p = overall_p.unsqueeze(1) - overall_p.unsqueeze(0)
+    mask   = diff_t > margin                                   # (n,n), asymmetric
+    violation = torch.clamp(-diff_p + 1.0, min=0.0)           # penalise wrong ordering
+    count  = mask.float().sum().clamp(min=1.0)
+    return (violation * mask.float()).sum() / count
 
 
 def combined_loss(pred, target):
@@ -1242,11 +1256,11 @@ train_overalls = [
     for i in range(len(train_ds))
 ]
 def score_weight(s):
-    if s < 25: return 3.0    # rare low scores
-    if s < 40: return 2.0
-    if s < 60: return 1.0
-    if s < 80: return 1.2
-    return 2.5                # rare high scores
+    # After rescaling: none≈0-10, poor≈10-20, partial≈20-35, good≈35-55, perfect≈55-100
+    if s < 15:  return 2.5   # none — upweight so model learns to predict low end
+    if s < 35:  return 1.2   # poor/partial — common, baseline weight
+    if s < 60:  return 1.0   # good — well-represented
+    return 3.0               # perfect/high — rare after rescaling, needs emphasis
 
 weights  = [score_weight(s) for s in train_overalls]
 sampler  = WeightedRandomSampler(weights, num_samples=len(train_ds), replacement=True)
