@@ -1,20 +1,95 @@
 {
-  "trained_at": "2026-06-08T06:03:52.232282",
-  "version": 2,
+  "trained_at": "2026-06-17T07:21:47.752148",
+  "version": 3,
   "encoder": "sentence-transformers/all-MiniLM-L6-v2 (frozen)",
+  "architecture": "MiniLM-L6(frozen,384d)+ScorerV3(residual,inp=1546)",
   "scorer": {
-    "val_mse": 0.52,
-    "val_mae": 0.53,
-    "epochs": 280
+    "val_mse": 32.2751,
+    "val_mae": 5.6811,
+    "epochs": 99,
+    "total_params": 3766533
   },
-  "data_source": "real-kaggle-datasets+synthetic",
-  "n_pairs": 6000,
+  "data_source": "real-kaggle-datasets+groq-judgment-labels",
+  "label_strategy": "groq-recruiter-judgment-v3",
+  "n_pairs": 2508,
   "pair_dist": {
-    "high": 2117,
-    "medium": 2389,
-    "low": 1494
+    "none": 437,
+    "poor": 593,
+    "partial": 540,
+    "good": 672,
+    "perfect": 266
+  },
+  "score_dist": {
+    "min": 0.0,
+    "max": 85.2,
+    "mean": 21.3
   },
   "device": "cpu",
-  "architecture": "MiniLM-L6(frozen,384d)+Scorer3L\u00d75heads(inp=1546)",
-  "label_strategy": "v8-cosine-based"
+  "history_tail": [
+    {
+      "epoch": 95,
+      "train_loss": 209.5333,
+      "val_mse": 89.6111,
+      "val_mae": 6.3715,
+      "dim_maes": [
+        6.829,
+        6.092,
+        6.653,
+        6.534,
+        5.789
+      ]
+    },
+    {
+      "epoch": 96,
+      "train_loss": 216.9938,
+      "val_mse": 83.3194,
+      "val_mae": 6.0113,
+      "dim_maes": [
+        6.651,
+        5.8,
+        6.033,
+        6.385,
+        5.23
+      ]
+    },
+    {
+      "epoch": 97,
+      "train_loss": 222.0558,
+      "val_mse": 80.9161,
+      "val_mae": 5.9847,
+      "dim_maes": [
+        6.279,
+        6.25,
+        5.524,
+        6.191,
+        5.724
+      ]
+    },
+    {
+      "epoch": 98,
+      "train_loss": 198.6209,
+      "val_mse": 76.1095,
+      "val_mae": 5.7181,
+      "dim_maes": [
+        6.102,
+        5.746,
+        5.613,
+        6.08,
+        5.102
+      ]
+    },
+    {
+      "epoch": 99,
+      "train_loss": 196.6183,
+      "val_mse": 83.6167,
+      "val_mae": 6.4083,
+      "dim_maes": [
+        6.712,
+        6.441,
+        6.293,
+        6.378,
+        6.22
+      ]
+    }
+  ]
 }

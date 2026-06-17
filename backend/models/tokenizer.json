@@ -3,5 +3,5 @@
   "model_name": "sentence-transformers/all-MiniLM-L6-v2",
   "emb_dim": 384,
   "input_dim": 1546,
-  "version": 2
+  "version": 3
 }
