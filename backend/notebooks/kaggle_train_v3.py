@@ -222,6 +222,7 @@ print(f"Found CSVs: {[str(p) for p in resume_paths]}")
 resume_dfs = []   # collect ALL resume CSVs and merge
 jd_df      = None
 jd2025_df  = None
+naukri_df  = None
 
 for p in resume_paths:
     try:
@@ -246,6 +247,14 @@ for p in resume_paths:
             jd_df = df
             jd_df.columns = [c.lower() for c in jd_df.columns]
             log(f"LinkedIn postings: {p.name} — {len(jd_df)} rows | cols: {list(jd_df.columns[:8])}")
+
+        # ── Naukri.com postings (promptcloud/jobs-on-naukricom) ───────────────────
+        # Detected by presence of key_skills + role_category columns (Naukri-specific)
+        elif any(c in cols_lower for c in ["key_skills", "keyskills"]) and \
+             any(c in cols_lower for c in ["role_category", "rolecategory", "functional_area", "functionalarea"]):
+            naukri_df = df
+            naukri_df.columns = [c.lower().replace(" ", "_") for c in naukri_df.columns]
+            log(f"Naukri dataset: {p.name} — {len(naukri_df)} rows | cols: {list(naukri_df.columns[:8])}")
 
         # ── JD 2025 dataset (adityarajsrv) — detect by columns, not filename
         # Columns vary: title/job_title + skills/responsibilities/description/job_description
@@ -425,6 +434,15 @@ if jd_df is not None:
     desc_col  = next((c for c in jd_df.columns if "description" in c or "desc" in c), None)
     log(f"LinkedIn postings columns: {list(jd_df.columns[:10])}")
     log(f"LinkedIn rows: {len(jd_df)}")
+    # Filter for India-based JDs — reduces vocabulary mismatch with Indian CV datasets
+    if "location" in jd_df.columns:
+        india_mask = jd_df["location"].fillna("").str.contains("India", case=False, na=False)
+        n_india = int(india_mask.sum())
+        if n_india >= 5000:
+            jd_df = jd_df[india_mask].reset_index(drop=True)
+            log(f"LinkedIn filtered to India locations: {len(jd_df)} rows")
+        else:
+            log(f"LinkedIn India rows only {n_india} — keeping all {len(jd_df)} rows")
     if title_col and desc_col:
         for _, row in jd_df.iterrows():
             title = str(row.get(title_col, "")).lower()
@@ -468,6 +486,32 @@ if jd2025_df is not None:
             jd_by_cat[matched].append(jd_text[:1200])
             added_2025 += 1
     log(f"JD 2025 added: {added_2025} JDs | categories now: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
+
+# ── Naukri.com JDs (Indian market — vocabulary directly matches Indian CV datasets) ──
+if naukri_df is not None:
+    added_naukri = 0
+    _n_title  = next((c for c in ["job_title","jobtitle","title","position"] if c in naukri_df.columns), None)
+    _n_desc   = next((c for c in ["job_description","jobdescription","description","job_summary"] if c in naukri_df.columns), None)
+    _n_skills = next((c for c in ["key_skills","keyskills","skills","required_skills"] if c in naukri_df.columns), None)
+    log(f"Naukri columns resolved → title='{_n_title}' desc='{_n_desc}' skills='{_n_skills}'")
+    for _, row in naukri_df.iterrows():
+        title  = str(row.get(_n_title,  "") if _n_title  else "").lower()
+        desc   = str(row.get(_n_desc,   "") if _n_desc   else "").strip()
+        skills = str(row.get(_n_skills, "") if _n_skills else "").strip()
+        jd_text = f"{desc} Required Skills: {skills}".strip() if skills else desc
+        if len(jd_text) < 100:
+            continue
+        matched = None
+        for kw, cat in TITLE_TO_CAT.items():
+            if kw in title:
+                matched = cat
+                break
+        if matched and len(jd_by_cat[matched]) < MAX_PER_CAT:
+            jd_by_cat[matched].append(jd_text[:1200])
+            added_naukri += 1
+    log(f"Naukri added: {added_naukri} JDs | categories now: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
+else:
+    log("Naukri dataset not found — add promptcloud/jobs-on-naukricom to kernel inputs for Indian JD vocabulary")
 
 # Fallback: synthetic JD templates for categories without real JDs
 SYNTHETIC_JDS = {
