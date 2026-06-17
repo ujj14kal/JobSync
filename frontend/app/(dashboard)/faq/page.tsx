@@ -241,7 +241,7 @@ export default function FaqPage() {
           Can't find what you're looking for? Reach out directly.
         </p>
         <a
-          href={`mailto:${SUPPORT_EMAIL}?subject=JobSynk Support`}
+          href="/support"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
         >
