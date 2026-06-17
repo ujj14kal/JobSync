@@ -659,6 +659,44 @@ def parse_projects_section(text: str) -> list[dict]:
 
 # ─── Main Parse Function ─────────────────────────────────────────────────────
 
+def detect_document_type(text: str) -> str:
+    """Return 'resume', 'cover_letter', or 'unknown'."""
+    t = text.lower()
+
+    cover_signals = [
+        "dear hiring manager", "dear recruiter", "to whom it may concern",
+        "i am writing to", "i am excited to apply", "i would like to apply",
+        "please consider my application", "i look forward to hearing",
+        "thank you for considering", "sincerely,", "yours sincerely",
+        "i am applying for the position", "enclosed is my resume",
+        "i am a strong candidate", "my name is", "i believe i am",
+    ]
+    resume_signals = [
+        "work experience", "professional experience", "education",
+        "skills", "projects", "certifications", "achievements",
+        "summary", "objective", "employment history",
+    ]
+
+    cover_hits = sum(1 for s in cover_signals if s in t)
+    resume_hits = sum(1 for s in resume_signals if s in t)
+
+    # Strong openers that definitively identify a cover letter
+    strong_cover = any(s in t for s in [
+        "dear hiring manager", "dear recruiter", "to whom it may concern",
+        "i am writing to", "i am excited to apply", "i would like to apply",
+    ])
+
+    if strong_cover and cover_hits >= 2:
+        return "cover_letter"
+    if cover_hits >= 3:
+        return "cover_letter"
+    if resume_hits >= 2 and not strong_cover:
+        return "resume"
+    if resume_hits >= 3:
+        return "resume"
+    return "unknown"
+
+
 def parse_resume(text: str) -> dict:
     """
     Parse raw resume text into structured data.
@@ -702,4 +740,5 @@ def parse_resume(text: str) -> dict:
         "projects": projects,
         "certifications": [],
         "raw_sections": {k: v[:2000] for k, v in sections.items()},
+        "document_type": detect_document_type(text),
     }

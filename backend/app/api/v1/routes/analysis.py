@@ -135,6 +135,17 @@ async def create_analysis(
     if not resume.data:
         raise HTTPException(status_code=404, detail="Resume not found")
 
+    # ── 4b. Document type check ───────────────────────────────────────────────
+    resume_text_check = resume.data[0].get("raw_text", "") or ""
+    if resume_text_check:
+        from app.services.resume_parser import detect_document_type
+        doc_type = detect_document_type(resume_text_check)
+        if doc_type == "cover_letter":
+            raise HTTPException(
+                status_code=422,
+                detail="This looks like a cover letter, not a resume. Please upload your resume (CV) to get an accurate ATS score.",
+            )
+
     job = (
         supabase.table("job_descriptions")
         .select("*")
