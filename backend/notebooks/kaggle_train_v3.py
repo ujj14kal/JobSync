@@ -1,5 +1,5 @@
 """
-JobSync AI Trainer v4 — Real Resumes + Real JDs + GPT-4o-mini Labels
+JobSync AI Trainer v5 — Calibrated Labels + Larger Context
 ==============================================================
 
 Key improvements over v2:
@@ -65,11 +65,25 @@ META_OUT     = OUTPUT_DIR / "model_meta.json"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 print("=" * 65)
-print("JobSync AI Trainer v4 — Real Resumes + Real JDs")
+print("JobSync AI Trainer v5 — Fixed Label Distribution")
 print(f"Session started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 print("=" * 65)
 
 # ── Deps ───────────────────────────────────────────────────────────────────────
+# P100 (sm_60) is incompatible with torch 2.2+ which requires sm_70+.
+# Install 2.1.2+cu118 which is the last release supporting sm_60 with Python 3.12.
+import subprocess as _sp, importlib as _il
+_torch_install = _sp.run(
+    [sys.executable, "-m", "pip", "install", "-q",
+     "torch==2.1.2+cu118",
+     "--index-url", "https://download.pytorch.org/whl/cu118"],
+    capture_output=True, text=True
+)
+if _torch_install.returncode == 0:
+    print("[GPU FIX] torch==2.1.2+cu118 installed — P100 sm_60 now supported")
+else:
+    print(f"[GPU FIX] torch reinstall failed (will use CPU): {_torch_install.stderr[:120]}")
+
 os.system("pip install -q sentence-transformers openai")
 
 import torch
@@ -233,15 +247,25 @@ for p in resume_paths:
             jd_df.columns = [c.lower() for c in jd_df.columns]
             log(f"LinkedIn postings: {p.name} — {len(jd_df)} rows | cols: {list(jd_df.columns[:8])}")
 
-        # ── JD 2025 dataset ───────────────────────────────────────────
-        elif p.name == "job_dataset.csv" and "title" in cols_lower:
+        # ── JD 2025 dataset (adityarajsrv) — detect by columns, not filename
+        # Columns vary: title/job_title + skills/responsibilities/description/job_description
+        elif (
+            any(c in cols_lower for c in ["title", "job_title"]) and
+            any(c in cols_lower for c in ["skills", "responsibilities", "description", "job_description", "required_skills"]) and
+            "job_posting_url" not in cols_lower and
+            "category" not in cols_lower
+        ):
             jd2025_df = df
             jd2025_df.columns = [c.lower() for c in jd2025_df.columns]
-            log(f"JD 2025 dataset: {p.name} — {len(jd2025_df)} rows")
+            log(f"JD 2025 dataset: {p.name} — {len(jd2025_df)} rows | cols: {list(jd2025_df.columns[:8])}")
 
     except Exception as e:
         log(f"Skipped {p.name}: {e}")
 
+if jd_df is None:
+    log("WARNING: LinkedIn postings dataset not detected — will rely on JD 2025 + synthetic JDs")
+if jd2025_df is None:
+    log("WARNING: JD 2025 dataset (adityarajsrv) not detected — will rely on LinkedIn + synthetic JDs")
 if not resume_dfs:
     raise RuntimeError("No resume datasets found. Add snehaanbhawal/resume-dataset and jillanisofttech/updated-resume-dataset to kernel inputs.")
 
@@ -421,13 +445,18 @@ if jd_df is not None:
 # ── JD 2025 dataset (adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles) ──
 if jd2025_df is not None:
     added_2025 = 0
+    # Resolve column names flexibly — dataset may use different naming conventions
+    _title_col = next((c for c in ["title", "job_title", "position"] if c in jd2025_df.columns), None)
+    _skills_col = next((c for c in ["skills", "required_skills", "key_skills"] if c in jd2025_df.columns), None)
+    _resp_col   = next((c for c in ["responsibilities", "job_description", "description", "duties"] if c in jd2025_df.columns), None)
+    log(f"JD 2025 columns resolved → title='{_title_col}' skills='{_skills_col}' resp='{_resp_col}'")
     for _, row in jd2025_df.iterrows():
-        title = str(row.get("title", "")).lower()
-        skills = str(row.get("skills", "")).strip()
-        responsibilities = str(row.get("responsibilities", "")).strip()
+        title = str(row.get(_title_col, "") if _title_col else "").lower()
+        skills = str(row.get(_skills_col, "") if _skills_col else "").strip()
+        responsibilities = str(row.get(_resp_col, "") if _resp_col else "").strip()
         if not skills and not responsibilities:
             continue
-        jd_text = f"Role: {row.get('title','')}. Skills required: {skills}. Responsibilities: {responsibilities}"
+        jd_text = f"Role: {row.get(_title_col,'') if _title_col else ''}. Skills required: {skills}. Responsibilities: {responsibilities}"
         if len(jd_text) < 100:
             continue
         matched = None
@@ -569,25 +598,33 @@ def sample_jd(cat, exclude=None):
         return None
     return random.choice(pool)
 
-# ── Groq labeling ──────────────────────────────────────────────────────────────
-LABEL_PROMPT = """Score how well this resume matches this job description. Use the full 0-100 range honestly.
+# ── GPT-4o-mini labeling ───────────────────────────────────────────────────────
+LABEL_SYSTEM = """You are scoring resume-to-job fit with 5 integer scores (0-100 each).
+All 5 scores must reflect the SAME overall match quality — do not score dimensions independently.
+If the overall match is strong (same field, similar role), ALL 5 scores must be 65-90.
+If the overall match is weak (different industry), ALL 5 scores must be 5-20.
+Never give 80 on one dimension and 10 on another for the same pair."""
 
-Scoring guide:
-- 85-100 = near-perfect match (same role, all skills present)
-- 65-84  = good match (same domain, most skills present)
-- 40-64  = partial match (adjacent domain, some overlap)
-- 15-39  = poor match (different but related field)
-- 0-14   = no match (completely different fields)
+LABEL_PROMPT = """Score this resume against this job description. Output 5 scores.
 
-RESUME: {resume}
+TARGET RANGES — pick the range that best describes the match, apply it to ALL 5 scores:
+- Same role, strong skill match (e.g. Python dev → Python/Django job, skills align): 75-92
+- Same role, moderate skills (e.g. Python dev → Python job, some tools differ): 58-74
+- Adjacent domain (e.g. Java dev → Python role, Data Analyst → ML Engineer): 38-57
+- Same industry, different function (e.g. HR → Sales, Civil → Mechanical): 18-37
+- Completely different fields (e.g. Chef → Software, Teacher → Finance): 2-17
 
-JOB: {jd}
+RESUME:
+{resume}
 
-Return JSON with integer scores 0-100 for each dimension:
+JOB DESCRIPTION:
+{jd}
+
+Return ONLY valid JSON with integer scores 0-100:
 {{"ats_score": <int>, "technical_fit_score": <int>, "semantic_match_score": <int>, "recruiter_impression_score": <int>, "project_relevance_score": <int>}}"""
 
 # ── Cost tracking ──────────────────────────────────────────────────────────────
-COST_CAP_USD    = 1.00          # hard stop — will never exceed this
+COST_CAP_USD    = 1.50          # hard stop — covers all 5000 pairs at 3000/2000 context
 _total_usd      = 0.0
 _total_in_tok   = 0
 _total_out_tok  = 0
@@ -612,8 +649,8 @@ def label_pair(resume: str, jd: str, retries: int = 3) -> dict | None:
         time.sleep(gap - elapsed)
 
     prompt = LABEL_PROMPT.format(
-        resume=resume[:500].replace("{","(").replace("}",")"),
-        jd=jd[:400].replace("{","(").replace("}",")")
+        resume=resume[:3000].replace("{","(").replace("}",")"),
+        jd=jd[:2000].replace("{","(").replace("}",")")
     )
 
     for attempt in range(retries):
@@ -621,9 +658,12 @@ def label_pair(resume: str, jd: str, retries: int = 3) -> dict | None:
             _last_api_call = time.time()
             resp = openai_client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": LABEL_SYSTEM},
+                    {"role": "user",   "content": prompt},
+                ],
                 temperature=0.1,
-                max_tokens=120,       # JSON with 5 numbers ~80 tokens — tight cap saves money
+                max_tokens=120,
                 response_format={"type": "json_object"},
             )
             # Track exact cost from API usage
@@ -753,6 +793,10 @@ for _cache_path in _cache_sources:
         for line in f:
             try:
                 rec = json.loads(line)
+                # Reject stale pairs: wrong label strategy (v4/v3 bad labels) or near-zero score
+                if rec.get("label_strategy", "") != "gpt4o-mini-calibrated-v5":
+                    stale_skipped += 1
+                    continue
                 if rec.get("overall_score", 0) < 1.0:
                     stale_skipped += 1
                     continue
@@ -768,7 +812,7 @@ cache_file = open(PAIRS_CACHE, "a")
 
 est_minutes = len(pairs) / RPM_LIMIT
 log(f"Labeling {len(pairs)} pairs with gpt-4o-mini  (~{est_minutes:.0f} min at {RPM_LIMIT} RPM)", sep=True)
-log(f"Estimated cost: ~${len(pairs)*0.000085:.2f} USD  (~₹{len(pairs)*0.000085*84:.0f})")
+log(f"Estimated cost: ~${len(pairs)*0.000266:.2f} USD  (~₹{len(pairs)*0.000266*84:.0f})")
 
 t_label = time.time()
 errors     = 0
@@ -799,7 +843,7 @@ for i, pair in enumerate(pairs):
         # Abort early if too many consecutive errors — don't burn the session
         if attempted >= 20 and errors / attempted > MAX_ERROR_RATE:
             log(f"ERROR RATE TOO HIGH ({errors}/{attempted} = {errors/attempted:.0%}) — aborting labeling")
-            log("Check your GROQ_API_KEY secret and quota at console.groq.com")
+            log("Check your OPENAI_API_KEY secret in Add-ons → Secrets on Kaggle.")
             break
         continue
 
@@ -819,8 +863,8 @@ for i, pair in enumerate(pairs):
         "resume_cat": pair["resume_cat"],
         "jd_cat": pair["jd_cat"],
         "expected_level": pair["expected_level"],
-        "source": "groq-llm-v3",
-        "label_strategy": "groq-recruiter-judgment",
+        "source": "gpt4o-mini-v5",
+        "label_strategy": "gpt4o-mini-calibrated-v5",
         **scores,
         "overall_score": overall,
     }
@@ -852,7 +896,27 @@ for i, pair in enumerate(pairs):
             f"ETA {eta} | "
             f"dist: " + " ".join(f"{k}={v}" for k,v in sorted(by_level.items()))
         )
-        # Extra warning if scores look degenerate (Groq defaulting to ~50)
+        # Dual calibration check: absolute floor + relative ratio.
+        # Absolute ≥18 catches total collapse; ratio ≥1.8 ensures good/perfect
+        # score meaningfully higher than none/poor regardless of scale compression.
+        gp_new = [r["overall_score"] for r in labeled
+                  if r.get("label_strategy") == "gpt4o-mini-calibrated-v5"
+                  and r.get("expected_level") in ["good", "perfect"]]
+        np_new = [r["overall_score"] for r in labeled
+                  if r.get("label_strategy") == "gpt4o-mini-calibrated-v5"
+                  and r.get("expected_level") in ["none", "poor"]]
+        if len(gp_new) >= 30 and len(np_new) >= 15:
+            gp_avg = sum(gp_new) / len(gp_new)
+            np_avg = sum(np_new) / len(np_new)
+            ratio  = gp_avg / max(np_avg, 1.0)
+            if gp_avg < 18 or ratio < 1.8:
+                cache_file.close()
+                raise RuntimeError(
+                    f"CALIBRATION FAILED — good/perfect avg={gp_avg:.1f} "
+                    f"none/poor avg={np_avg:.1f} ratio={ratio:.2f} "
+                    f"(need avg≥18 AND ratio≥1.8). Cost so far: ${_total_usd:.3f}"
+                )
+        # Extra warning if scores look degenerate
         if n >= 50 and spread < 30:
             log(f"  ⚠ LOW SPREAD ({spread:.0f}pts) — model may be defaulting. Check prompt.")
 
@@ -887,7 +951,7 @@ for dim in DIMENSION_NAMES:
 
 # ── QUALITY GATE — abort before wasting GPU time on bad data ──────────────────
 GATE_MIN_PAIRS  = 200    # need at least 200 pairs
-GATE_MIN_SPREAD = 40     # score range must be > 40 pts  (model needs variation)
+GATE_MIN_SPREAD = 55     # score range must be > 55 pts — with good labels expect 70+
 GATE_MAX_MIDPILE = 0.65  # no more than 65% of scores in [35-65] band (means Groq defaulted)
 
 quality_ok = True
@@ -905,14 +969,50 @@ if spread < GATE_MIN_SPREAD:
     quality_ok = False
 
 if mid_pile > GATE_MAX_MIDPILE:
-    log(f"QUALITY GATE WARN: {mid_pile:.0%} of scores are clustered in [35-65].")
-    log("Data looks degenerate — model may not learn extreme scores well.")
-    # This is a warning only; still proceed
+    log(f"QUALITY GATE FAIL: {mid_pile:.0%} of scores are clustered in [35-65] (max {GATE_MAX_MIDPILE:.0%}).")
+    log("Calibration prompt did not produce enough score variation. Not training.")
+    quality_ok = False
+
+# Per-level sanity check — "perfect" must score higher than "none"
+perfect_scores = [r["overall_score"] for r in labeled if r.get("expected_level") == "perfect"]
+none_scores    = [r["overall_score"] for r in labeled if r.get("expected_level") == "none"]
+if perfect_scores and none_scores:
+    perf_avg = sum(perfect_scores) / len(perfect_scores)
+    none_avg = sum(none_scores)    / len(none_scores)
+    log(f"Per-level check: perfect avg={perf_avg:.1f}  none avg={none_avg:.1f}")
+    # Use ratio-based gate — robust to scale compression from Indian-CV vs US-JD vocabulary mismatch.
+    ratio_pn = perf_avg / max(none_avg, 1.0)
+    log(f"perfect/none ratio: {ratio_pn:.2f}x")
+    if perf_avg < 20:
+        log(f"QUALITY GATE FAIL: 'perfect' pairs averaging only {perf_avg:.1f} (expected ≥20). Calibration incomplete.")
+        quality_ok = False
+    if none_avg > 35:
+        log(f"QUALITY GATE FAIL: 'none' pairs averaging {none_avg:.1f} (expected ≤35). Model won't learn mismatches.")
+        quality_ok = False
+    if ratio_pn < 2.0:
+        log(f"QUALITY GATE FAIL: perfect/none ratio only {ratio_pn:.2f}x (need ≥2.0x). Labels not discriminative enough.")
+        quality_ok = False
 
 if not quality_ok:
     raise RuntimeError("Quality gate failed — not training on bad data. See logs above.")
 
 log(f"Quality gate PASSED  (spread={spread:.1f}pts, mid-pile={mid_pile:.0%}, n={len(labeled)})")
+
+# ── Rescale labels to 0-100 ────────────────────────────────────────────────────
+# GPT scores are compressed to 5-85 due to Indian-CV vs US-JD vocabulary mismatch.
+# Linear rescale using dataset min/max so the model outputs the full 0-100 range
+# in production. Relative ordering is fully preserved.
+_all_dims = DIMENSION_NAMES + ["overall_score"]
+_score_min = min(r["overall_score"] for r in labeled)
+_score_max = max(r["overall_score"] for r in labeled)
+if _score_max > _score_min:
+    _range = _score_max - _score_min
+    for r in labeled:
+        for _d in _all_dims:
+            r[_d] = round((r[_d] - _score_min) / _range * 100, 1)
+    log(f"Labels rescaled: [{_score_min:.1f}, {_score_max:.1f}] → [0, 100]")
+else:
+    log("WARNING: score range is zero — skipping rescale")
 
 # ── Model architecture ─────────────────────────────────────────────────────────
 EMB_DIM = 384   # all-MiniLM-L6-v2
@@ -1242,24 +1342,24 @@ tokenizer_meta = {
     "model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "emb_dim": EMB_DIM,
     "input_dim": INP_DIM,
-    "version": 4,
+    "version": 5,
 }
 with open(TOKEN_OUT, "w") as f:
     json.dump(tokenizer_meta, f, indent=2)
 
 model_meta = {
     "trained_at": datetime.utcnow().isoformat(),
-    "version": 4,
+    "version": 5,
     "encoder": "sentence-transformers/all-MiniLM-L6-v2 (frozen)",
-    "architecture": f"MiniLM-L6(frozen,384d)+ScorerV4(residual,inp={INP_DIM})",
+    "architecture": f"MiniLM-L6(frozen,384d)+ScorerV5(residual,inp={INP_DIM})",
     "scorer": {
         "val_mse": round(best_val_mae**2, 4),
         "val_mae": round(best_val_mae, 4),
         "epochs": len(history),
         "total_params": total_params,
     },
-    "data_source": "real-resumes+real-jds+gpt4o-mini-labels",
-    "label_strategy": "gpt4o-mini-recruiter-judgment-v4",
+    "data_source": "real-resumes+real-jds+gpt4o-mini-calibrated-labels",
+    "label_strategy": "gpt4o-mini-calibrated-v5",
     "n_pairs": len(labeled),
     "pair_dist": {k: sum(1 for r in labeled if r.get("expected_level")==k) for k in DIST},
     "score_dist": {
