@@ -1,6 +1,6 @@
 {
   "id": "ujj14kal/jobsync-ai-trainer-v3",
-  "title": "JobSync AI Trainer v4",
+  "title": "JobSync AI Trainer v3",
   "code_file": "kaggle_train_v3.py",
   "language": "python",
   "kernel_type": "script",
@@ -11,8 +11,7 @@
     "snehaanbhawal/resume-dataset",
     "arshkon/linkedin-job-postings",
     "jillanisofttech/updated-resume-dataset",
-    "adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles",
-    "ujj14kal/jobsync-pairs-cache"
+    "adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles"
   ],
   "competition_sources": [],
   "kernel_sources": []

@@ -54,7 +54,11 @@ async def search_job(
     def _cache_is_good(row: dict) -> bool:
         """Skip cached records that have empty/useless parsed_data (bad old scrapes)."""
         pd = row.get("parsed_data") or {}
-        return bool(pd.get("title") or pd.get("required_skills") or pd.get("responsibilities"))
+        has_content = bool(pd.get("title") or pd.get("required_skills") or pd.get("responsibilities"))
+        # Reject if company looks like a job-type/specialization (bad extraction)
+        company = (row.get("company_name") or pd.get("company") or "").lower()
+        bad_company = company in {"full stack", "full-stack", "backend", "frontend", "remote", "contract", ""}
+        return has_content and not bad_company
 
     if request.job_url:
         cached = (

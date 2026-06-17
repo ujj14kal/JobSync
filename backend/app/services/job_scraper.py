@@ -340,7 +340,7 @@ async def scrape_url_with_firecrawl(url: str) -> Optional[tuple[str, dict]]:
                     "formats": ["markdown"],
                     "onlyMainContent": True,
                     "excludeTags": ["nav", "header", "footer", "aside", ".cookie", ".banner"],
-                    "waitFor": 3000,  # wait 3s for JS to render content
+                    "waitFor": 7000,  # wait 7s for JS SPAs to fetch and render job data
                 },
             )
             if resp.status_code == 200:
@@ -586,6 +586,30 @@ def extract_job_content_from_html(html: str, url: str) -> Optional[str]:
     """
     soup = BeautifulSoup(html, "lxml")
 
+    # Strategy 0: JSON-LD JobPosting description — works for Phenom People (Cisco),
+    # Workday, and other ATSs that embed full HTML description in structured data
+    # but render it via JavaScript (so DOM selectors miss it).
+    import html as html_lib
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            raw_json = script.string or ""
+            if not raw_json.strip():
+                continue
+            data = json.loads(raw_json)
+            if isinstance(data, list):
+                data = next((d for d in data if isinstance(d, dict)), {})
+            if isinstance(data, dict) and data.get("@type") in ("JobPosting", "jobPosting"):
+                desc_html = data.get("description", "")
+                if desc_html and len(desc_html) > 200:
+                    # Decode HTML entities then strip tags
+                    decoded = html_lib.unescape(desc_html)
+                    desc_soup = BeautifulSoup(decoded, "lxml")
+                    text = desc_soup.get_text(separator="\n", strip=True)
+                    if len(text) > 200:
+                        return _clean_text(text)
+        except Exception:
+            pass
+
     for tag in soup.find_all([
         "script", "style", "nav", "header", "footer", "iframe",
         "noscript", "aside", "form", "svg",
@@ -686,10 +710,10 @@ async def extract_job_details_with_llm(
         )
         parsed = json.loads(raw)
 
-        # Post-process: if LLM returned empty/generic title, use the hint
+        # Post-process: hint_company from URL inference always wins (it's authoritative)
         if hint_title and (not parsed.get("title") or len(parsed["title"]) < 3):
             parsed["title"] = hint_title
-        if hint_company and (not parsed.get("company") or len(parsed["company"]) < 2):
+        if hint_company:
             parsed["company"] = hint_company
 
         return parsed
@@ -734,6 +758,7 @@ _JOB_DOMAINS = {
     "careerplug.com",        # SMB / retail / hospitality
     "paylocity.com", "paycor.com",
     "recruitingbypaychex.com",
+    "saashr.com",               # SaaS HR / WFN ATS (BSI Financial, etc.)
     # Big-tech career portals
     "careers.microsoft.com", "apply.careers.microsoft.com",
     "careers.google.com", "hire.withgoogle.com",
@@ -756,7 +781,7 @@ _CAREERS_SUBDOMAINS = {
 
 # Path fragments that strongly indicate a job posting URL
 _JOB_PATH_KEYWORDS = {
-    "/jobs/", "/job/", "/careers/", "/careers",
+    "/jobs/", "/job/", "/careers/", "/careers", "/career",
     "/opening/", "/openings/", "/positions/", "/position/",
     "/vacancy/", "/vacancies/", "/role/", "/roles/",
     "/apply/", "/job-detail/", "/job-posting/", "/joboffer/",
@@ -960,18 +985,36 @@ async def search_and_scrape_job(
     eff_title = metadata.get("title") or job_title or ""
     eff_company = metadata.get("company") or company_name or ""
 
+    # Infer company from URL domain — this is high-confidence and always wins
+    # over LLM guesses (e.g. careers.walmart.com → Walmart, always correct)
+    _url_inferred_company = ""
+    if direct_url or source_url:
+        _url_for_company = direct_url or source_url or ""
+        _host = urlparse(_url_for_company).netloc.lower().lstrip("www.")
+        _parts = _host.split(".")
+        _skip = {"careers", "jobs", "job", "apply", "hiring", "talent", "work", "secure", "secure7"}
+        _noise = {"com", "org", "net", "io", "co", "saashr", "myworkdayjobs", "greenhouse", "lever",
+                  "bamboohr", "workable", "ashbyhq", "icims", "taleo", "successfactors", "breezy"}
+        _company_part = next((p for p in _parts if p not in _skip and len(p) > 2), "")
+        if _company_part and _company_part not in _noise:
+            _url_inferred_company = _company_part.capitalize()
+    if _url_inferred_company:
+        eff_company = _url_inferred_company
+
     # ── Parse with LLM if we have real job content ──────────────────────────
     # Discard pages that look like login walls even if they passed earlier checks
     if raw_text and _is_blocked_page(raw_text):
         logger.warning("Extracted text looks like a login/block page — discarding")
         raw_text = None
 
-    # Require at least one job-related keyword in the text
+    # Require at least 3 job-related keywords — generic career/company pages
+    # often contain 1-2 incidental signals (e.g. "benefits", "compensation")
+    # but a real job posting always has responsibilities, requirements, skills, etc.
     if raw_text:
         lower_sample = raw_text.lower()[:3000]
         job_signal_count = sum(1 for s in _JOB_SIGNALS if s in lower_sample)
-        if job_signal_count == 0:
-            logger.warning("No job signals in extracted text — discarding", url=direct_url)
+        if job_signal_count < 3:
+            logger.warning("Too few job signals — likely a generic career page, not a job posting", url=direct_url, signals=job_signal_count)
             raw_text = None
 
     if raw_text and len(raw_text) >= 150:

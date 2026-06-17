@@ -1,5 +1,5 @@
 """
-JobSync AI Trainer v3 — Groq-Judged Labels + Real Kaggle Data
+JobSync AI Trainer v4 — Real Resumes + Real JDs + GPT-4o-mini Labels
 ==============================================================
 
 Key improvements over v2:
@@ -21,12 +21,43 @@ Output: scorer.pt + tokenizer.json  (drop into backend/models/)
 
 import os, sys, json, math, re, time, random, hashlib
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
+
+
+# ── Logging helpers ────────────────────────────────────────────────────────────
+_session_start = time.time()
+
+def ts():
+    """Wall-clock timestamp for log lines."""
+    return datetime.now(timezone.utc).strftime("%H:%M:%S")
+
+def elapsed_str(since=None):
+    sec = time.time() - (since or _session_start)
+    h, rem = divmod(int(sec), 3600)
+    m, s   = divmod(rem, 60)
+    return f"{h}h{m:02d}m{s:02d}s" if h else f"{m}m{s:02d}s"
+
+def eta_str(done, total, since):
+    if done == 0:
+        return "?"
+    rate = done / (time.time() - since)
+    rem  = (total - done) / rate
+    h, r = divmod(int(rem), 3600)
+    m, s = divmod(r, 60)
+    return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
+
+def log(msg, sep=False):
+    prefix = f"[{ts()}] "
+    if sep:
+        print(f"\n{prefix}{'─'*55}")
+    print(f"{prefix}{msg}")
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 OUTPUT_DIR   = Path("/kaggle/working")
-PAIRS_CACHE  = OUTPUT_DIR / "labeled_pairs.jsonl"  # incremental save
+PAIRS_CACHE  = OUTPUT_DIR / "labeled_pairs.jsonl"  # incremental save (write target)
+# Pre-labeled cache from previous run — loaded as a Kaggle dataset input
+PAIRS_CACHE_INPUT = Path("/kaggle/input/jobsync-pairs-cache/labeled_pairs.jsonl")
 MODEL_OUT    = OUTPUT_DIR / "scorer.pt"
 TOKEN_OUT    = OUTPUT_DIR / "tokenizer.json"
 META_OUT     = OUTPUT_DIR / "model_meta.json"
@@ -34,11 +65,12 @@ META_OUT     = OUTPUT_DIR / "model_meta.json"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 print("=" * 65)
-print("JobSync AI Trainer v3 — Groq-Judged Labels")
+print("JobSync AI Trainer v4 — Real Resumes + Real JDs")
+print(f"Session started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 print("=" * 65)
 
 # ── Deps ───────────────────────────────────────────────────────────────────────
-os.system("pip install -q sentence-transformers groq")  # torch/pandas already installed on Kaggle
+os.system("pip install -q sentence-transformers openai")
 
 import torch
 import torch.nn as nn
@@ -48,20 +80,30 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Device: {DEVICE}")
 if DEVICE.type == "cuda":
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    # Verify the GPU is actually usable with this PyTorch build (P100=sm_60 dropped in PyTorch 2.x)
+    try:
+        torch.zeros(1, device=DEVICE)   # will raise if sm_60 incompatible
+        log(f"Device: cuda  GPU: {torch.cuda.get_device_name(0)}")
+        mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+        log(f"GPU VRAM: {mem_gb:.1f} GB")
+    except Exception as _gpu_err:
+        log(f"GPU not usable with this PyTorch ({_gpu_err}) — falling back to CPU")
+        DEVICE = torch.device("cpu")
+if DEVICE.type == "cpu":
+    log("Device: cpu  (training will be slower but correct)")
 
-# ── Groq setup ─────────────────────────────────────────────────────────────────
+# ── OpenAI setup ───────────────────────────────────────────────────────────────
 from kaggle_secrets import UserSecretsClient
-GROQ_API_KEY = UserSecretsClient().get_secret("GROQ_API_KEY")
-from groq import Groq
-groq_client = Groq(api_key=GROQ_API_KEY)
+OPENAI_API_KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
+from openai import OpenAI
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+log("OpenAI client ready")
 
 # ── Hyperparams ────────────────────────────────────────────────────────────────
-TARGET_PAIRS   = 3_000    # 3K pairs = ~107 min labeling, fits in Kaggle 9h session + Groq 500K TPD
-LABEL_BATCH    = 20       # pairs per Groq call (one prompt = one pair)
-GROQ_RPM_LIMIT = 28       # stay under 30 req/min free tier
+TARGET_PAIRS   = 5_000    # 5K pairs — more categories now available
+LABEL_BATCH    = 20       # unused but kept for reference
+RPM_LIMIT      = 200      # GPT-4o-mini allows 500 RPM — use 200 to be safe
 SCORER_EPOCHS  = 400
 SCORER_BATCH   = 256 if DEVICE.type == "cuda" else 64
 SCORER_LR      = 3e-4
@@ -163,58 +205,240 @@ print("\nLoading datasets...")
 resume_paths = list(Path("/kaggle/input").rglob("*.csv"))
 print(f"Found CSVs: {[str(p) for p in resume_paths]}")
 
-resume_df = None
-jd_df = None
+resume_dfs = []   # collect ALL resume CSVs and merge
+jd_df      = None
+jd2025_df  = None
 
 for p in resume_paths:
     try:
-        df = pd.read_csv(p)
-        cols = [c.lower() for c in df.columns]
-        if "category" in cols and any("resume" in c for c in cols):
-            resume_df = df
-            resume_df.columns = [c.lower() for c in resume_df.columns]
-            if "resume_str" in resume_df.columns:
-                resume_df["resume"] = resume_df["resume_str"]
-            elif "resume" not in resume_df.columns:
-                resume_col = [c for c in resume_df.columns if "resume" in c][0]
-                resume_df["resume"] = resume_df[resume_col]
-            print(f"Resume dataset: {p.name} — {len(resume_df)} rows, cats: {resume_df['category'].nunique()}")
-        elif any(w in str(p).lower() for w in ["job", "posting", "linkedin"]):
+        df = pd.read_csv(p, low_memory=False)
+        cols_lower = [c.lower() for c in df.columns]
+
+        # ── Resume CSVs (Category + Resume text) ──────────────────────
+        if "category" in cols_lower and any("resume" in c for c in cols_lower):
+            df.columns = [c.lower() for c in df.columns]
+            if "resume_str" in df.columns:
+                df["resume"] = df["resume_str"]
+            elif "resume" not in df.columns:
+                r_col = next(c for c in df.columns if "resume" in c)
+                df["resume"] = df[r_col]
+            resume_dfs.append(df[["category","resume"]].copy())
+            log(f"Resume CSV: {p.name} — {len(df)} rows, {df['category'].nunique()} cats")
+
+        # ── LinkedIn postings — match by filename OR by content (title+description+job_posting_url)
+        elif p.name == "postings.csv" or (
+            "title" in cols_lower and "description" in cols_lower and "job_posting_url" in cols_lower
+        ):
             jd_df = df
             jd_df.columns = [c.lower() for c in jd_df.columns]
-            print(f"JD dataset: {p.name} — {len(jd_df)} rows")
-    except Exception as e:
-        print(f"Skipped {p.name}: {e}")
+            log(f"LinkedIn postings: {p.name} — {len(jd_df)} rows | cols: {list(jd_df.columns[:8])}")
 
-if resume_df is None:
-    raise RuntimeError("Resume dataset not found. Add snehaanbhawal/resume-dataset to kernel inputs.")
+        # ── JD 2025 dataset ───────────────────────────────────────────
+        elif p.name == "job_dataset.csv" and "title" in cols_lower:
+            jd2025_df = df
+            jd2025_df.columns = [c.lower() for c in jd2025_df.columns]
+            log(f"JD 2025 dataset: {p.name} — {len(jd2025_df)} rows")
+
+    except Exception as e:
+        log(f"Skipped {p.name}: {e}")
+
+if not resume_dfs:
+    raise RuntimeError("No resume datasets found. Add snehaanbhawal/resume-dataset and jillanisofttech/updated-resume-dataset to kernel inputs.")
+
+# Merge all resume CSVs
+resume_df = pd.concat(resume_dfs, ignore_index=True).drop_duplicates(subset=["resume"])
+log(f"Total resumes after merge: {len(resume_df)} | categories: {resume_df['category'].nunique()}")
+
+# Map resume dataset category names → TECH_CATS names
+# Dataset uses uppercase hyphenated names; TECH_CATS uses human-readable names
+RESUME_CAT_MAP = {
+    # snehaanbhawal/resume-dataset (uppercase hyphenated)
+    "INFORMATION-TECHNOLOGY":   "Python Developer",
+    "DATA-SCIENCE":             "Data Science",
+    "DESIGNER":                 "Web Designing",
+    "WEB-DESIGNING":            "Web Designing",
+    "DIGITAL-MEDIA":            "Web Designing",
+    "TEACHER":                  "Teacher",
+    "ADVOCATE":                 "Advocate",
+    "BUSINESS-DEVELOPMENT":     "Business Analyst",
+    "CONSULTANT":               "Business Analyst",
+    "HR":                       "HR",
+    "HEALTHCARE":               "Health and Fitness",
+    "FITNESS":                  "Health and Fitness",
+    "HEALTH AND FITNESS":       "Health and Fitness",
+    "SALES":                    "Sales",
+    "CHEF":                     "Chef",
+    "FINANCE":                  "Banking",
+    "BANKING":                  "Banking",
+    "ACCOUNTANT":               "Accountant",
+    "ARTS":                     "Arts",
+    "APPAREL":                  "Arts",
+    "AVIATION":                 "Aviation",
+    "ENGINEERING":              "Mechanical Engineer",
+    "MECHANICAL ENGINEER":      "Mechanical Engineer",
+    "AUTOMOBILE":               "Mechanical Engineer",
+    "CONSTRUCTION":             "Civil Engineer",
+    "CIVIL ENGINEER":           "Civil Engineer",
+    "PUBLIC-RELATIONS":         "Sales",
+    "BPO":                      "Business Analyst",
+    "AGRICULTURE":              "Teacher",
+    "NETWORK SECURITY":         "Network Security",
+    "DEVOPS ENGINEER":          "DevOps Engineer",
+    "DATABASE":                 "Database",
+    "TESTING":                  "Testing",
+    "JAVA DEVELOPER":           "Java Developer",
+    "ETL DEVELOPER":            "ETL Developer",
+    "HADOOP":                   "Hadoop",
+    "BLOCKCHAIN":               "Blockchain",
+    "PMO":                      "PMO",
+    "ELECTRICAL ENGINEERING":   "Electrical Engineering",
+    # jillanisofttech/updated-resume-dataset (title case, direct names)
+    "DATA SCIENCE":             "Data Science",
+    "PYTHON DEVELOPER":         "Python Developer",
+    "JAVA DEVELOPER":           "Java Developer",
+    "WEB DESIGNING":            "Web Designing",
+    "DEVOPS ENGINEER":          "DevOps Engineer",
+    "NETWORK SECURITY ENGINEER":"Network Security",
+    "AUTOMATION TESTING":       "Testing",
+    "DOTNET DEVELOPER":         "Python Developer",   # closest available
+    "SAP DEVELOPER":            "ETL Developer",       # closest available
+    "OPERATIONS MANAGER":       "PMO",
+    "HEALTH AND FITNESS":       "Health and Fitness",
+    "HEALTH AND FITNES":        "Health and Fitness",
+}
+
+def normalize_cat(raw: str) -> str:
+    key = raw.strip().upper().replace(" ", "-")
+    # try exact then without hyphens
+    if key in RESUME_CAT_MAP:
+        return RESUME_CAT_MAP[key]
+    key2 = raw.strip().upper()
+    if key2 in RESUME_CAT_MAP:
+        return RESUME_CAT_MAP[key2]
+    # fallback: check if any TECH_CATS key matches case-insensitively
+    for tc in TECH_CATS:
+        if tc.upper() == raw.strip().upper():
+            return tc
+    return None   # unmapped — skip
 
 # Build resume index by category
 resume_by_cat = defaultdict(list)
+unmapped_cats = set()
 for _, row in resume_df.iterrows():
-    cat = str(row.get("category", "")).strip()
-    text = str(row.get("resume", "")).strip()
+    raw_cat = str(row.get("category", "")).strip()
+    cat     = normalize_cat(raw_cat)
+    text    = str(row.get("resume", "")).strip()
     if cat and text and len(text) > 200:
         resume_by_cat[cat].append(text)
+    elif not cat and raw_cat:
+        unmapped_cats.add(raw_cat)
 
-print(f"\nResume categories: {dict((k, len(v)) for k,v in resume_by_cat.items())}")
+log(f"Resume categories mapped: {dict((k, len(v)) for k,v in sorted(resume_by_cat.items()))}")
+if unmapped_cats:
+    log(f"Unmapped resume categories (skipped): {unmapped_cats}")
+
+# ── Title → TECH_CATS mapping (used by both LinkedIn + JD 2025 loaders) ───────
+TITLE_TO_CAT = {
+            "data scientist": "Data Science",   "data science": "Data Science",
+            "machine learning": "Data Science", "ml engineer": "Data Science",
+            "python": "Python Developer",       "django": "Python Developer",
+            "fastapi": "Python Developer",      "flask": "Python Developer",
+            "java": "Java Developer",           "spring": "Java Developer",
+            "frontend": "Web Designing",        "web design": "Web Designing",
+            "ui/ux": "Web Designing",           "react": "Web Designing",
+            "devops": "DevOps Engineer",        "site reliability": "DevOps Engineer",
+            "sre": "DevOps Engineer",           "kubernetes": "DevOps Engineer",
+            "database": "Database",             "dba": "Database",
+            "sql": "Database",                  "data engineer": "Database",
+            "qa": "Testing",                    "quality assurance": "Testing",
+            "test": "Testing",
+            "network": "Network Security",      "security": "Network Security",
+            "cybersecurity": "Network Security","penetration": "Network Security",
+            "hadoop": "Hadoop",                 "spark": "Hadoop",
+            "big data": "Hadoop",
+            "etl": "ETL Developer",             "informatica": "ETL Developer",
+            "blockchain": "Blockchain",         "solidity": "Blockchain",
+            "project manager": "PMO",           "program manager": "PMO",
+            "scrum master": "PMO",
+            "business analyst": "Business Analyst","product owner": "Business Analyst",
+            "sales": "Sales",                   "account executive": "Sales",
+            "hr ": "HR",                        "human resource": "HR",
+            "recruiter": "HR",                  "talent": "HR",
+            "accountant": "Accountant",         "finance": "Banking",
+            "banking": "Banking",               "credit": "Banking",
+            "chef": "Chef",                     "culinary": "Chef",
+            "teacher": "Teacher",               "educator": "Teacher",
+            "lawyer": "Advocate",               "attorney": "Advocate",
+            "mechanical": "Mechanical Engineer","manufacturing": "Mechanical Engineer",
+            "civil engineer": "Civil Engineer", "structural": "Civil Engineer",
+            "electrical": "Electrical Engineering","embedded": "Electrical Engineering",
+            "aviation": "Aviation",             "aircraft": "Aviation",
+            "fitness": "Health and Fitness",    "personal trainer": "Health and Fitness",
+            "designer": "Web Designing",        "graphic design": "Arts",
+            "artist": "Arts",
+            # adityarajsrv 2025 titles
+            "ethical hacker": "Network Security","penetration test": "Network Security",
+            "operations manager": "PMO",         "solutions architect": "Python Developer",
+            "site reliability": "DevOps Engineer","sre": "DevOps Engineer",
+            "fintech": "Banking",                "financial engineer": "Banking",
+            "ai ": "Data Science",               "prompt engineer": "Data Science",
+            "game developer": "Java Developer",  "game engineer": "Java Developer",
+            "ar/vr": "Web Designing",            "augmented reality": "Web Designing",
+            "seo": "Web Designing",              "digital marketing": "Sales",
+            "marketing": "Sales",                "content writer": "Sales",
+            "copywriter": "Sales",               "robotics": "Electrical Engineering",
+            "market research": "Business Analyst",
+            "android": "Java Developer",         ".net": "Python Developer",
+            "dotnet": "Python Developer",        "ios developer": "Java Developer",
+            "mobile developer": "Java Developer","flutter": "Java Developer",
+}
+MAX_PER_CAT = 500  # cap per category to avoid memory issues
 
 # Build JD index — use LinkedIn postings or synthetic JDs
 jd_by_cat = defaultdict(list)
 if jd_df is not None:
     title_col = next((c for c in jd_df.columns if "title" in c), None)
     desc_col  = next((c for c in jd_df.columns if "description" in c or "desc" in c), None)
+    log(f"LinkedIn postings columns: {list(jd_df.columns[:10])}")
+    log(f"LinkedIn rows: {len(jd_df)}")
     if title_col and desc_col:
         for _, row in jd_df.iterrows():
             title = str(row.get(title_col, "")).lower()
-            desc  = str(row.get(desc_col, "")).strip()
+            desc  = str(row.get(desc_col,  "")).strip()
             if not desc or len(desc) < 100:
                 continue
-            for cat, keywords in TECH_CATS.items():
-                if any(kw in title for kw in keywords[:3]) or cat.lower().split()[0] in title:
-                    jd_by_cat[cat].append(desc[:1200])
+            matched = None
+            for kw, cat in TITLE_TO_CAT.items():
+                if kw in title:
+                    matched = cat
                     break
-    print(f"JD categories from LinkedIn: {dict((k,len(v)) for k,v in jd_by_cat.items() if v)}")
+            if matched and len(jd_by_cat[matched]) < MAX_PER_CAT:
+                jd_by_cat[matched].append(desc[:1200])
+        log(f"JD categories from LinkedIn: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
+    else:
+        log(f"LinkedIn postings: could not find title/description cols — will use JD 2025 + synthetic")
+
+# ── JD 2025 dataset (adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles) ──
+if jd2025_df is not None:
+    added_2025 = 0
+    for _, row in jd2025_df.iterrows():
+        title = str(row.get("title", "")).lower()
+        skills = str(row.get("skills", "")).strip()
+        responsibilities = str(row.get("responsibilities", "")).strip()
+        if not skills and not responsibilities:
+            continue
+        jd_text = f"Role: {row.get('title','')}. Skills required: {skills}. Responsibilities: {responsibilities}"
+        if len(jd_text) < 100:
+            continue
+        matched = None
+        for kw, cat in TITLE_TO_CAT.items():
+            if kw in title:
+                matched = cat
+                break
+        if matched and len(jd_by_cat[matched]) < MAX_PER_CAT:
+            jd_by_cat[matched].append(jd_text[:1200])
+            added_2025 += 1
+    log(f"JD 2025 added: {added_2025} JDs | categories now: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
 
 # Fallback: synthetic JD templates for categories without real JDs
 SYNTHETIC_JDS = {
@@ -346,21 +570,46 @@ def sample_jd(cat, exclude=None):
     return random.choice(pool)
 
 # ── Groq labeling ──────────────────────────────────────────────────────────────
-LABEL_PROMPT = """Recruiter scoring resume vs job. Be strict. Different fields=0-15. No skill overlap=tech 0-20. Only 75+ for strong match.
+LABEL_PROMPT = """Score how well this resume matches this job description. Use the full 0-100 range honestly.
+
+Scoring guide:
+- 85-100 = near-perfect match (same role, all skills present)
+- 65-84  = good match (same domain, most skills present)
+- 40-64  = partial match (adjacent domain, some overlap)
+- 15-39  = poor match (different but related field)
+- 0-14   = no match (completely different fields)
 
 RESUME: {resume}
+
 JOB: {jd}
 
-JSON only: {{"ats_score":0,"technical_fit_score":0,"semantic_match_score":0,"recruiter_impression_score":0,"project_relevance_score":0}}"""
+Return JSON with integer scores 0-100 for each dimension:
+{{"ats_score": <int>, "technical_fit_score": <int>, "semantic_match_score": <int>, "recruiter_impression_score": <int>, "project_relevance_score": <int>}}"""
 
-_last_groq_call = 0.0
+# ── Cost tracking ──────────────────────────────────────────────────────────────
+COST_CAP_USD    = 1.00          # hard stop — will never exceed this
+_total_usd      = 0.0
+_total_in_tok   = 0
+_total_out_tok  = 0
+# gpt-4o-mini pricing
+_PRICE_IN   = 0.15  / 1_000_000   # $ per input token
+_PRICE_OUT  = 0.60  / 1_000_000   # $ per output token
 
-def groq_label(resume: str, jd: str, retries: int = 3) -> dict | None:
-    global _last_groq_call
-    # Rate limit
-    elapsed = time.time() - _last_groq_call
-    if elapsed < (60.0 / GROQ_RPM_LIMIT):
-        time.sleep((60.0 / GROQ_RPM_LIMIT) - elapsed)
+_last_api_call  = 0.0
+
+def label_pair(resume: str, jd: str, retries: int = 3) -> dict | None:
+    """Label one resume+JD pair using GPT-4o-mini. Returns 5 scores or None on failure."""
+    global _last_api_call, _total_usd, _total_in_tok, _total_out_tok
+
+    # Hard cost cap — stop before spending more than allowed
+    if _total_usd >= COST_CAP_USD:
+        return "COST_CAP"
+
+    # Throttle to RPM_LIMIT
+    elapsed = time.time() - _last_api_call
+    gap = 60.0 / RPM_LIMIT
+    if elapsed < gap:
+        time.sleep(gap - elapsed)
 
     prompt = LABEL_PROMPT.format(
         resume=resume[:500].replace("{","(").replace("}",")"),
@@ -369,34 +618,38 @@ def groq_label(resume: str, jd: str, retries: int = 3) -> dict | None:
 
     for attempt in range(retries):
         try:
-            _last_groq_call = time.time()
-            resp = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+            _last_api_call = time.time()
+            resp = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=200,
+                temperature=0.1,
+                max_tokens=120,       # JSON with 5 numbers ~80 tokens — tight cap saves money
+                response_format={"type": "json_object"},
             )
-            raw = resp.choices[0].message.content.strip()
-            # Extract JSON
-            match = re.search(r'\{.*\}', raw, re.DOTALL)
-            if not match:
-                continue
-            data = json.loads(match.group())
+            # Track exact cost from API usage
+            in_tok  = resp.usage.prompt_tokens
+            out_tok = resp.usage.completion_tokens
+            call_cost = in_tok * _PRICE_IN + out_tok * _PRICE_OUT
+            _total_in_tok  += in_tok
+            _total_out_tok += out_tok
+            _total_usd     += call_cost
+
+            raw  = resp.choices[0].message.content.strip()
+            data = json.loads(raw)
             scores = {}
             for dim in DIMENSION_NAMES:
                 v = data.get(dim, 50)
-                if isinstance(v, dict):
-                    scores[dim] = float(v.get("value", 50))
-                else:
-                    scores[dim] = float(v) if isinstance(v, (int, float)) else 50.0
-            # Validate range
+                scores[dim] = float(v) if isinstance(v, (int, float)) else 50.0
             if all(0 <= scores[d] <= 100 for d in DIMENSION_NAMES):
                 return scores
         except Exception as e:
-            if attempt < retries - 1:
+            err_str = str(e)
+            if "rate_limit" in err_str.lower():
+                time.sleep(5)
+            elif attempt < retries - 1:
                 time.sleep(2 ** attempt)
             else:
-                print(f"  Groq error: {e}")
+                log(f"  API error (attempt {attempt+1}): {e}")
     return None
 
 # ── Pair generation ────────────────────────────────────────────────────────────
@@ -487,36 +740,70 @@ print(f"Pairs built: {len(pairs)}")
 
 # ── Label with Groq (incremental save) ─────────────────────────────────────────
 # Load already-labeled pairs to resume interrupted run
+# Reject pairs where overall_score < 1 — these came from a bad prompt run (all zeros)
 labeled = []
 seen_hashes = set()
+stale_skipped = 0
 
-if PAIRS_CACHE.exists():
-    with open(PAIRS_CACHE) as f:
+# Check input dataset cache first (uploaded from prior run), then working dir
+_cache_sources = [p for p in [PAIRS_CACHE_INPUT, PAIRS_CACHE] if p.exists()]
+for _cache_path in _cache_sources:
+    _before = len(labeled)
+    with open(_cache_path) as f:
         for line in f:
             try:
                 rec = json.loads(line)
+                if rec.get("overall_score", 0) < 1.0:
+                    stale_skipped += 1
+                    continue
                 h = hashlib.md5((rec["resume"][:100]+rec["jd"][:100]).encode()).hexdigest()
-                seen_hashes.add(h)
-                labeled.append(rec)
+                if h not in seen_hashes:
+                    seen_hashes.add(h)
+                    labeled.append(rec)
             except:
                 pass
-    print(f"Resumed: {len(labeled)} already labeled")
+    log(f"Cache {_cache_path.name}: loaded {len(labeled)-_before} pairs (total {len(labeled)}, {stale_skipped} stale skipped)")
 
 cache_file = open(PAIRS_CACHE, "a")
 
-print(f"\nLabeling {len(pairs)} pairs with Groq (this takes ~{len(pairs)//GROQ_RPM_LIMIT} minutes)...")
-t0 = time.time()
-errors = 0
+est_minutes = len(pairs) / RPM_LIMIT
+log(f"Labeling {len(pairs)} pairs with gpt-4o-mini  (~{est_minutes:.0f} min at {RPM_LIMIT} RPM)", sep=True)
+log(f"Estimated cost: ~${len(pairs)*0.000085:.2f} USD  (~₹{len(pairs)*0.000085*84:.0f})")
+
+t_label = time.time()
+errors     = 0
+attempted  = 0     # pairs we actually sent to Groq (not skipped)
+
+# ── Per-10 log state ───────────────────────────────────────────────────────────
+_window_errors = 0   # errors in last 10 calls
+
+MAX_ERROR_RATE   = 0.30   # abort labeling if >30% of calls fail (Groq issue)
+LOG_EVERY        = 10     # log every N new labels
 
 for i, pair in enumerate(pairs):
     h = hashlib.md5((pair["resume"][:100]+pair["jd"][:100]).encode()).hexdigest()
     if h in seen_hashes:
         continue
 
-    scores = groq_label(pair["resume"], pair["jd"])
+    attempted += 1
+    scores = label_pair(pair["resume"], pair["jd"])
+
+    if scores == "COST_CAP":
+        log(f"COST CAP ${COST_CAP_USD:.2f} reached — stopping labeling with {len(labeled)} pairs")
+        log(f"Total spent: ${_total_usd:.4f} USD  (~₹{_total_usd*84:.1f})")
+        break
+
     if scores is None:
         errors += 1
+        _window_errors += 1
+        # Abort early if too many consecutive errors — don't burn the session
+        if attempted >= 20 and errors / attempted > MAX_ERROR_RATE:
+            log(f"ERROR RATE TOO HIGH ({errors}/{attempted} = {errors/attempted:.0%}) — aborting labeling")
+            log("Check your GROQ_API_KEY secret and quota at console.groq.com")
+            break
         continue
+
+    _window_errors = 0   # reset window on success
 
     overall = round(
         scores["ats_score"]*0.20 +
@@ -542,20 +829,45 @@ for i, pair in enumerate(pairs):
     cache_file.write(json.dumps(record) + "\n")
     cache_file.flush()
 
-    if (i+1) % 100 == 0:
-        elapsed = time.time() - t0
-        eta = elapsed / (i+1) * (len(pairs)-i-1)
-        # Score distribution so far
-        overalls = [r["overall_score"] for r in labeled]
-        print(f"  [{i+1}/{len(pairs)}] labeled={len(labeled)} errors={errors} "
-              f"avg={sum(overalls)/len(overalls):.1f} "
-              f"min={min(overalls):.0f} max={max(overalls):.0f} "
-              f"ETA={eta/60:.0f}m")
+    n = len(labeled)
+    if n % LOG_EVERY == 0:
+        overalls   = [r["overall_score"] for r in labeled]
+        avg_score  = sum(overalls) / len(overalls)
+        score_min  = min(overalls)
+        score_max  = max(overalls)
+        spread     = score_max - score_min
+        eta        = eta_str(attempted, len(pairs), t_label)
+        err_pct    = f"{errors/max(attempted,1):.0%}"
+
+        # Distribution across expected levels so far
+        by_level = defaultdict(int)
+        for r in labeled:
+            by_level[r["expected_level"]] += 1
+
+        log(
+            f"Pair {n:4d}/{len(pairs)} | "
+            f"ok={n} err={errors}({err_pct}) | "
+            f"avg={avg_score:.1f} min={score_min:.0f} max={score_max:.0f} spread={spread:.0f} | "
+            f"cost=${_total_usd:.3f}/₹{_total_usd*84:.0f} | "
+            f"ETA {eta} | "
+            f"dist: " + " ".join(f"{k}={v}" for k,v in sorted(by_level.items()))
+        )
+        # Extra warning if scores look degenerate (Groq defaulting to ~50)
+        if n >= 50 and spread < 30:
+            log(f"  ⚠ LOW SPREAD ({spread:.0f}pts) — model may be defaulting. Check prompt.")
+
+    # Milestone banners every 250 pairs
+    if n > 0 and n % 250 == 0:
+        log(f"{'─'*55}", sep=False)
+        log(f"MILESTONE: {n} pairs labeled in {elapsed_str(t_label)}")
+        log(f"{'─'*55}", sep=False)
 
 cache_file.close()
+log(f"Labeling phase done in {elapsed_str(t_label)}  ({len(labeled)} labeled, {errors} errors)", sep=True)
+log(f"OpenAI cost: ${_total_usd:.4f} USD  (~₹{_total_usd*84:.1f})  |  tokens: {_total_in_tok:,} in / {_total_out_tok:,} out")
 
-# Score distribution check
-print(f"\nFinal labeled count: {len(labeled)}")
+# ── Score distribution check + quality gate ────────────────────────────────────
+log(f"Final labeled count: {len(labeled)}", sep=True)
 overalls = [r["overall_score"] for r in labeled]
 buckets = {"0-20":0,"21-40":0,"41-60":0,"61-80":0,"81-100":0}
 for s in overalls:
@@ -564,8 +876,43 @@ for s in overalls:
     elif s <= 60: buckets["41-60"] += 1
     elif s <= 80: buckets["61-80"] += 1
     else: buckets["81-100"] += 1
-print(f"Distribution: {buckets}")
-print(f"Overall: min={min(overalls):.1f} max={max(overalls):.1f} mean={sum(overalls)/len(overalls):.1f}")
+log(f"Score buckets: {buckets}")
+log(f"Overall: min={min(overalls):.1f}  max={max(overalls):.1f}  mean={sum(overalls)/len(overalls):.1f}  spread={max(overalls)-min(overalls):.1f}")
+
+# Per-dimension stats
+log("Per-dimension means:")
+for dim in DIMENSION_NAMES:
+    vals = [r[dim] for r in labeled]
+    log(f"  {dim:<35s} mean={sum(vals)/len(vals):.1f}  min={min(vals):.0f}  max={max(vals):.0f}")
+
+# ── QUALITY GATE — abort before wasting GPU time on bad data ──────────────────
+GATE_MIN_PAIRS  = 200    # need at least 200 pairs
+GATE_MIN_SPREAD = 40     # score range must be > 40 pts  (model needs variation)
+GATE_MAX_MIDPILE = 0.65  # no more than 65% of scores in [35-65] band (means Groq defaulted)
+
+quality_ok = True
+spread = max(overalls) - min(overalls)
+mid_pile = sum(1 for s in overalls if 35 <= s <= 65) / len(overalls)
+
+if len(labeled) < GATE_MIN_PAIRS:
+    log(f"QUALITY GATE FAIL: only {len(labeled)} pairs (need {GATE_MIN_PAIRS}). Aborting training.")
+    log("Re-run to accumulate more data — pairs are cached and will resume.")
+    quality_ok = False
+
+if spread < GATE_MIN_SPREAD:
+    log(f"QUALITY GATE FAIL: score spread is only {spread:.1f}pts (need >{GATE_MIN_SPREAD}).")
+    log("Groq is likely defaulting to mid-range scores. Check the LABEL_PROMPT or retry.")
+    quality_ok = False
+
+if mid_pile > GATE_MAX_MIDPILE:
+    log(f"QUALITY GATE WARN: {mid_pile:.0%} of scores are clustered in [35-65].")
+    log("Data looks degenerate — model may not learn extreme scores well.")
+    # This is a warning only; still proceed
+
+if not quality_ok:
+    raise RuntimeError("Quality gate failed — not training on bad data. See logs above.")
+
+log(f"Quality gate PASSED  (spread={spread:.1f}pts, mid-pile={mid_pile:.0%}, n={len(labeled)})")
 
 # ── Model architecture ─────────────────────────────────────────────────────────
 EMB_DIM = 384   # all-MiniLM-L6-v2
@@ -657,7 +1004,7 @@ def build_x(r_emb, j_emb, res_txt, jd_txt):
 
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
-print("\nLoading sentence-transformers encoder...")
+log("Loading sentence-transformers encoder...", sep=True)
 from sentence_transformers import SentenceTransformer
 encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2").to(DEVICE)
 encoder.eval()
@@ -737,10 +1084,13 @@ split = int(len(labeled) * 0.9)
 train_records = labeled[:split]
 val_records   = labeled[split:]
 
-print(f"\nBuilding train dataset ({len(train_records)} records)...")
+log(f"Train/val split: {len(train_records)} train / {len(val_records)} val", sep=True)
+t_enc = time.time()
+log(f"Encoding train set ({len(train_records)} records)...")
 train_ds = PairDataset(train_records, encoder)
-print(f"Building val dataset ({len(val_records)} records)...")
+log(f"Encoding val set ({len(val_records)} records)...")
 val_ds   = PairDataset(val_records, encoder)
+log(f"Encoding done in {elapsed_str(t_enc)}")
 
 # Weighted sampler — upsample rare low/high scores
 train_overalls = [
@@ -762,7 +1112,7 @@ val_loader   = DataLoader(val_ds,   batch_size=SCORER_BATCH, shuffle=False, num_
 
 model = JobSyncScorerV3().to(DEVICE)
 total_params = sum(p.numel() for p in model.parameters())
-print(f"\nModel params: {total_params:,}")
+log(f"Model params: {total_params:,}  input_dim={INP_DIM}")
 
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
@@ -775,8 +1125,17 @@ patience = 40
 no_improve = 0
 history = []
 
-print(f"\nTraining for up to {SCORER_EPOCHS} epochs (early stop patience={patience})...")
-t0 = time.time()
+log(f"Training for up to {SCORER_EPOCHS} epochs (early stop patience={patience})", sep=True)
+log(f"Train samples: {len(train_ds)} | Val samples: {len(val_ds)} | Batch: {SCORER_BATCH}")
+log(f"Optimizer: AdamW lr={SCORER_LR}  wd={WEIGHT_DECAY} | Warmup: {WARMUP_EPOCHS} epochs")
+t_train = time.time()
+
+# Log frequency: every epoch ≤10, every 5 ≤50, every 10 ≤100, every 20 thereafter
+def should_log_epoch(e):
+    if e <= 10:         return True
+    if e <= 50:         return e % 5 == 0
+    if e <= 100:        return e % 10 == 0
+    return e % 20 == 0
 
 for epoch in range(1, SCORER_EPOCHS + 1):
     # Warmup
@@ -802,36 +1161,80 @@ for epoch in range(1, SCORER_EPOCHS + 1):
 
     model.eval()
     val_mse = val_mae = 0.0
+    val_preds_all = []
+    val_tgts_all  = []
     with torch.no_grad():
         for X, y in val_loader:
             X, y = X.to(DEVICE), y.to(DEVICE)
             pred = model(X)
             val_mse += F.mse_loss(pred, y).item()
             val_mae += (pred - y).abs().mean().item()
+            val_preds_all.append(pred.cpu())
+            val_tgts_all.append(y.cpu())
     val_mse /= len(val_loader)
     val_mae /= len(val_loader)
 
-    history.append({"epoch": epoch, "train_loss": round(train_loss, 4),
-                     "val_mse": round(val_mse, 4), "val_mae": round(val_mae, 4)})
+    # Per-dimension MAE (detect if any head is stuck)
+    all_p = torch.cat(val_preds_all)   # (N,5)
+    all_t = torch.cat(val_tgts_all)
+    dim_maes = (all_p - all_t).abs().mean(dim=0).tolist()  # 5 values
 
-    if val_mae < best_val_mae:
+    history.append({
+        "epoch": epoch,
+        "train_loss": round(train_loss, 4),
+        "val_mse": round(val_mse, 4),
+        "val_mae": round(val_mae, 4),
+        "dim_maes": [round(x, 3) for x in dim_maes],
+    })
+
+    improved = val_mae < best_val_mae
+    if improved:
         best_val_mae = val_mae
         no_improve = 0
         torch.save(model.state_dict(), MODEL_OUT)
     else:
         no_improve += 1
 
-    if epoch % 20 == 0 or epoch <= 5:
-        elapsed = time.time() - t0
-        print(f"  Epoch {epoch:3d}/{SCORER_EPOCHS} | train_loss={train_loss:.4f} "
-              f"val_mae={val_mae:.3f} best={best_val_mae:.3f} "
-              f"lr={optimizer.param_groups[0]['lr']:.2e} [{elapsed/60:.1f}m]")
+    if should_log_epoch(epoch):
+        cur_lr  = optimizer.param_groups[0]["lr"]
+        eta     = eta_str(epoch, SCORER_EPOCHS, t_train)
+        marker  = "★" if improved else " "
+        log(
+            f"{marker} Epoch {epoch:3d}/{SCORER_EPOCHS} | "
+            f"loss={train_loss:.4f} val_mae={val_mae:.3f} best={best_val_mae:.3f} | "
+            f"lr={cur_lr:.2e} | no_improve={no_improve}/{patience} | "
+            f"ETA {eta} | elapsed {elapsed_str(t_train)}"
+        )
+        # Per-dimension MAE detail every 50 epochs (spot stuck heads early)
+        if epoch % 50 == 0 or epoch <= 10:
+            short_names = ["ats","tech","sem","rec","proj"]
+            dim_str = "  ".join(f"{n}={v:.2f}" for n, v in zip(short_names, dim_maes))
+            log(f"  dim MAEs: {dim_str}")
+
+    # Plateau warning (don't wait for full patience to know training stalled)
+    if no_improve == patience // 2 and epoch > WARMUP_EPOCHS + 20:
+        log(f"  ⚠ No improvement for {no_improve} epochs (half patience) — watching closely")
 
     if no_improve >= patience and epoch > WARMUP_EPOCHS + patience:
-        print(f"\nEarly stopping at epoch {epoch} (no improvement for {patience} epochs)")
+        log(f"Early stopping at epoch {epoch} — no improvement for {patience} epochs")
         break
 
-print(f"\nBest val_mae: {best_val_mae:.4f}")
+log(f"Training done in {elapsed_str(t_train)}  |  best val_mae: {best_val_mae:.4f}", sep=True)
+
+# ── Final per-dimension error report ──────────────────────────────────────────
+model.load_state_dict(torch.load(MODEL_OUT, map_location=DEVICE))
+model.eval()
+all_p_list, all_t_list = [], []
+with torch.no_grad():
+    for X, y in val_loader:
+        all_p_list.append(model(X.to(DEVICE)).cpu())
+        all_t_list.append(y)
+all_p = torch.cat(all_p_list)
+all_t = torch.cat(all_t_list)
+log("Final val per-dimension MAE (best checkpoint):")
+for i, dim in enumerate(DIMENSION_NAMES):
+    mae_i = (all_p[:, i] - all_t[:, i]).abs().mean().item()
+    log(f"  {dim:<35s} MAE={mae_i:.3f}")
 
 # ── Save tokenizer + metadata ──────────────────────────────────────────────────
 tokenizer_meta = {
@@ -839,24 +1242,24 @@ tokenizer_meta = {
     "model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "emb_dim": EMB_DIM,
     "input_dim": INP_DIM,
-    "version": 3,
+    "version": 4,
 }
 with open(TOKEN_OUT, "w") as f:
     json.dump(tokenizer_meta, f, indent=2)
 
 model_meta = {
     "trained_at": datetime.utcnow().isoformat(),
-    "version": 3,
+    "version": 4,
     "encoder": "sentence-transformers/all-MiniLM-L6-v2 (frozen)",
-    "architecture": f"MiniLM-L6(frozen,384d)+ScorerV3(residual,inp={INP_DIM})",
+    "architecture": f"MiniLM-L6(frozen,384d)+ScorerV4(residual,inp={INP_DIM})",
     "scorer": {
         "val_mse": round(best_val_mae**2, 4),
         "val_mae": round(best_val_mae, 4),
         "epochs": len(history),
         "total_params": total_params,
     },
-    "data_source": "real-kaggle-datasets+groq-judgment-labels",
-    "label_strategy": "groq-recruiter-judgment-v3",
+    "data_source": "real-resumes+real-jds+gpt4o-mini-labels",
+    "label_strategy": "gpt4o-mini-recruiter-judgment-v4",
     "n_pairs": len(labeled),
     "pair_dist": {k: sum(1 for r in labeled if r.get("expected_level")==k) for k in DIST},
     "score_dist": {
@@ -870,16 +1273,16 @@ model_meta = {
 with open(META_OUT, "w") as f:
     json.dump(model_meta, f, indent=2)
 
-print("\n" + "="*65)
-print("Training complete!")
-print(f"  scorer.pt     → {MODEL_OUT}")
-print(f"  tokenizer.json → {TOKEN_OUT}")
-print(f"  model_meta.json → {META_OUT}")
-print(f"  val_mae: {best_val_mae:.4f} (was 0.53 in v2)")
-print(f"  labeled pairs: {len(labeled)}")
-print(f"  label strategy: groq-recruiter-judgment (NOT cosine-based)")
-print("="*65)
-print("\nNext steps:")
-print("  1. Download scorer.pt + tokenizer.json from /kaggle/working")
-print("  2. Replace backend/models/scorer.pt + tokenizer.json")
-print("  3. Restart the backend")
+log("="*55, sep=False)
+log("Training complete!")
+log(f"  scorer.pt        → {MODEL_OUT}")
+log(f"  tokenizer.json   → {TOKEN_OUT}")
+log(f"  model_meta.json  → {META_OUT}")
+log(f"  val_mae          : {best_val_mae:.4f}  (was 5.68 in v3, 53pt in v2)")
+log(f"  labeled pairs    : {len(labeled)}")
+log(f"  total session    : {elapsed_str()}")
+log("="*55, sep=False)
+log("Next steps:")
+log("  1. Download scorer.pt + tokenizer.json from /kaggle/working")
+log("  2. Replace backend/models/scorer.pt + tokenizer.json")
+log("  3. Restart the backend")
