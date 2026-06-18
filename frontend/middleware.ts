@@ -26,6 +26,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  // Public pages — no auth check needed, skip Supabase call entirely.
+  // This prevents the cookie-refresh redirect dance that breaks Googlebot crawling.
+  const isPublicPage =
+    pathname === "/" ||
+    pathname.startsWith("/try") ||
+    pathname.startsWith("/ats-checker") ||
+    pathname.startsWith("/resume-score") ||
+    pathname.startsWith("/share") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/legal") ||
+    pathname.startsWith("/support") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password");
+
+  if (isPublicPage) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   // Use get/set/remove (not getAll/setAll) — @supabase/ssr v0.3.0's internal
