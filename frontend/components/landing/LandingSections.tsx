@@ -8,14 +8,14 @@
 
 import dynamic from "next/dynamic";
 
-const StatsSection        = dynamic(() => import("@/components/landing/StatsSection"),        { ssr: false });
-const FeaturesSection     = dynamic(() => import("@/components/landing/FeaturesSection"),     { ssr: false });
-const ScoreDemoSection    = dynamic(() => import("@/components/landing/ScoreDemoSection"),    { ssr: false });
-const SkillGapSection     = dynamic(() => import("@/components/landing/SkillGapSection"),     { ssr: false });
-const TestimonialsSection = dynamic(() => import("@/components/landing/TestimonialsSection"), { ssr: false });
-const PricingSection      = dynamic(() => import("@/components/landing/PricingSection"),      { ssr: false });
-const CTASection          = dynamic(() => import("@/components/landing/CTASection"),          { ssr: false });
-const Footer              = dynamic(() => import("@/components/landing/footer").then((m) => m.Footer), { ssr: false });
+const StatsSection        = dynamic(() => import("@/components/landing/StatsSection"));
+const FeaturesSection     = dynamic(() => import("@/components/landing/FeaturesSection"));
+const ScoreDemoSection    = dynamic(() => import("@/components/landing/ScoreDemoSection"));
+const SkillGapSection     = dynamic(() => import("@/components/landing/SkillGapSection"));
+const TestimonialsSection = dynamic(() => import("@/components/landing/TestimonialsSection"));
+const PricingSection      = dynamic(() => import("@/components/landing/PricingSection"));
+const CTASection          = dynamic(() => import("@/components/landing/CTASection"));
+const Footer              = dynamic(() => import("@/components/landing/footer").then((m) => m.Footer));
 
 export default function LandingSections() {
   return (
