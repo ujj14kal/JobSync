@@ -4,7 +4,7 @@ const LINKS = [
   { label: "Privacy Policy",  href: "/legal/privacy-policy" },
   { label: "Terms of Service", href: "/legal/terms" },
   { label: "Support",          href: "/support" },
-  { label: "Pricing",          href: "/#pricing" },
+  { label: "Pricing",          href: "/pricing" },
 ];
 
 export function Footer() {

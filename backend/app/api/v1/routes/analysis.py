@@ -20,7 +20,7 @@ from app.services.ai_feedback import (
     generate_recruiter_feedback_claude,
     generate_bullet_rewrites_claude,
 )
-from app.services.claude_client import get_user_plan, get_user_credits, consume_credit
+from app.services.claude_client import get_user_plan, get_user_credits, consume_credit, get_monthly_usage
 from app.services.embedding_service import embed_text
 from app.services.cache_service import (
     get_cached_analysis,
@@ -94,16 +94,25 @@ async def create_analysis(
         if result.data:
             return {**result.data[0], "cached": True}
 
-    # ── 2. Per-user daily quota ────────────────────────────────────────────────
-    analyses_today = await get_user_analyses_today(user_id)
-    if analyses_today >= settings.MAX_ANALYSES_PER_DAY:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"Daily analysis limit reached ({settings.MAX_ANALYSES_PER_DAY}/day). "
-                "Try again tomorrow."
-            ),
-        )
+    # ── 2. Per-user quota — free: daily cap, pro: monthly cap ─────────────────
+    _plan = await get_user_plan(user_id)
+    if _plan == "pro":
+        _monthly = await get_monthly_usage(user_id)
+        if _monthly.get("ats_count", 0) >= settings.PRO_MONTHLY_ATS:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Monthly analysis limit reached ({settings.PRO_MONTHLY_ATS}/month). Resets on the 1st.",
+            )
+    else:
+        analyses_today = await get_user_analyses_today(user_id)
+        if analyses_today >= settings.MAX_ANALYSES_PER_DAY:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Daily analysis limit reached ({settings.MAX_ANALYSES_PER_DAY}/day). "
+                    "Upgrade to Pro for 20 analyses/month, or try again tomorrow."
+                ),
+            )
 
     # ── 3. Global concurrency cap ─────────────────────────────────────────────
     # Check before touching the DB to fail fast.

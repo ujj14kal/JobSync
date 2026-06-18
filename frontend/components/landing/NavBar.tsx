@@ -71,6 +71,14 @@ export default function NavBar() {
 
             {/* Desktop CTAs */}
             <div className="hidden md:flex items-center gap-3">
+              <Link href="/try"
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ color: "#C05800" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(192,88,0,0.08)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                Try free →
+              </Link>
               <Link href="/login">
                 <button
                   className="px-4 py-2 rounded-lg text-sm font-medium text-secondary hover:text-primary transition-colors"
