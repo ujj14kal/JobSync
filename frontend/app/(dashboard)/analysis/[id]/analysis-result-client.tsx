@@ -382,22 +382,23 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </div>
       </motion.div>
 
-      {/* Interview chance — client-only to avoid SSR/hydration mismatch on old analyses */}
+      {/* Match tier badge — honest score-based label, no fabricated probabilities */}
       {mounted && (() => {
-        const s = analysis.scores;
-        const prob = Math.min(100, Math.round(
-          ((s.overall_score ?? 0) * 0.40 + (s.technical_fit_score ?? s.overall_score ?? 50) * 0.35 + (s.recruiter_impression_score ?? s.overall_score ?? 50) * 0.25) * 0.82
-        ));
-        const color = prob >= 60 ? "#10b981" : prob >= 40 ? "#3b82f6" : prob >= 25 ? "#f59e0b" : "#ef4444";
-        const label = prob >= 60 ? "Good chance" : prob >= 40 ? "Moderate chance" : prob >= 25 ? "Low chance" : "Unlikely";
+        const score = analysis.scores.overall_score ?? 0;
+        const { color, tier, context } =
+          score >= 75 ? { color: "#10b981", tier: "Strong Match",  context: "Highly relevant to this role" } :
+          score >= 55 ? { color: "#3b82f6", tier: "Good Match",    context: "Competitive applicant" }        :
+          score >= 35 ? { color: "#f59e0b", tier: "Fair Match",    context: "Some gaps to address" }         :
+          score >= 20 ? { color: "#f97316", tier: "Weak Match",    context: "Significant gaps present" }     :
+                        { color: "#ef4444", tier: "Poor Match",    context: "Not suited for this role" };
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
             className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border text-[12px] font-medium"
             style={{ background: `${color}14`, borderColor: `${color}30`, color }}>
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>{prob}% Interview Chance</span>
+            <span>{tier}</span>
             <span className="opacity-60 font-normal">·</span>
-            <span className="opacity-75 font-normal">{label}</span>
+            <span className="opacity-75 font-normal">{context}</span>
           </motion.div>
         );
       })()}
@@ -456,8 +457,63 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </motion.div>
       )}
 
-      {/* Feedback widget */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+      {/* Missing keywords quick-action card */}
+      {analysis.missing_keywords && analysis.missing_keywords.length > 0 && (() => {
+        const topMissing = [
+          ...analysis.missing_keywords.filter((k: { keyword: string; importance: string }) => k.importance === "required"),
+          ...analysis.missing_keywords.filter((k: { keyword: string; importance: string }) => k.importance === "preferred"),
+          ...analysis.missing_keywords.filter((k: { keyword: string; importance: string }) => k.importance === "nice_to_have"),
+        ].slice(0, 5);
+        return (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+            className="p-5 rounded-2xl border border-amber-400/25 bg-amber-400/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-400" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Quick wins — add these to your resume</span>
+              </div>
+              <button onClick={() => setTab("keywords")}
+                className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 transition-colors">
+                See all <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {topMissing.map((kw: { keyword: string; importance: string }) => (
+                <span key={kw.keyword}
+                  className={cn(
+                    "px-3 py-1 rounded-full border text-[12px] font-medium",
+                    kw.importance === "required"
+                      ? "text-red-400 bg-red-400/10 border-red-400/25"
+                      : kw.importance === "preferred"
+                        ? "text-amber-400 bg-amber-400/10 border-amber-400/25"
+                        : "text-blue-400 bg-blue-400/10 border-blue-400/25"
+                  )}>
+                  {kw.keyword}
+                  {kw.importance === "required" && <span className="ml-1 opacity-60">·required</span>}
+                </span>
+              ))}
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              Including these keywords (naturally, in context) will improve your ATS compatibility for this role.
+            </p>
+          </motion.div>
+        );
+      })()}
+
+      {/* Outcome feedback card */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+        className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <TrendingUp className="w-4 h-4 text-[var(--accent-primary)]" />
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Did you apply?</p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+              Reporting your outcome helps calibrate the AI — the more real outcomes we collect, the more accurate scores become for everyone.
+            </p>
+          </div>
+        </div>
         <ScoreFeedback
           analysisId={id}
           jobTitle={analysis.job?.parsed_data?.title}
