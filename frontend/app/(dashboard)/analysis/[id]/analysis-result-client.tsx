@@ -21,6 +21,10 @@ import {
   Sparkles,
   FileText,
   TrendingUp,
+  Info,
+  MessageSquare,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
@@ -30,7 +34,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "keywords" | "feedback" | "rewrite";
+type Tab = "overview" | "keywords" | "feedback" | "rewrite" | "interview";
 
 // ── Analysis progress steps UI ────────────────────────────────────────────────
 const PIPELINE_STEPS = [
@@ -153,8 +157,18 @@ export function AnalysisResultClient({ id }: { id: string }) {
   const [pollingActive, setPollingActive] = useState(true);
   const [tracked, setTracked] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [interviewPrepEnabled, setInterviewPrepEnabled] = useState(false);
   const { markServiceUsed } = useFeedback();
   useEffect(() => setMounted(true), []);
+
+  const { data: interviewPrep, isFetching: interviewPrepLoading, error: interviewPrepError } = useQuery({
+    queryKey: ["interview-prep", id],
+    queryFn: () => analysisApi.getInterviewPrep(id),
+    enabled: interviewPrepEnabled,
+    staleTime: Infinity,
+    gcTime: 60 * 60 * 1000,
+    retry: 1,
+  });
 
   async function handleTrackJob() {
     if (!analysis || tracked) return;
@@ -276,10 +290,11 @@ export function AnalysisResultClient({ id }: { id: string }) {
   }
 
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "keywords", label: "Keywords & Gaps" },
-    { id: "feedback", label: "Recruiter Feedback" },
-    { id: "rewrite", label: "Bullet Rewrites" },
+    { id: "overview",   label: "Overview" },
+    { id: "keywords",   label: "Keywords & Gaps" },
+    { id: "feedback",   label: "Recruiter Feedback" },
+    { id: "rewrite",    label: "Bullet Rewrites" },
+    { id: "interview",  label: "Interview Prep" },
   ] as const;
 
   return (
@@ -342,14 +357,14 @@ export function AnalysisResultClient({ id }: { id: string }) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "ATS Compat.", score: analysis.scores.ats_score },
-              { label: "Tech Fit", score: analysis.scores.technical_fit_score },
-              { label: "Semantic", score: analysis.scores.semantic_match_score },
-              { label: "Recruiter", score: analysis.scores.recruiter_impression_score },
-            ].map(({ label, score }) => (
+              { label: "ATS Compat.", score: analysis.scores.ats_score,                    tip: "How well your resume passes automated parsing — keywords, formatting, section headers" },
+              { label: "Tech Fit",    score: analysis.scores.technical_fit_score,           tip: "Match between your technical skills & experience and what this role actually requires" },
+              { label: "Semantic",    score: analysis.scores.semantic_match_score,          tip: "Deep contextual similarity — does your experience context actually match this job's context" },
+              { label: "Recruiter",   score: analysis.scores.recruiter_impression_score,    tip: "Estimated recruiter first-pass impression — clarity, achievement quality, professionalism" },
+            ].map(({ label, score, tip }) => (
               <div
                 key={label}
-                className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-center"
+                className="relative group p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-center"
               >
                 <div
                   className="text-xl font-bold mb-0.5"
@@ -364,7 +379,14 @@ export function AnalysisResultClient({ id }: { id: string }) {
                 >
                   {score}
                 </div>
-                <div className="text-[10px] text-[var(--text-muted)]">{label}</div>
+                <div className="text-[10px] text-[var(--text-muted)] flex items-center justify-center gap-1">
+                  {label}
+                  <Info className="w-2.5 h-2.5 opacity-40 group-hover:opacity-80 transition-opacity" />
+                </div>
+                {/* Tooltip */}
+                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 px-3 py-2 rounded-lg bg-[var(--bg-overlay)] border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)] leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-lg text-left">
+                  {tip}
+                </div>
               </div>
             ))}
           </div>
@@ -457,6 +479,34 @@ export function AnalysisResultClient({ id }: { id: string }) {
         </motion.div>
       )}
 
+      {/* Resume completeness banner */}
+      {analysis.resume_completeness && analysis.resume_completeness.score < 80 && (() => {
+        const failing = analysis.resume_completeness.checks.filter((c: { passed: boolean }) => !c.passed);
+        return (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="p-4 rounded-2xl border border-orange-400/25 bg-orange-400/5 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0" />
+              <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                Resume completeness: {analysis.resume_completeness.score}%
+              </span>
+              <span className="ml-auto text-[11px] text-orange-400/80">Fix these to score higher</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {failing.map((c: { id: string; label: string; tip?: string | null }) => (
+                <div key={c.id} className="flex items-start gap-2">
+                  <XCircle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[12px] font-medium text-[var(--text-secondary)]">{c.label}</p>
+                    {c.tip && <p className="text-[11px] text-[var(--text-muted)]">{c.tip}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })()}
+
       {/* Missing keywords quick-action card */}
       {analysis.missing_keywords && analysis.missing_keywords.length > 0 && (() => {
         const topMissing = [
@@ -525,7 +575,10 @@ export function AnalysisResultClient({ id }: { id: string }) {
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === "interview") setInterviewPrepEnabled(true);
+            }}
             className={cn(
               "flex-shrink-0 px-4 py-2 rounded-lg text-[13px] font-medium transition-all whitespace-nowrap",
               tab === t.id
@@ -691,6 +744,84 @@ export function AnalysisResultClient({ id }: { id: string }) {
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent-primary)]/10">
                     <ArrowRight className="w-3.5 h-3.5 text-[var(--accent-primary)] mt-0.5 flex-shrink-0" />
                     <p className="text-[12px] text-[var(--text-secondary)]">{s.action}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "interview" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageSquare className="w-4 h-4 text-[var(--accent-primary)]" />
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Interview Prep</span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)] border border-[var(--border-subtle)] rounded-full px-2 py-0.5">JobSynk AI · Groq</span>
+              </div>
+              <p className="text-[13px] text-[var(--text-secondary)]">
+                Questions generated from this specific job description — not generic templates.
+              </p>
+
+              {interviewPrepLoading && (
+                <div className="flex items-center gap-3 py-10 justify-center text-[var(--text-muted)]">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-[13px]">Generating interview questions from this JD…</span>
+                </div>
+              )}
+
+              {interviewPrepError && (
+                <div className="p-4 rounded-xl border border-red-400/20 bg-red-400/5 text-[13px] text-red-400">
+                  Failed to generate questions — please try again.
+                </div>
+              )}
+
+              {!interviewPrepLoading && !interviewPrep && !interviewPrepError && (
+                <div className="flex flex-col items-center py-10 gap-4">
+                  <MessageSquare className="w-8 h-8 text-[var(--text-muted)]" />
+                  <p className="text-[13px] text-[var(--text-muted)] text-center max-w-sm">
+                    JobSynk AI will generate 8 targeted interview questions from this job's requirements and tech stack.
+                  </p>
+                  <button
+                    onClick={() => setInterviewPrepEnabled(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Generate interview questions
+                  </button>
+                </div>
+              )}
+
+              {interviewPrep?.questions?.map((q, i) => (
+                <div key={i}
+                  className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full border font-medium",
+                      q.type === "technical"   ? "text-blue-400 bg-blue-400/10 border-blue-400/20" :
+                      q.type === "behavioral"  ? "text-purple-400 bg-purple-400/10 border-purple-400/20" :
+                                                 "text-amber-400 bg-amber-400/10 border-amber-400/20"
+                    )}>
+                      {q.type}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-muted)]">Q{i + 1}</span>
+                  </div>
+
+                  <p className="text-[14px] font-semibold text-[var(--text-primary)] leading-snug">
+                    {q.question}
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                    <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
+                      <p className="text-[10px] text-[var(--accent-primary)] font-semibold uppercase tracking-wider mb-1.5">Why they ask this</p>
+                      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{q.why_asked}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-400/5 border border-emerald-400/15">
+                      <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1.5">How to answer</p>
+                      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{q.answer_framework}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-red-400/5 border border-red-400/15">
+                      <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-1.5">Avoid this</p>
+                      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{q.red_flag}</p>
+                    </div>
                   </div>
                 </div>
               ))}

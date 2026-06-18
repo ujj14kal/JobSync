@@ -49,4 +49,10 @@ export const analysisApi = {
     const { data } = await apiClient.get("/analysis/status");
     return data;
   },
+
+  // Fetch (or generate) interview prep for an analysis
+  getInterviewPrep: async (id: string) => {
+    const { data } = await apiClient.get(`/analysis/${id}/interview-prep`);
+    return data as import("@/lib/types").InterviewPrep;
+  },
 };

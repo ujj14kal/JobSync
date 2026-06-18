@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { BarChart2, Clock, ArrowRight, Brain } from "lucide-react";
+import { BarChart2, Clock, ArrowRight, Brain, TrendingUp, TrendingDown } from "lucide-react";
 import { JobInputForm } from "@/components/analysis/job-input-form";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
@@ -75,10 +75,12 @@ export function AnalysisClient() {
             <ul className="space-y-2">
               {[
                 "5 JobSynk AI dimension scores",
-                "Missing keyword list",
+                "Missing keyword list with quick-win tips",
                 "Skill gap analysis",
                 "JobSynk AI recruiter-style feedback",
                 "JobSynk AI bullet point rewrites",
+                "Interview prep questions (role-specific)",
+                "Resume completeness check",
               ].map((item) => (
                 <li
                   key={item}
@@ -121,53 +123,115 @@ export function AnalysisClient() {
           Could not load analysis history. Your new analyses will still work.
         </div>
       )}
-      {analyses && analyses.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              Analysis History
-            </h2>
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="text-[12px] text-[var(--accent-primary)]"
-            >
-              {showHistory ? "Hide" : `Show all (${analyses.length})`}
-            </button>
-          </div>
+      {analyses && analyses.length > 0 && (() => {
+        const completed = analyses.filter(a => a.status === "complete" && a.scores.overall_score > 0);
+        const recent = [...completed].reverse().slice(-10); // oldest→newest for chart
 
-          <div className="space-y-2">
-            {(showHistory ? analyses : analyses.slice(0, 3)).map((analysis) => (
-              <Link
-                key={analysis.id}
-                href={`/analysis/${analysis.id}`}
-                className="flex items-center gap-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)] transition-all group"
+        return (
+          <div>
+            {/* Score trend mini-chart (only if 2+ completed analyses) */}
+            {recent.length >= 2 && (() => {
+              const scores = recent.map(a => a.scores.overall_score);
+              const min = Math.max(0,  Math.min(...scores) - 10);
+              const max = Math.min(100, Math.max(...scores) + 10);
+              const range = max - min || 1;
+              const W = 220, H = 48, pad = 8;
+              const pts = scores.map((s, i) => {
+                const x = pad + (i / (scores.length - 1)) * (W - pad * 2);
+                const y = H - pad - ((s - min) / range) * (H - pad * 2);
+                return `${x},${y}`;
+              }).join(" ");
+              const latest  = scores[scores.length - 1];
+              const prev    = scores[scores.length - 2];
+              const delta   = latest - prev;
+              const up      = delta >= 0;
+
+              return (
+                <div className="mb-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex items-center gap-5">
+                  <div>
+                    <p className="text-[11px] text-[var(--text-muted)] mb-1 uppercase tracking-wider">Score trend</p>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xl font-bold" style={{ color: getScoreColor(latest) }}>{latest}</span>
+                      <span className={`flex items-center gap-0.5 text-[12px] font-medium ${up ? "text-emerald-400" : "text-red-400"}`}>
+                        {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {up ? "+" : ""}{delta} vs prev
+                      </span>
+                    </div>
+                  </div>
+                  <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="overflow-visible flex-shrink-0">
+                    <polyline
+                      points={pts}
+                      fill="none"
+                      stroke="var(--accent-primary)"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      opacity="0.5"
+                    />
+                    {scores.map((s, i) => {
+                      const x = pad + (i / (scores.length - 1)) * (W - pad * 2);
+                      const y = H - pad - ((s - min) / range) * (H - pad * 2);
+                      return (
+                        <circle key={i} cx={x} cy={y} r={i === scores.length - 1 ? 4 : 2.5}
+                          fill={i === scores.length - 1 ? getScoreColor(s) : "var(--accent-primary)"}
+                          opacity={i === scores.length - 1 ? 1 : 0.6}
+                        />
+                      );
+                    })}
+                  </svg>
+                  <p className="text-[11px] text-[var(--text-muted)] flex-1">
+                    {recent.length} completed {recent.length === 1 ? "analysis" : "analyses"}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+                Analysis History
+              </h2>
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-[12px] text-[var(--accent-primary)]"
               >
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold flex-shrink-0"
-                  style={{
-                    color: getScoreColor(analysis.scores.overall_score),
-                    background: `${getScoreColor(analysis.scores.overall_score)}15`,
-                    border: `1px solid ${getScoreColor(analysis.scores.overall_score)}25`,
-                  }}
+                {showHistory ? "Hide" : `Show all (${analyses.length})`}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {(showHistory ? analyses : analyses.slice(0, 3)).map((analysis) => (
+                <Link
+                  key={analysis.id}
+                  href={`/analysis/${analysis.id}`}
+                  className="flex items-center gap-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)] transition-all group"
                 >
-                  {analysis.scores.overall_score}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">
-                    {analysis.job?.parsed_data?.title ?? "Job Analysis"}{" "}
-                    {analysis.job?.company_name && `· ${analysis.job.company_name}`}
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold flex-shrink-0"
+                    style={{
+                      color: getScoreColor(analysis.scores.overall_score),
+                      background: `${getScoreColor(analysis.scores.overall_score)}15`,
+                      border: `1px solid ${getScoreColor(analysis.scores.overall_score)}25`,
+                    }}
+                  >
+                    {analysis.scores.overall_score}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
-                    <Clock className="w-3 h-3" />
-                    {formatRelativeTime(analysis.created_at)}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                      {analysis.job?.parsed_data?.title ?? "Job Analysis"}{" "}
+                      {analysis.job?.company_name && `· ${analysis.job.company_name}`}
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                      <Clock className="w-3 h-3" />
+                      {formatRelativeTime(analysis.created_at)}
+                    </div>
                   </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" />
-              </Link>
-            ))}
+                  <ArrowRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" />
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

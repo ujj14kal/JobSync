@@ -385,6 +385,10 @@ async def run_analysis(
             for w in ai_weaknesses[:3]
         ]
 
+        # Resume completeness check — pure text analysis, zero LLM cost
+        from app.services.resume_completeness import check_resume_completeness
+        completeness = check_resume_completeness(resume_text, parsed_resume)
+
         # Persist results
         update_data = {
             "status": "complete",
@@ -401,6 +405,7 @@ async def run_analysis(
             "feedback_model": feedback_model,
             "hire_recommendation": ai_result.get("hire_recommendation", ""),
             "seniority_match": ai_result.get("seniority_match", ""),
+            "resume_completeness": completeness,
         }
 
         supabase.table("analyses").update(update_data).eq("id", analysis_id).execute()
@@ -498,6 +503,58 @@ async def get_analysis(
             "project_relevance_score": a.get("project_relevance_score", 0),
         },
     }
+
+
+@router.get("/{analysis_id}/interview-prep")
+async def get_interview_prep(
+    analysis_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Return interview prep questions for an analysis.
+    Generated once from the JD then cached in analyses.interview_prep.
+    """
+    supabase = get_supabase()
+
+    result = (
+        supabase.table("analyses")
+        .select("interview_prep, job_descriptions(parsed_data, job_title, company_name), overall_score, technical_fit_score")
+        .eq("id", analysis_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    a = result.data[0]
+
+    # Return cached result if available
+    if a.get("interview_prep"):
+        return a["interview_prep"]
+
+    # Generate fresh
+    job_row = a.get("job_descriptions") or {}
+    parsed_job = job_row.get("parsed_data") or {}
+    # Inject company/title into parsed_job if missing
+    if not parsed_job.get("company"):
+        parsed_job["company"] = job_row.get("company_name", "")
+    if not parsed_job.get("title"):
+        parsed_job["title"] = job_row.get("job_title", "")
+
+    scores = {
+        "overall_score": a.get("overall_score", 0),
+        "technical_fit_score": a.get("technical_fit_score", 0),
+    }
+
+    from app.services.interview_prep import generate_interview_prep
+    prep = await generate_interview_prep(parsed_job=parsed_job, scores=scores)
+
+    # Cache in DB
+    supabase.table("analyses").update({"interview_prep": prep}).eq("id", analysis_id).execute()
+
+    return prep
 
 
 @router.post("/{analysis_id}/retry")

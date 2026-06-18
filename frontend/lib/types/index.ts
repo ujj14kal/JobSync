@@ -175,6 +175,33 @@ export interface ImprovementSuggestion {
   action: string;
 }
 
+export interface InterviewQuestion {
+  type: "technical" | "behavioral" | "situational";
+  question: string;
+  why_asked: string;
+  answer_framework: string;
+  red_flag: string;
+}
+
+export interface InterviewPrep {
+  questions: InterviewQuestion[];
+  generated_at: string;
+  job_title: string;
+}
+
+export interface ResumeCompletenessCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+  tip?: string | null;
+}
+
+export interface ResumeCompleteness {
+  score: number;
+  checks: ResumeCompletenessCheck[];
+  word_count: number;
+}
+
 export interface Analysis {
   id: string;
   user_id: string;
@@ -197,6 +224,10 @@ export interface Analysis {
   hire_recommendation?: string;
   seniority_match?: string;
   ai_reasoning?: Record<string, string>;
+
+  // SaaS features
+  interview_prep?: InterviewPrep;
+  resume_completeness?: ResumeCompleteness;
 
   status: "pending" | "processing" | "complete" | "failed";
   created_at: string;
