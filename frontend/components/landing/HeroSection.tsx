@@ -408,7 +408,7 @@ export default function HeroSection() {
 
           {/* CTA */}
           <motion.div
-            className="flex items-center justify-center"
+            className="flex flex-col sm:flex-row items-center justify-center gap-3"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -427,6 +427,11 @@ export default function HeroSection() {
                   <ArrowRight size={18} />
                 </motion.span>
               </motion.button>
+            </Link>
+            <Link href="/try"
+              className="text-[13px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors underline underline-offset-4"
+            >
+              Try without signing up →
             </Link>
           </motion.div>
 

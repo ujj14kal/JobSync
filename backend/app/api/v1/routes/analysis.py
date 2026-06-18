@@ -410,6 +410,34 @@ async def run_analysis(
 
         supabase.table("analyses").update(update_data).eq("id", analysis_id).execute()
 
+        # Fire analysis-complete email (best-effort, never blocks)
+        try:
+            user_row = supabase.auth.admin.get_user_by_id(user_id)
+            user_email = (user_row.user.email or "") if user_row and user_row.user else ""
+            user_name  = (user_row.user.user_metadata or {}).get("full_name", "") if user_row and user_row.user else ""
+            if user_email:
+                from app.services.email_service import send_analysis_complete_email
+                score_val = scores.get("overall_score", 0)
+                tier = (
+                    "Strong Match"  if score_val >= 75 else
+                    "Good Match"    if score_val >= 55 else
+                    "Fair Match"    if score_val >= 35 else
+                    "Weak Match"
+                )
+                kw_names = [k.get("keyword", "") for k in missing_keywords[:5] if k.get("keyword")]
+                asyncio.create_task(send_analysis_complete_email(
+                    to=user_email,
+                    name=user_name,
+                    job_title=parsed_job.get("title", "Unknown Role"),
+                    company=parsed_job.get("company", job_data.get("company_name", "")),
+                    overall_score=score_val,
+                    match_tier=tier,
+                    analysis_id=analysis_id,
+                    missing_keywords=kw_names,
+                ))
+        except Exception as email_err:
+            logger.warning("analysis complete email failed: %s", email_err)
+
     except Exception as e:
         logger.exception("run_analysis failed for analysis_id=%s user=%s", analysis_id, user_id)
         supabase.table("analyses").update({
@@ -502,6 +530,48 @@ async def get_analysis(
             "recruiter_impression_score": a.get("recruiter_impression_score", 0),
             "project_relevance_score": a.get("project_relevance_score", 0),
         },
+    }
+
+
+@router.get("/{analysis_id}/share")
+async def get_share_data(analysis_id: str):
+    """
+    Public — no auth required. Returns limited analysis data for share cards.
+    Only exposes non-sensitive fields (scores, job info, match tier).
+    """
+    supabase = get_supabase()
+    result = (
+        supabase.table("analyses")
+        .select("overall_score, ats_score, technical_fit_score, semantic_match_score, "
+                "recruiter_impression_score, missing_keywords, status, created_at, "
+                "job_descriptions(company_name, job_title, parsed_data)")
+        .eq("id", analysis_id)
+        .eq("status", "complete")
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Analysis not found or not complete")
+
+    a = result.data[0]
+    job = a.pop("job_descriptions", {}) or {}
+    score = a.get("overall_score", 0)
+    tier = (
+        "Strong Match"  if score >= 75 else
+        "Good Match"    if score >= 55 else
+        "Fair Match"    if score >= 35 else
+        "Weak Match"    if score >= 20 else
+        "Poor Match"
+    )
+    top_kw = [k.get("keyword") for k in (a.get("missing_keywords") or [])[:3] if k.get("keyword")]
+
+    return {
+        "overall_score": score,
+        "match_tier": tier,
+        "job_title": job.get("job_title") or (job.get("parsed_data") or {}).get("title", ""),
+        "company": job.get("company_name", ""),
+        "top_missing_keywords": top_kw,
+        "created_at": a.get("created_at"),
     }
 
 

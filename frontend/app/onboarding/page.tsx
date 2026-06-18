@@ -405,6 +405,10 @@ export default function OnboardingPage() {
   async function markDone() {
     try {
       await supabase.auth.updateUser({ data: { onboarding_completed: true } });
+      // Fire welcome email (best-effort, non-blocking)
+      import("@/lib/api/client").then(({ apiClient }) =>
+        apiClient.post("/settings/onboarding-complete").catch(() => {})
+      );
     } catch {
       // non-blocking
     }

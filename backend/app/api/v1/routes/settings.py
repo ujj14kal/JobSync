@@ -143,3 +143,21 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
     except Exception:
         pass
     return {"message": "Account deleted successfully"}
+
+
+@router.post("/onboarding-complete")
+async def onboarding_complete(user_id: str = Depends(get_current_user_id)):
+    """Called once after user finishes onboarding. Sends welcome email."""
+    supabase = get_supabase()
+    try:
+        user_row = supabase.auth.admin.get_user_by_id(user_id)
+        if user_row and user_row.user:
+            email = user_row.user.email or ""
+            name  = (user_row.user.user_metadata or {}).get("full_name", "")
+            if email:
+                import asyncio
+                from app.services.email_service import send_welcome_email
+                asyncio.create_task(send_welcome_email(to=email, name=name))
+    except Exception:
+        pass
+    return {"ok": True}

@@ -25,6 +25,7 @@ import {
   MessageSquare,
   Loader2,
   AlertTriangle,
+  Share2,
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
 import { jobApplicationsApi } from "@/lib/api/job-applications";
@@ -329,6 +330,16 @@ export function AnalysisResultClient({ id }: { id: string }) {
           >
             <Briefcase className="w-3.5 h-3.5" />
             {tracked ? "Tracked ✓" : "Track job"}
+          </button>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/share/${id}`;
+              navigator.clipboard.writeText(url).then(() => toast.success("Share link copied!"));
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            Share
           </button>
           <Link
             href="/analysis"

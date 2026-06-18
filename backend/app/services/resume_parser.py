@@ -742,3 +742,13 @@ def parse_resume(text: str) -> dict:
         "raw_sections": {k: v[:2000] for k, v in sections.items()},
         "document_type": detect_document_type(text),
     }
+
+
+def parse_resume_from_bytes(content: bytes, filename: str) -> dict:
+    """
+    Convenience helper used by the demo endpoint — parses bytes in one call.
+    Returns { raw_text, parsed_data } without storing anything.
+    """
+    raw_text = extract_text(content, filename)
+    parsed_data = parse_resume(raw_text)
+    return {"raw_text": raw_text, "parsed_data": parsed_data}
