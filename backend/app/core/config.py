@@ -41,12 +41,6 @@ class Settings(BaseSettings):
     FIRECRAWL_API_KEY: str = ""   # firecrawl.dev — free 500 pages/month
     JINA_API_KEY: str = ""        # jina.ai — free, removes rate limits on r.jina.ai
 
-    # Google OAuth (Gmail sync — free)
-    GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/callback"
-    FRONTEND_URL: str = "http://localhost:3000"
-
     # ElevenLabs (paid-tier TTS for AI voice interviews)
     # Creator plan: $11/month = ₹918 for 100K chars. Per-call capped at 300 chars (server-enforced).
     # A full voice session (~10 questions × 300 chars) = 3,000 chars ≈ ₹28 cost.

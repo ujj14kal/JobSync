@@ -303,7 +303,7 @@ function StepDone({ name }: { name: string }) {
     {
       icon: Briefcase,
       label: "Job Tracker",
-      desc: "Log applications, auto-update status from Gmail",
+      desc: "Log applications and track every status change in one place",
       href: "/jobs",
       cta: "Open tracker",
       primary: false,

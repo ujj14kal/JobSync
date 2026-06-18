@@ -1,24 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, useRouter } from "next/navigation";
 import {
   jobApplicationsApi,
-  gmailApi,
   type JobApplication,
   type AppStatus,
   type StatusHistoryEntry,
-  type GmailSyncUpdate,
-  type GmailSuggestion,
 } from "@/lib/api/job-applications";
 import {
   Plus, Search, BarChart2, Briefcase, ExternalLink,
   Pencil, Trash2, ChevronDown, TrendingUp, CheckCircle2,
   XCircle, Clock, MessageSquare, DollarSign, MapPin, X,
   ChevronRight, Bell, LayoutGrid, List as ListIcon,
-  Mail, RefreshCw, Wifi, WifiOff, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -486,244 +481,6 @@ function AppCard({ app, onEdit, onDelete, onStatusChange }: {
   );
 }
 
-// ─── Gmail Banner ─────────────────────────────────────────────────────────────
-function GmailBanner({
-  onSyncComplete,
-  onSuggestions,
-}: {
-  onSyncComplete: (updates: GmailSyncUpdate[]) => void;
-  onSuggestions: (suggestions: GmailSuggestion[]) => void;
-}) {
-  const qc = useQueryClient();
-
-  const { data: gmailStatus, isLoading: statusLoading } = useQuery({
-    queryKey: ["gmail-status"],
-    queryFn: gmailApi.status,
-    staleTime: 60 * 1000,
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: gmailApi.sync,
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["job-applications"] });
-      qc.invalidateQueries({ queryKey: ["job-application-stats"] });
-      qc.invalidateQueries({ queryKey: ["gmail-status"] });
-      onSyncComplete(result.updates);
-      const suggestions = result.suggestions ?? [];
-      if (result.updates.length === 0 && suggestions.length === 0) {
-        toast.info("Inbox checked — no new status changes found");
-      } else {
-        result.updates.forEach((u) =>
-          toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
-        );
-        if (suggestions.length > 0) {
-          onSuggestions(suggestions);
-          toast.info(`${suggestions.length} new application${suggestions.length > 1 ? "s" : ""} detected from Gmail`, {
-            description: "Review and add them to your tracker below",
-          });
-        }
-      }
-    },
-    onError: () => toast.error("Gmail sync failed"),
-  });
-
-  const connectGmail = async () => {
-    try {
-      const { url } = await gmailApi.getAuthUrl();
-      window.location.href = url;
-    } catch {
-      toast.error("Could not start Gmail connection");
-    }
-  };
-
-  const disconnectMutation = useMutation({
-    mutationFn: gmailApi.disconnect,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["gmail-status"] });
-      toast.success("Gmail disconnected");
-    },
-  });
-
-  if (statusLoading) return null;
-
-  if (!gmailStatus?.connected) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl border"
-        style={{
-          background: "rgba(192,88,0,0.04)",
-          border: "1px solid rgba(192,88,0,0.15)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(192,88,0,0.12)", border: "1px solid rgba(192,88,0,0.2)" }}
-          >
-            <Mail className="w-4 h-4" style={{ color: "#C05800" }} />
-          </div>
-          <div>
-            <div className="text-[13px] font-semibold text-[var(--text-primary)]">
-              Connect Gmail to auto-track status
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)]">
-              JobSynk reads recruiter emails and updates your application statuses automatically
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={connectGmail}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-[12px] font-semibold flex-shrink-0 transition-all"
-          style={{
-            background: "linear-gradient(135deg, #C05800, #713600)",
-            boxShadow: "0 0 16px rgba(192,88,0,0.25)",
-          }}
-        >
-          <Mail className="w-3.5 h-3.5" />
-          Connect Gmail
-        </button>
-      </motion.div>
-    );
-  }
-
-  // Connected state
-  const lastSync = gmailStatus.last_synced_at
-    ? new Date(gmailStatus.last_synced_at)
-    : null;
-  const minutesAgo = lastSync
-    ? Math.floor((Date.now() - lastSync.getTime()) / 60000)
-    : null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-2xl border"
-      style={{
-        background: "rgba(122,184,64,0.04)",
-        border: "1px solid rgba(122,184,64,0.15)",
-      }}
-    >
-      <div className="flex items-center gap-2.5">
-        <Wifi className="w-4 h-4 flex-shrink-0" style={{ color: "#7ab840" }} />
-        <div className="text-[12px]">
-          <span className="font-semibold text-[var(--text-primary)]">
-            Gmail syncing
-          </span>
-          <span className="text-[var(--text-muted)] ml-1.5">
-            {gmailStatus.gmail_email}
-          </span>
-          {minutesAgo !== null && (
-            <span className="text-[var(--text-muted)] ml-1.5">
-              · last checked{" "}
-              {minutesAgo < 1
-                ? "just now"
-                : minutesAgo < 60
-                ? `${minutesAgo}m ago`
-                : `${Math.floor(minutesAgo / 60)}h ago`}
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={cn("w-3 h-3", syncMutation.isPending && "animate-spin")} />
-          {syncMutation.isPending ? "Checking…" : "Sync now"}
-        </button>
-        <button
-          onClick={() => disconnectMutation.mutate()}
-          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
-          title="Disconnect Gmail"
-        >
-          <WifiOff className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-// ─── Gmail Suggestions Panel ──────────────────────────────────────────────────
-function GmailSuggestionsPanel({
-  suggestions,
-  onAccept,
-  onDismiss,
-  onDismissAll,
-}: {
-  suggestions: GmailSuggestion[];
-  onAccept: (s: GmailSuggestion) => void;
-  onDismiss: (s: GmailSuggestion) => void;
-  onDismissAll: () => void;
-}) {
-  if (suggestions.length === 0) return null;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      className="rounded-2xl overflow-hidden"
-      style={{ border: "1px solid rgba(192,88,0,0.25)", background: "rgba(192,88,0,0.04)" }}
-    >
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(192,88,0,0.15)" }}>
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-[#C05800]" />
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">
-            Gmail found {suggestions.length} possible application{suggestions.length > 1 ? "s" : ""}
-          </span>
-          <span className="text-[11px] text-[var(--text-muted)]">— review before adding</span>
-        </div>
-        <button
-          onClick={onDismissAll}
-          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-        >
-          Dismiss all
-        </button>
-      </div>
-      <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-        {suggestions.map((s, i) => {
-          const cfg = STATUS_CONFIG[s.status] ?? STATUS_CONFIG.applied;
-          return (
-            <div key={i} className="flex items-center gap-3 px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">{s.company}</span>
-                  {s.job_title && s.job_title !== "Position" && (
-                    <span className="text-[11px] text-[var(--text-muted)]">· {s.job_title}</span>
-                  )}
-                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", cfg.bg, cfg.color)}>
-                    {cfg.label}
-                  </span>
-                </div>
-                <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">{s.subject}</p>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button
-                  onClick={() => onAccept(s)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{ background: "linear-gradient(135deg,#C05800,#713600)" }}
-                >
-                  <Plus className="w-3 h-3" /> Add
-                </button>
-                <button
-                  onClick={() => onDismiss(s)}
-                  className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function JobTrackerPage() {
   const [search, setSearch] = useState("");
@@ -731,59 +488,7 @@ export default function JobTrackerPage() {
   const [showModal, setShowModal] = useState(false);
   const [editApp, setEditApp] = useState<JobApplication | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
-  const [gmailSuggestions, setGmailSuggestions] = useState<GmailSuggestion[]>([]);
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const qc = useQueryClient();
-
-  // Handle OAuth redirect back from Google
-  useEffect(() => {
-    const gmail = searchParams.get("gmail");
-    if (gmail === "connected") {
-      toast.success("Gmail connected! Syncing your inbox…");
-      setTimeout(async () => {
-        try {
-          const result = await gmailApi.sync();
-          qc.invalidateQueries({ queryKey: ["job-applications"] });
-          qc.invalidateQueries({ queryKey: ["job-application-stats"] });
-          qc.invalidateQueries({ queryKey: ["gmail-status"] });
-          result.updates.forEach((u) =>
-            toast.success(`${u.company} → ${u.new_status}`, { description: u.subject })
-          );
-          const suggestions = result.suggestions ?? [];
-          if (suggestions.length > 0) {
-            setGmailSuggestions(suggestions);
-            toast.info(`${suggestions.length} possible application${suggestions.length > 1 ? "s" : ""} found — review below`);
-          }
-        } catch { /* silent */ }
-      }, 1500);
-      router.replace("/jobs");
-    } else if (gmail === "error") {
-      toast.error("Gmail connection failed — please try again");
-      router.replace("/jobs");
-    }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function acceptSuggestion(s: GmailSuggestion) {
-    try {
-      await jobApplicationsApi.create({
-        company:  s.company,
-        job_title: s.job_title !== "Position" ? s.job_title : s.company + " Role",
-        status:   s.status,
-        notes:    `Added from Gmail: ${s.subject}`,
-      });
-      qc.invalidateQueries({ queryKey: ["job-applications"] });
-      qc.invalidateQueries({ queryKey: ["job-application-stats"] });
-      setGmailSuggestions((prev) => prev.filter((x) => x.company !== s.company));
-      toast.success(`${s.company} added to tracker`);
-    } catch {
-      toast.error("Failed to add application");
-    }
-  }
-
-  function dismissSuggestion(s: GmailSuggestion) {
-    setGmailSuggestions((prev) => prev.filter((x) => x.company !== s.company));
-  }
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["job-applications"],
@@ -884,27 +589,6 @@ export default function JobTrackerPage() {
           <Plus className="w-4 h-4" /> Add Job
         </button>
       </motion.div>
-
-      {/* Gmail auto-tracking banner */}
-      <GmailBanner
-        onSyncComplete={() => {
-          qc.invalidateQueries({ queryKey: ["job-applications"] });
-          qc.invalidateQueries({ queryKey: ["job-application-stats"] });
-        }}
-        onSuggestions={setGmailSuggestions}
-      />
-
-      {/* Gmail suggestions — user reviews before adding */}
-      <AnimatePresence>
-        {gmailSuggestions.length > 0 && (
-          <GmailSuggestionsPanel
-            suggestions={gmailSuggestions}
-            onAccept={acceptSuggestion}
-            onDismiss={dismissSuggestion}
-            onDismissAll={() => setGmailSuggestions([])}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Stat cards */}
       <motion.div

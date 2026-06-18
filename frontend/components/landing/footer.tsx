@@ -56,7 +56,6 @@ export function Footer() {
         <p className="text-center text-[10px]" style={{ color: "rgba(100,116,139,0.5)" }}>
           Scoring powered by the <strong style={{ color: "rgba(192,88,0,0.7)" }}>JobSynk AI Engine</strong> — our custom-trained neural model (6,000+ resume-job pairs). &nbsp;·&nbsp;
           AI feedback via Groq (LLaMA 3.3 70B). &nbsp;·&nbsp;
-          Gmail access optional — used only to track job application statuses. &nbsp;·&nbsp;
           We never sell your data. &nbsp;·&nbsp;
           <a href="/legal/privacy-policy" className="underline hover:text-white transition-colors">Privacy Policy</a>
           &nbsp;·&nbsp;
