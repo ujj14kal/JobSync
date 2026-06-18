@@ -123,7 +123,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-3">11. Contact</h2>
-            <p>For billing disputes, legal queries, or any other matter: <a href="mailto:ujj.kalra10@gmail.com" className="text-[#C05800] hover:underline">ujj.kalra10@gmail.com</a></p>
+            <p>For billing disputes, legal queries, or any other matter: <a href="mailto:hello@jobsynk.in" className="text-[#C05800] hover:underline">hello@jobsynk.in</a></p>
           </section>
 
         </div>

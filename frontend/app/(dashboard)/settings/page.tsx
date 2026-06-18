@@ -469,7 +469,7 @@ export default function SettingsPage() {
                 </p>
                 <div className="flex gap-2">
                   <a
-                    href="mailto:ujj.kalra10@gmail.com?subject=Data Export Request"
+                    href="mailto:hello@jobsynk.in?subject=Data Export Request"
                     className="px-4 py-2 rounded-xl border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                   >
                     Request data export

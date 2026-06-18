@@ -18,8 +18,8 @@ function VerifiedBadge() {
   );
 }
 
-const ADMIN_EMAIL = "ujj.kalra10@gmail.com";
-const SUPPORT_EMAIL = "ujj.kalra10@gmail.com";
+const ADMIN_EMAIL = "hello@jobsynk.in";
+const SUPPORT_EMAIL = "hello@jobsynk.in";
 
 interface FaqQuestion {
   id: string;

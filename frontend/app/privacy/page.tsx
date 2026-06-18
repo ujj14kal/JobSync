@@ -98,8 +98,8 @@ export default function PrivacyPage() {
           <p>
             JobSynk is an independent project operated by Ujjwal Kalra (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
             For any privacy questions, contact:{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
-              ujj.kalra10@gmail.com
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>
+              hello@jobsynk.in
             </a>
           </p>
         </Section>
@@ -263,8 +263,8 @@ export default function PrivacyPage() {
           </ul>
           <p>
             To exercise any of these rights, email{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
-              ujj.kalra10@gmail.com
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>
+              hello@jobsynk.in
             </a>{" "}
             with the subject &quot;Data Request — JobSynk&quot;. We will respond within 30 days.
           </p>
@@ -280,8 +280,8 @@ export default function PrivacyPage() {
           <p>
             No internet service is 100% secure. If you discover a vulnerability, please report it
             responsibly to{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
-              ujj.kalra10@gmail.com
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>
+              hello@jobsynk.in
             </a>{" "}
             before public disclosure.
           </p>
@@ -310,8 +310,8 @@ export default function PrivacyPage() {
         <Section title="11. Contact">
           <p>
             Privacy questions, data requests, or concerns:{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
-              ujj.kalra10@gmail.com
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>
+              hello@jobsynk.in
             </a>
           </p>
           <p style={{ color: "rgba(148,163,184,0.6)" }} className="text-xs mt-2">

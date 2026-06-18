@@ -71,7 +71,7 @@ export default function TermsPage() {
         {/* 3 */}
         <Section title="3. Your Account">
           <p>You are responsible for keeping your account credentials secure. Do not share your password. Notify us immediately if you suspect unauthorized access at{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>ujj.kalra10@gmail.com</a>.
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>hello@jobsynk.in</a>.
           </p>
           <p>You are responsible for all activity that occurs under your account.</p>
         </Section>
@@ -201,8 +201,8 @@ export default function TermsPage() {
         <Section title="13. Contact">
           <p>
             Questions about these Terms:{" "}
-            <a href="mailto:ujj.kalra10@gmail.com" className="underline" style={{ color: "#C05800" }}>
-              ujj.kalra10@gmail.com
+            <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>
+              hello@jobsynk.in
             </a>
           </p>
         </Section>

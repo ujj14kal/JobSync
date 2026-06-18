@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"  # set to "" to disable Ollama
 
     # Rate limiting & concurrency
-    MAX_ANALYSES_PER_DAY: int = 10
+    MAX_ANALYSES_PER_DAY: int = 3
     MAX_CONCURRENT_ANALYSES: int = 8        # global slot cap across all users
     MAX_CONCURRENT_LLM_CALLS: int = 3       # LLM sub-slot cap
     MAX_QUEUE_DEPTH: int = 50               # reject at this queue depth

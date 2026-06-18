@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
               ("owner", "operator"), accessible at <strong>jobsynk.in</strong>. By using JobSynk you
               agree to this Privacy Policy.
             </p>
-            <p className="mt-3">Contact: <a href="mailto:ujj.kalra10@gmail.com" className="text-[#C05800] hover:underline">ujj.kalra10@gmail.com</a></p>
+            <p className="mt-3">Contact: <a href="mailto:hello@jobsynk.in" className="text-[#C05800] hover:underline">hello@jobsynk.in</a></p>
           </section>
 
           <section>
@@ -119,7 +119,7 @@ export default function PrivacyPolicy() {
               <li><strong>Chat history:</strong> Delete all chat messages from Settings</li>
               <li><strong>Portability:</strong> Export your analysis history as JSON/PDF</li>
             </ul>
-            <p className="mt-3">Email <a href="mailto:ujj.kalra10@gmail.com" className="text-[#C05800] hover:underline">ujj.kalra10@gmail.com</a> for any data request.</p>
+            <p className="mt-3">Email <a href="mailto:hello@jobsynk.in" className="text-[#C05800] hover:underline">hello@jobsynk.in</a> for any data request.</p>
           </section>
 
           <section>

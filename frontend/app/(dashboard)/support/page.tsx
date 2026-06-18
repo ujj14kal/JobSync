@@ -76,7 +76,7 @@ export default function SupportPage() {
       if (!res.ok) throw new Error("failed");
       setStep("submitted");
     } catch {
-      setError("Something went wrong. Please try again or email ujj.kalra10@gmail.com directly.");
+      setError("Something went wrong. Please try again or email hello@jobsynk.in directly.");
     } finally {
       setLoading(false);
     }
