@@ -2,22 +2,17 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion, useInView, useMotionValue, useSpring, AnimatePresence } from "framer-motion";
-import {
-  AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
 import Link from "next/link";
 import TiltCard from "@/components/ui/TiltCard";
 import { MagicCard } from "@/components/ui/magic-card";
 import {
   ArrowRight, BarChart2, FileText,
-  TrendingUp, Upload, Plus, Clock, Briefcase,
+  TrendingUp, Upload, Clock, Plus,
   HelpCircle, Mail, BookOpen, MessageCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { analysisApi } from "@/lib/api/analysis";
 import { resumeApi } from "@/lib/api/resume";
-import { jobApplicationsApi } from "@/lib/api/job-applications";
 import { settingsApi } from "@/lib/api/settings";
 import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -42,166 +37,20 @@ function AnimatedNumber({ value, duration = 1.2 }: { value: number; duration?: n
   return <span ref={ref}>0</span>;
 }
 
-// ── Recharts shared tooltip style ─────────────────────────────────────────────
-const tooltipStyle = {
-  contentStyle: {
-    background: "var(--bg-elevated)",
-    border: "1px solid var(--border-default)",
-    borderRadius: "10px",
-    color: "var(--text-primary)",
-    fontSize: "12px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-  },
-  cursor: { fill: "rgba(255,255,255,0.03)" },
-};
-
-// ── Score Trend chart ─────────────────────────────────────────────────────────
-function ScoreTrendChart({ analyses }: { analyses: { created_at: string; scores: { overall_score: number } }[] }) {
-  const data = [...analyses]
-    .reverse()
-    .filter((a) => (a.scores?.overall_score ?? 0) > 0)
-    .slice(-8)
-    .map((a) => ({
-      date: new Date(a.created_at).toLocaleDateString("en", { month: "short", day: "numeric" }),
-      score: a.scores.overall_score,
-    }));
-
-  if (data.length < 2) return null;
-
-  return (
-    <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-      <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-4">Score Trend</div>
-      <ResponsiveContainer width="100%" height={148}>
-        <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
-          <defs>
-            <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#C05800" stopOpacity={0.35} />
-              <stop offset="95%" stopColor="#C05800" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="date" tick={{ fill: "#9A7050", fontSize: 9 }} axisLine={false} tickLine={false} />
-          <YAxis domain={[0, 100]} tick={{ fill: "#9A7050", fontSize: 9 }} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipStyle} />
-          <Area
-            type="monotone"
-            dataKey="score"
-            stroke="#C05800"
-            fill="url(#scoreGrad)"
-            strokeWidth={2}
-            dot={{ fill: "#C05800", r: 3, strokeWidth: 0 }}
-            activeDot={{ r: 5, fill: "#D06818" }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-// ── Application funnel ────────────────────────────────────────────────────────
-function FunnelChart({ byStatus }: { byStatus: Record<string, number> }) {
-  const stages = [
-    { key: "saved",        label: "Saved",        color: "#9A7050", rgb: "154,112,80" },
-    { key: "applied",      label: "Applied",      color: "#C05800", rgb: "192,88,0" },
-    { key: "screening",    label: "Screening",    color: "#d97020", rgb: "217,112,32" },
-    { key: "interviewing", label: "Interviewing", color: "#d4aa30", rgb: "212,170,48" },
-    { key: "offer",        label: "Offers",       color: "#7ab840", rgb: "122,184,64" },
-    { key: "rejected",     label: "Rejected",     color: "#c84020", rgb: "200,64,32" },
-  ];
-  const max = Math.max(...stages.map((s) => byStatus[s.key] ?? 0), 1);
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true });
-
-  return (
-    <div ref={ref} className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-      <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-4">Application Funnel</div>
-      <div className="space-y-3">
-        {stages.map(({ key, label, color, rgb }) => {
-          const count = byStatus[key] ?? 0;
-          const pct = max > 0 ? (count / max) * 100 : 0;
-          return (
-            <div key={key} className="flex items-center gap-3">
-              <span className="text-[10px] text-[var(--text-muted)] w-20 shrink-0 text-right">{label}</span>
-              <div className="flex-1 h-2 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: `linear-gradient(90deg,rgba(${rgb},0.6),rgba(${rgb},1))` }}
-                  initial={{ width: 0 }}
-                  animate={inView ? { width: `${pct}%` } : {}}
-                  transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-                />
-              </div>
-              <span className="text-[10px] font-semibold w-4 shrink-0 text-right" style={{ color }}>
-                {count}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Weekly activity bar chart ─────────────────────────────────────────────────
-function ActivityChart({ weeklyActivity }: { weeklyActivity: { week: string; count: number }[] }) {
-  if (!weeklyActivity?.length || weeklyActivity.every((w) => w.count === 0)) return null;
-
-  return (
-    <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-      <div className="text-[12px] font-semibold text-[var(--text-secondary)] mb-4">Weekly Applications</div>
-      <ResponsiveContainer width="100%" height={120}>
-        <BarChart data={weeklyActivity} margin={{ top: 4, right: 4, bottom: 0, left: -28 }} barSize={14}>
-          <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="week" tick={{ fill: "#9A7050", fontSize: 9 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: "#9A7050", fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
-          <Tooltip {...tooltipStyle} />
-          <Bar dataKey="count" fill="#C05800" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-// ── Job stat cards ────────────────────────────────────────────────────────────
-function JobStatCard({ label, value, color, rgb }: { label: string; value: string | number; color: string; rgb: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true });
-  return (
-    <TiltCard intensity={10} scale={1.04} className="h-full">
-      <div
-        ref={ref}
-        className="relative p-5 rounded-2xl text-center overflow-hidden h-full"
-        style={{
-          background: `linear-gradient(135deg,rgba(${rgb},0.12) 0%,rgba(${rgb},0.04) 100%)`,
-          border: `1px solid rgba(${rgb},0.22)`,
-          boxShadow: `0 0 24px rgba(${rgb},0.08), 0 4px 16px rgba(0,0,0,0.2)`,
-        }}
-      >
-        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 50% 0%,rgba(${rgb},0.18),transparent 60%)` }} />
-        <div className="text-2xl font-bold relative" style={{ color }}>{value}</div>
-        <div className="text-[11px] text-[var(--text-muted)] mt-1 relative font-medium">{label}</div>
-        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg,transparent,rgba(${rgb},0.6),transparent)` }} />
-      </div>
-    </TiltCard>
-  );
-}
-
 // ── Quick actions ─────────────────────────────────────────────────────────────
 const quickActions = [
   { href: "/analysis", icon: BarChart2,  label: "New ATS Analysis", description: "Match resume to a job", accent: "indigo"  },
   { href: "/resume",   icon: Upload,     label: "Upload Resume",    description: "Add or update your resume", accent: "violet"  },
-  { href: "/jobs",     icon: Briefcase,  label: "Job Tracker",      description: "Track your applications", accent: "amber"   },
   { href: "/insights", icon: TrendingUp, label: "Career Insights",  description: "Market trends & salary data", accent: "emerald" },
 ];
 
 const accentBg: Record<string, React.CSSProperties> = {
   indigo:  { background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(192,88,0,0.07) 100%)",   border: "1px solid rgba(192,88,0,0.25)" },
   violet:  { background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(113,54,0,0.07) 100%)",   border: "1px solid rgba(113,54,0,0.25)" },
-  amber:   { background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(212,170,48,0.07) 100%)", border: "1px solid rgba(212,170,48,0.25)" },
   emerald: { background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(122,184,64,0.07) 100%)", border: "1px solid rgba(122,184,64,0.25)" },
 };
-const accentRgb:   Record<string, string> = { indigo: "192,88,0", violet: "113,54,0", amber: "212,170,48", emerald: "122,184,64" };
-const accentColor: Record<string, string> = { indigo: "#D06818",  violet: "#8c4a18",  amber: "#d4aa30",    emerald: "#7ab840" };
+const accentRgb:   Record<string, string> = { indigo: "192,88,0", violet: "113,54,0", emerald: "122,184,64" };
+const accentColor: Record<string, string> = { indigo: "#D06818",  violet: "#8c4a18",  emerald: "#7ab840" };
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const cardItem   = { hidden: { opacity: 0, y: 20, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 22 } } };
@@ -235,21 +84,8 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
     queryFn: resumeApi.list,
     staleTime: 4 * 60 * 1000,
   });
-  const { data: jobStats, isLoading: jobStatsLoading } = useQuery({
-    queryKey: ["job-application-stats"],
-    queryFn: jobApplicationsApi.stats,
-    staleTime: 4 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
   const latestAnalysis = analyses?.[0];
   const hasResume = (resumes?.length ?? 0) > 0;
-  const hasJobData = (jobStats?.total ?? 0) > 0;
-
-  // No InView needed — scroll is inside <main overflow-y-auto>, not window.
-  // All sections are always visible so we animate unconditionally.
-  const scoresRef = useRef<HTMLDivElement>(null);
-  const pipelineRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="space-y-8">
@@ -339,98 +175,6 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           ))}
         </motion.div>
       </div>
-
-      {/* ── Application Pipeline ── */}
-      {!mounted || jobStatsLoading ? (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-3.5 w-40 rounded-full bg-white/5 animate-shimmer" />
-            <div className="h-3.5 w-24 rounded-full bg-white/5 animate-shimmer" />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl bg-white/5 animate-shimmer" />
-            ))}
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="h-48 rounded-2xl bg-white/5 animate-shimmer" />
-            <div className="h-48 rounded-2xl bg-white/5 animate-shimmer" />
-          </div>
-        </div>
-      ) : (
-        <div ref={pipelineRef}>
-          <div className="flex items-center justify-between mb-4">
-            <motion.h2
-              className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            >
-              Application Pipeline
-            </motion.h2>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Link href="/jobs" className="text-[12px] text-[#C05800] hover:text-[#E08840] flex items-center gap-1 transition-colors">
-                <Briefcase className="w-3 h-3" /> Job Tracker <ArrowRight className="w-3 h-3" />
-              </Link>
-            </motion.div>
-          </div>
-
-          {/* Big stat cards — always show, 0 when no data */}
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"
-            variants={container} initial="hidden" animate={"show"}
-          >
-            <motion.div variants={cardItem}>
-              <JobStatCard label="Total Applications" value={jobStats?.total ?? 0} color="#D06818" rgb="192,88,0" />
-            </motion.div>
-            <motion.div variants={cardItem}>
-              <JobStatCard label="Response Rate" value={`${jobStats?.response_rate ?? 0}%`} color="#d4aa30" rgb="212,170,48" />
-            </motion.div>
-            <motion.div variants={cardItem}>
-              <JobStatCard label="Interviews" value={jobStats?.by_status?.interviewing ?? 0} color="#d4aa30" rgb="212,170,48" />
-            </motion.div>
-            <motion.div variants={cardItem}>
-              <JobStatCard label="Offers" value={jobStats?.offers ?? 0} color="#7ab840" rgb="122,184,64" />
-            </motion.div>
-          </motion.div>
-
-          {/* Charts — show empty state when no applications yet */}
-          {hasJobData ? (
-            <>
-              <motion.div
-                className="grid md:grid-cols-2 gap-4"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25, duration: 0.5, ease: [0.16,1,0.3,1] }}
-              >
-                {(analyses?.length ?? 0) >= 2 && <ScoreTrendChart analyses={analyses!} />}
-                {jobStats?.by_status && <FunnelChart byStatus={jobStats.by_status} />}
-              </motion.div>
-              {jobStats?.weekly_activity && (
-                <motion.div
-                  className="mt-4"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35, duration: 0.5, ease: [0.16,1,0.3,1] }}
-                >
-                  <ActivityChart weeklyActivity={jobStats.weekly_activity} />
-                </motion.div>
-              )}
-            </>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-[var(--border-subtle)]"
-            >
-              <Briefcase className="w-7 h-7 text-[var(--text-muted)] mb-3" />
-              <p className="text-[14px] text-[var(--text-secondary)] mb-1">No applications tracked yet</p>
-              <p className="text-[12px] text-[var(--text-muted)] mb-4">Start logging jobs to see funnel & trend charts</p>
-              <Link href="/jobs" className="btn-primary !px-4 !py-2 !text-[13px] flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Track a job
-              </Link>
-            </motion.div>
-          )}
-        </div>
-      )}
 
       {/* ── Recent Analyses ── */}
       <div>
@@ -525,7 +269,7 @@ export function DashboardClient({ user }: { user: SupabaseUser | null }) {
           </div>
         </div>
       ) : (
-        <div ref={scoresRef}>
+        <div>
           <motion.h2
             className="text-[13px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}

@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   LogOut,
   Settings,
-  Briefcase,
   Mic,
   Wand2,
   HelpCircle,
@@ -51,11 +50,6 @@ const navItems = [
     href: "/improve",
     icon: Sparkles,
     label: "Improve",
-  },
-  {
-    href: "/jobs",
-    icon: Briefcase,
-    label: "Job Tracker",
   },
   {
     href: "/insights",

@@ -300,14 +300,6 @@ function StepDone({ name }: { name: string }) {
       cta: "View resume",
       primary: false,
     },
-    {
-      icon: Briefcase,
-      label: "Job Tracker",
-      desc: "Log applications and track every status change in one place",
-      href: "/jobs",
-      cta: "Open tracker",
-      primary: false,
-    },
   ];
 
   return (

@@ -119,22 +119,7 @@ export default function TermsPage() {
         </Section>
 
         {/* 7 */}
-        <Section title="7. Gmail Integration">
-          <p>
-            If you connect your Gmail account, you authorize JobSynk to read job-related email metadata
-            (subjects, sender info, snippets) to automatically update your job application statuses.
-            This authorization is governed by Google&apos;s OAuth terms and our{" "}
-            <Link href="/privacy" className="underline" style={{ color: "#C05800" }}>Privacy Policy</Link>.
-          </p>
-          <p>You can revoke this authorization at any time from the Job Tracker page or via your{" "}
-            <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#C05800" }}>
-              Google account permissions
-            </a>.
-          </p>
-        </Section>
-
-        {/* 8 */}
-        <Section title="8. Availability & Changes">
+        <Section title="7. Availability & Changes">
           <p>
             JobSynk is a free, independently operated service. We do not guarantee 100% uptime,
             uninterrupted access, or that any specific feature will remain available permanently.
@@ -149,8 +134,8 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        {/* 9 */}
-        <Section title="9. Limitation of Liability">
+        {/* 8 */}
+        <Section title="8. Limitation of Liability">
           <p>
             To the maximum extent permitted by applicable law, JobSynk and its operator shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages,
@@ -168,8 +153,8 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        {/* 10 */}
-        <Section title="10. Indemnification">
+        {/* 9 */}
+        <Section title="9. Indemnification">
           <p>
             You agree to indemnify and hold harmless JobSynk and its operator from any claims,
             damages, losses, or expenses (including legal fees) arising from: your violation of
@@ -178,8 +163,8 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        {/* 11 */}
-        <Section title="11. Intellectual Property">
+        {/* 10 */}
+        <Section title="10. Intellectual Property">
           <p>
             The JobSynk name, logo, UI design, and proprietary AI scoring methodology are owned
             by Ujjwal Kalra. The codebase is open source under the MIT License — you are free to
@@ -188,8 +173,8 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        {/* 12 */}
-        <Section title="12. Governing Law">
+        {/* 11 */}
+        <Section title="11. Governing Law">
           <p>
             These Terms are governed by the laws of India. Any disputes shall be resolved in the
             courts of India. If you are located outside India, you agree to submit to Indian
@@ -197,8 +182,8 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        {/* 13 */}
-        <Section title="13. Contact">
+        {/* 12 */}
+        <Section title="12. Contact">
           <p>
             Questions about these Terms:{" "}
             <a href="mailto:hello@jobsynk.in" className="underline" style={{ color: "#C05800" }}>

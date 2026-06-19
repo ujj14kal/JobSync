@@ -16,7 +16,6 @@ import {
   ArrowRight,
   RefreshCw,
   ChevronRight,
-  Briefcase,
   Brain,
   Sparkles,
   FileText,
@@ -28,7 +27,6 @@ import {
   Share2,
 } from "lucide-react";
 import { ScoreFeedback } from "@/components/analysis/score-feedback";
-import { jobApplicationsApi } from "@/lib/api/job-applications";
 import { useFeedback } from "@/components/feedback/FeedbackProvider";
 import { FeedbackBanner } from "@/components/feedback/FeedbackBanner";
 import { toast } from "sonner";
@@ -156,7 +154,6 @@ function AnalysisProcessingState({ status }: { status: string }) {
 export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
-  const [tracked, setTracked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [interviewPrepEnabled, setInterviewPrepEnabled] = useState(false);
   const { markServiceUsed } = useFeedback();
@@ -170,24 +167,6 @@ export function AnalysisResultClient({ id }: { id: string }) {
     gcTime: 60 * 60 * 1000,
     retry: 1,
   });
-
-  async function handleTrackJob() {
-    if (!analysis || tracked) return;
-    try {
-      await jobApplicationsApi.create({
-        job_title: analysis.job?.parsed_data?.title || "Unknown Role",
-        company: analysis.job?.company_name || "Unknown Company",
-        job_url: analysis.job?.source_url,
-        analysis_id: id,
-        ats_score: analysis.scores?.overall_score,
-        status: "saved",
-      });
-      setTracked(true);
-      toast.success("Added to Job Tracker!");
-    } catch {
-      toast.error("Failed to add to tracker");
-    }
-  }
 
   const { data: analysis, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["analysis", id],
@@ -323,14 +302,6 @@ export function AnalysisResultClient({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleTrackJob}
-            disabled={tracked}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-60"
-          >
-            <Briefcase className="w-3.5 h-3.5" />
-            {tracked ? "Tracked ✓" : "Track job"}
-          </button>
           <button
             onClick={() => {
               const url = `${window.location.origin}/share/${id}`;

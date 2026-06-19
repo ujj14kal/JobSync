@@ -26,7 +26,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-3">2. The Service</h2>
-            <p>JobSynk provides AI-powered tools including ATS resume analysis, resume building, cover letter generation, AI interview practice (text and voice), a career chat assistant, job tracking, and mentor discovery. Features may change, be added, or be removed at any time.</p>
+            <p>JobSynk provides AI-powered tools including ATS resume analysis, resume building, cover letter generation, AI interview practice (text and voice), a career chat assistant, and mentor discovery. Features may change, be added, or be removed at any time.</p>
           </section>
 
           <section>
