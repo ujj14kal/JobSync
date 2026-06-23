@@ -873,9 +873,10 @@ async def search_and_scrape_job(
     metadata: dict = {"title": "", "company": ""}
 
     # ── Strategy 0: Direct URL ──────────────────────────────────────────────
-    # Race strategies in parallel — first non-empty result wins.
-    # Previously sequential (20s + 20s + 35s = 75s worst case).
-    # Now: all fire at once, total cap = 10s.
+    # Scraping strategy (ordered by cost):
+    #   Stage 1: LinkedIn guest API + httpx + Jina in parallel (free, fast, ~15s cap)
+    #   Stage 2: Firecrawl — only if Stage 1 misses (paid quota, 500/month)
+    #   Stage 3: Playwright — full JS rendering for SPAs, only if both above miss
     if direct_url:
         url = direct_url
 
@@ -896,9 +897,6 @@ async def search_and_scrape_job(
         async def _try_jina():
             return await scrape_url_with_jina(url)
 
-        async def _try_firecrawl():
-            return await scrape_url_with_firecrawl(url)
-
         async def _try_playwright():
             html = await scrape_url_with_playwright(url, timeout=20)
             if html:
@@ -908,33 +906,44 @@ async def search_and_scrape_job(
                     return content, meta
             return None
 
-        # Stage 1: fast no-JS scrapers in parallel (LinkedIn API, httpx, Jina, Firecrawl)
-        # Playwright is heavy — only run it if the fast stage misses.
+        # Stage 1: free scrapers in parallel
         try:
-            fast_results = await asyncio.wait_for(
+            free_results = await asyncio.wait_for(
                 asyncio.gather(
                     _try_linkedin(),
                     _try_httpx(),
                     _try_jina(),
-                    _try_firecrawl(),
                     return_exceptions=True,
                 ),
-                timeout=25.0,
+                timeout=15.0,
             )
         except asyncio.TimeoutError:
-            fast_results = [None, None, None, None]
+            free_results = [None, None, None]
 
-        for res in fast_results:
+        for res in free_results:
             if res and not isinstance(res, Exception) and isinstance(res, tuple):
                 raw_text, metadata = res
                 if raw_text:
                     source_url = url
-                    logger.info("Scrape success (fast stage)", chars=len(raw_text))
+                    logger.info("Scrape success (free stage)", chars=len(raw_text))
                     break
 
-        # Stage 2: Playwright with networkidle — handles any JS SPA universally
+        # Stage 2: Firecrawl — only burns quota when free scrapers all miss
         if not raw_text:
-            logger.info("Fast stage missed — launching Playwright (networkidle)", url=url)
+            logger.info("Free scrapers missed — trying Firecrawl", url=url)
+            try:
+                res = await scrape_url_with_firecrawl(url)
+                if res and isinstance(res, tuple):
+                    raw_text, metadata = res
+                    if raw_text:
+                        source_url = url
+                        logger.info("Scrape success (Firecrawl)", chars=len(raw_text))
+            except Exception:
+                pass
+
+        # Stage 3: Playwright with networkidle — handles any JS SPA universally
+        if not raw_text:
+            logger.info("Firecrawl missed — launching Playwright (networkidle)", url=url)
             try:
                 res = await _try_playwright()
                 if res and isinstance(res, tuple):
