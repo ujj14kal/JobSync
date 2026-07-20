@@ -221,7 +221,10 @@ print(f"Found CSVs: {[str(p) for p in resume_paths]}")
 
 resume_dfs = []   # collect ALL resume CSVs and merge
 jd_df      = None
-jd2025_df  = None
+jd2025_dfs = []   # list, not a single df — multiple datasets can match this branch
+                   # (e.g. adityarajsrv's JD-2025 set AND shree0910's India tech jobs set
+                   # both have title+description columns); a single variable would silently
+                   # drop whichever one loads first.
 naukri_df  = None
 
 for p in resume_paths:
@@ -261,23 +264,47 @@ for p in resume_paths:
         # Columns vary: title/job_title + skills/responsibilities/description/job_description
         elif (
             any(c in cols_lower for c in ["title", "job_title"]) and
-            any(c in cols_lower for c in ["skills", "responsibilities", "description", "job_description", "required_skills"]) and
+            any(c in cols_lower for c in ["skills", "skills_required", "responsibilities", "description", "job_description", "required_skills"]) and
             "job_posting_url" not in cols_lower and
             "category" not in cols_lower
         ):
-            jd2025_df = df
-            jd2025_df.columns = [c.lower() for c in jd2025_df.columns]
-            log(f"JD 2025 dataset: {p.name} — {len(jd2025_df)} rows | cols: {list(jd2025_df.columns[:8])}")
+            df.columns = [c.lower() for c in df.columns]
+            jd2025_dfs.append(df)
+            log(f"JD 2025-style dataset: {p.name} — {len(df)} rows | cols: {list(df.columns[:8])}")
 
     except Exception as e:
         log(f"Skipped {p.name}: {e}")
 
 if jd_df is None:
     log("WARNING: LinkedIn postings dataset not detected — will rely on JD 2025 + synthetic JDs")
-if jd2025_df is None:
-    log("WARNING: JD 2025 dataset (adityarajsrv) not detected — will rely on LinkedIn + synthetic JDs")
+if not jd2025_dfs:
+    log("WARNING: No JD 2025-style dataset detected — will rely on LinkedIn + synthetic JDs")
 if not resume_dfs:
     raise RuntimeError("No resume datasets found. Add snehaanbhawal/resume-dataset and jillanisofttech/updated-resume-dataset to kernel inputs.")
+
+# ── Hard requirement: the two India-specific datasets must have actually loaded ──
+# Verified to exist on Kaggle before this run (promptcloud/jobs-on-naukricom: 30001 rows,
+# shree0910/india-tech-job-market-2026-23k-records: 23202 rows). If either fails to load
+# here it means a path/column-detection mismatch on Kaggle's side, not that the dataset
+# doesn't exist — abort now, in the first ~30s, instead of discovering it after a full
+# 2-hour labeling+training run with no India-specific vocabulary in the data.
+if naukri_df is None:
+    raise RuntimeError(
+        "Naukri dataset (promptcloud/jobs-on-naukricom) did not load. "
+        "Check it's attached under kernel Input Data, and that its columns still match "
+        "the detection logic (expects 'Key Skills' + 'Role Category'/'Functional Area')."
+    )
+_india_tech_2026_loaded = any(
+    "skill_domain" in df.columns or "salary_min_lpa" in df.columns for df in jd2025_dfs
+)
+if not _india_tech_2026_loaded:
+    raise RuntimeError(
+        "India Tech Jobs 2026 dataset (shree0910/india-tech-job-market-2026-23k-records) "
+        "did not load. Check it's attached under kernel Input Data, and that its columns "
+        "still match the detection logic (expects 'job_title' + 'skill_domain'/'salary_min_lpa')."
+    )
+log(f"India-specific datasets confirmed loaded: Naukri ({len(naukri_df)} rows), "
+    f"India Tech Jobs 2026 (present in jd2025-style sources)")
 
 # Merge all resume CSVs
 resume_df = pd.concat(resume_dfs, ignore_index=True).drop_duplicates(subset=["resume"])
@@ -461,15 +488,16 @@ if jd_df is not None:
     else:
         log(f"LinkedIn postings: could not find title/description cols — will use JD 2025 + synthetic")
 
-# ── JD 2025 dataset (adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles) ──
-if jd2025_df is not None:
+# ── JD 2025-style datasets (adityarajsrv, shree0910 India tech jobs, any future additions) ──
+# Processed as a list — see the note where jd2025_dfs is declared for why.
+for _jd2025_df in jd2025_dfs:
     added_2025 = 0
-    # Resolve column names flexibly — dataset may use different naming conventions
-    _title_col = next((c for c in ["title", "job_title", "position"] if c in jd2025_df.columns), None)
-    _skills_col = next((c for c in ["skills", "required_skills", "key_skills"] if c in jd2025_df.columns), None)
-    _resp_col   = next((c for c in ["responsibilities", "job_description", "description", "duties"] if c in jd2025_df.columns), None)
-    log(f"JD 2025 columns resolved → title='{_title_col}' skills='{_skills_col}' resp='{_resp_col}'")
-    for _, row in jd2025_df.iterrows():
+    # Resolve column names flexibly — each dataset may use different naming conventions
+    _title_col = next((c for c in ["title", "job_title", "position"] if c in _jd2025_df.columns), None)
+    _skills_col = next((c for c in ["skills", "required_skills", "key_skills", "skills_required"] if c in _jd2025_df.columns), None)
+    _resp_col   = next((c for c in ["responsibilities", "job_description", "description", "duties"] if c in _jd2025_df.columns), None)
+    log(f"JD 2025-style columns resolved → title='{_title_col}' skills='{_skills_col}' resp='{_resp_col}'")
+    for _, row in _jd2025_df.iterrows():
         title = str(row.get(_title_col, "") if _title_col else "").lower()
         skills = str(row.get(_skills_col, "") if _skills_col else "").strip()
         responsibilities = str(row.get(_resp_col, "") if _resp_col else "").strip()
@@ -486,7 +514,7 @@ if jd2025_df is not None:
         if matched and len(jd_by_cat[matched]) < MAX_PER_CAT:
             jd_by_cat[matched].append(jd_text[:1200])
             added_2025 += 1
-    log(f"JD 2025 added: {added_2025} JDs | categories now: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
+    log(f"JD 2025-style added: {added_2025} JDs | categories now: { {k: len(v) for k,v in jd_by_cat.items() if v} }")
 
 # ── Naukri.com JDs (Indian market — vocabulary directly matches Indian CV datasets) ──
 if naukri_df is not None:
@@ -636,6 +664,52 @@ def sample_resume(cat, exclude=None):
         return None
     return random.choice(pool)
 
+# ── Skill-coverage ranking for perfect-vs-good differentiation ────────────────
+# "perfect" and "good" both draw from the same category, so without an actual
+# structural difference between them, a labeler has nothing real to distinguish —
+# it's asking it to tell apart two draws from the same distribution. This ranks
+# resumes within each category by how many of that category's core skills they
+# mention, so "perfect" pairs get a resume that genuinely covers the role's core
+# skills and "good" pairs get one that's missing some of them.
+_resume_ranked_cache: dict = {}
+
+def _keyword_score(text: str, keywords: list) -> int:
+    t = text.lower()
+    return sum(1 for kw in keywords if kw in t)
+
+def _ranked_resume_pool(cat: str) -> list:
+    if cat not in _resume_ranked_cache:
+        kws = TECH_CATS.get(cat, [])
+        pool = resume_by_cat.get(cat, [])
+        if not kws or len(pool) < 4:
+            _resume_ranked_cache[cat] = None  # too small to rank meaningfully
+        else:
+            _resume_ranked_cache[cat] = sorted(pool, key=lambda r: _keyword_score(r, kws), reverse=True)
+    return _resume_ranked_cache[cat]
+
+def sample_strong_resume(cat, exclude=None):
+    """Resume from the top half of this category's skill-keyword coverage — for 'perfect' pairs."""
+    ranked = _ranked_resume_pool(cat)
+    if ranked is None:
+        return sample_resume(cat, exclude)
+    pool = [r for r in ranked if r != exclude]
+    if len(pool) < 4:
+        return sample_resume(cat, exclude)
+    top_half = pool[: max(len(pool) // 2, 1)]
+    return random.choice(top_half)
+
+def sample_weak_resume(cat, exclude=None):
+    """Resume from the bottom half of this category's skill-keyword coverage — for 'good' pairs
+    (a genuine partial skill gap, not just a different random draw from the same pool)."""
+    ranked = _ranked_resume_pool(cat)
+    if ranked is None:
+        return sample_resume(cat, exclude)
+    pool = [r for r in ranked if r != exclude]
+    if len(pool) < 4:
+        return sample_resume(cat, exclude)
+    bottom_half = pool[max(len(pool) // 2, 1):] or pool
+    return random.choice(bottom_half)
+
 def sample_jd(cat, exclude=None):
     pool = [j for j in jd_by_cat.get(cat, []) if j != exclude]
     if not pool:
@@ -643,6 +717,53 @@ def sample_jd(cat, exclude=None):
     if not pool:
         return None
     return random.choice(pool)
+
+# ── JD-vs-resume overlap ranking for perfect-vs-good differentiation ──────────
+# The category-keyword-based resume ranking above (sample_strong_resume/sample_weak_resume)
+# creates a real, verified difference (measured directly: ~3x keyword coverage gap between
+# tiers) but GPT-4o-mini still scored "good" higher than "perfect" against it — it isn't
+# reliably using resume-vs-abstract-checklist matching as its basis for scoring. This ranks
+# JDs by actual word overlap with the SPECIFIC resume being paired, which is a much more
+# direct signal: both texts are shown to the labeler together in the same prompt, so a real
+# overlap difference between the two documents it's already reading is far more likely to
+# register than a difference against a 7-word list it never sees. Stacked on top of the
+# resume-side differentiation rather than replacing it, so both signals reinforce each other.
+_jd_words_cache: dict = {}
+
+def _overlap_words(text: str) -> set:
+    if text not in _jd_words_cache:
+        _jd_words_cache[text] = set(re.findall(r"\b[a-z]{4,}\b", text.lower()))
+    return _jd_words_cache[text]
+
+def _ranked_jd_pool_for_resume(cat: str, resume_text: str):
+    pool = jd_by_cat.get(cat, []) or SYNTHETIC_JDS.get(cat, [])
+    if len(pool) < 4:
+        return None
+    rw = _overlap_words(resume_text)
+    return sorted(pool, key=lambda j: len(rw & _overlap_words(j)), reverse=True)
+
+def sample_matching_jd(cat, resume_text, exclude=None):
+    """JD from the top half of word-overlap with this specific resume — for 'perfect' pairs."""
+    ranked = _ranked_jd_pool_for_resume(cat, resume_text)
+    if ranked is None:
+        return sample_jd(cat, exclude)
+    pool = [j for j in ranked if j != exclude]
+    if len(pool) < 4:
+        return sample_jd(cat, exclude)
+    top_half = pool[: max(len(pool) // 2, 1)]
+    return random.choice(top_half)
+
+def sample_mismatched_jd(cat, resume_text, exclude=None):
+    """JD from the bottom half of word-overlap with this specific resume — for 'good' pairs
+    (a real, measurable partial fit gap against this resume, not just any same-category JD)."""
+    ranked = _ranked_jd_pool_for_resume(cat, resume_text)
+    if ranked is None:
+        return sample_jd(cat, exclude)
+    pool = [j for j in ranked if j != exclude]
+    if len(pool) < 4:
+        return sample_jd(cat, exclude)
+    bottom_half = pool[max(len(pool) // 2, 1):] or pool
+    return random.choice(bottom_half)
 
 # ── GPT-4o-mini labeling ───────────────────────────────────────────────────────
 LABEL_SYSTEM = """You are scoring resume-to-job fit with 5 integer scores (0-100 each).
@@ -756,20 +877,28 @@ print(f"Target: perfect={n_perfect}, good={n_good}, partial={n_partial}, poor={n
 def build_pairs():
     pairs = []
 
-    # 1. PERFECT match — same category, same tech domain
+    # 1. PERFECT match — strong-coverage resume (sample_strong_resume) PLUS the
+    # JD from that category with the highest actual word-overlap against THIS
+    # specific resume (sample_matching_jd). Two independent, stacked signals
+    # instead of one — both texts are shown to the labeler side-by-side, so the
+    # JD-vs-resume overlap is a much more direct cue than resume-vs-checklist alone.
     for _ in range(n_perfect):
         cat = random.choice(all_cats)
-        r = sample_resume(cat)
-        j = sample_jd(cat)
+        r = sample_strong_resume(cat)
+        j = sample_matching_jd(cat, r) if r else None
         if r and j:
             pairs.append({"resume": r, "jd": j, "expected_level": "perfect", "resume_cat": cat, "jd_cat": cat})
 
-    # 2. GOOD match — same category different seniority / slight skill gap
+    # 2. GOOD match — weak-coverage resume (sample_weak_resume) PLUS the JD from
+    # that category with the LOWEST word-overlap against this resume
+    # (sample_mismatched_jd) — a real, measurable partial gap on both axes,
+    # structurally distinct from "perfect" instead of a coin-flip label on an
+    # identical draw.
     for _ in range(n_good):
         cat = random.choice(all_cats)
-        r = sample_resume(cat)
-        j = sample_jd(cat)
-        if r and j and r != pairs[-1].get("resume"):
+        r = sample_weak_resume(cat)
+        j = sample_mismatched_jd(cat, r) if r else None
+        if r and j:
             pairs.append({"resume": r, "jd": j, "expected_level": "good", "resume_cat": cat, "jd_cat": cat})
 
     # 3. PARTIAL match — adjacent categories
@@ -961,6 +1090,28 @@ for i, pair in enumerate(pairs):
                     f"CALIBRATION FAILED — good/perfect avg={gp_avg:.1f} "
                     f"none/poor avg={np_avg:.1f} ratio={ratio:.2f} "
                     f"(need avg≥18 AND ratio≥1.8). Cost so far: ${_total_usd:.3f}"
+                )
+        # good-vs-perfect check: the combined gp_avg/ratio check above can't see this —
+        # it treats good+perfect as one bucket, so it stays silent even if perfect
+        # scores no higher than good (exactly what happened in the run that produced
+        # bucket_ordering_monotonic=False). Catch it here, early, instead of finding
+        # out only after a full training run.
+        good_new = [r["overall_score"] for r in labeled
+                    if r.get("label_strategy") == "gpt4o-mini-calibrated-v5"
+                    and r.get("expected_level") == "good"]
+        perfect_new = [r["overall_score"] for r in labeled
+                       if r.get("label_strategy") == "gpt4o-mini-calibrated-v5"
+                       and r.get("expected_level") == "perfect"]
+        if len(good_new) >= 30 and len(perfect_new) >= 30:
+            good_avg = sum(good_new) / len(good_new)
+            perfect_avg = sum(perfect_new) / len(perfect_new)
+            log(f"  good avg={good_avg:.1f}  perfect avg={perfect_avg:.1f}  (perfect must be >good)")
+            if perfect_avg <= good_avg:
+                cache_file.close()
+                raise RuntimeError(
+                    f"CALIBRATION FAILED — perfect avg={perfect_avg:.1f} is not higher than "
+                    f"good avg={good_avg:.1f}. The labeler isn't distinguishing these tiers. "
+                    f"Cost so far: ${_total_usd:.3f}"
                 )
         # Extra warning if scores look degenerate
         if n >= 50 and spread < 30:
@@ -1175,7 +1326,10 @@ class PairDataset(Dataset):
     def __init__(self, records, encoder):
         self.X = []
         self.y = []
+        self.levels = []   # expected_level, kept in lockstep with X/y so skipped
+                            # records never desync it from accuracy/bucket reports
         skipped = 0
+        skip_errors: dict[str, int] = {}
         print(f"  Building dataset from {len(records)} records...")
 
         # Batch encode for speed
@@ -1200,11 +1354,16 @@ class PairDataset(Dataset):
                 y = torch.tensor([float(rec[d]) for d in DIMENSION_NAMES], dtype=torch.float32)
                 self.X.append(x)
                 self.y.append(y)
+                self.levels.append(rec.get("expected_level", "unknown"))
             except Exception as e:
                 skipped += 1
+                err_key = f"{type(e).__name__}: {e}"
+                skip_errors[err_key] = skip_errors.get(err_key, 0) + 1
 
         if skipped:
-            print(f"  Skipped {skipped} records (encoding errors)")
+            print(f"  Skipped {skipped} records (encoding errors):")
+            for err, count in sorted(skip_errors.items(), key=lambda kv: -kv[1])[:5]:
+                print(f"    {count}x  {err}")
         print(f"  Dataset ready: {len(self.X)} samples")
 
     def __len__(self):  return len(self.X)
@@ -1249,6 +1408,13 @@ train_ds = PairDataset(train_records, encoder)
 log(f"Encoding val set ({len(val_records)} records)...")
 val_ds   = PairDataset(val_records, encoder)
 log(f"Encoding done in {elapsed_str(t_enc)}")
+
+if len(train_ds) < 50 or len(val_ds) < 10:
+    raise RuntimeError(
+        f"Dataset too small after encoding — train={len(train_ds)} val={len(val_ds)} "
+        f"(need train>=50, val>=10). Check the 'Skipped N records' log above for the "
+        f"encoding errors that caused this."
+    )
 
 # Weighted sampler — upsample rare low/high scores
 train_overalls = [
@@ -1313,6 +1479,13 @@ for epoch in range(1, SCORER_EPOCHS + 1):
         optimizer.step()
         train_loss += loss.item()
     train_loss /= len(train_loader)
+
+    if math.isnan(train_loss) or math.isinf(train_loss):
+        log(f"TRAINING DIVERGED at epoch {epoch}: train_loss={train_loss} — aborting.", sep=True)
+        log("Likely cause: learning rate too high, or a bad batch (check for NaN/inf in labels).")
+        if epoch <= 5:
+            log("Diverged in the first few epochs — check SCORER_LR and WARMUP_EPOCHS.")
+        raise RuntimeError(f"Training diverged: loss={train_loss} at epoch {epoch}")
 
     if epoch > WARMUP_EPOCHS:
         scheduler.step()
@@ -1394,6 +1567,100 @@ for i, dim in enumerate(DIMENSION_NAMES):
     mae_i = (all_p[:, i] - all_t[:, i]).abs().mean().item()
     log(f"  {dim:<35s} MAE={mae_i:.3f}")
 
+# ── Accuracy report ──────────────────────────────────────────────────────────
+# MAE alone doesn't tell you whether the model is "accurate" in a way a human can
+# reason about, and it's not comparable across training runs with different label
+# scales (a narrow/compressed label range trivially produces a lower MAE without the
+# model actually being better — this is exactly what happened with the v3/groq run).
+# These metrics answer three concrete questions instead:
+#   1. Tolerance accuracy — if I trust this score, how often is it within N points
+#      of what a human labeler would have said?
+#   2. Correlation — does the model's ranking of resumes track the true ranking?
+#   3. Bucket separation — does it actually tell none/poor/partial/good/perfect apart,
+#      or did it collapse to predicting the same score for everything?
+log("Computing accuracy metrics...", sep=True)
+
+def _pearson_r(a: "torch.Tensor", b: "torch.Tensor") -> float:
+    a = a - a.mean()
+    b = b - b.mean()
+    denom = (a.norm() * b.norm()).item()
+    if denom < 1e-8:
+        return 0.0
+    return (a @ b).item() / denom
+
+pred_overall = all_p.mean(dim=1)
+tgt_overall  = all_t.mean(dim=1)
+
+tolerance_report = {}
+for tol in (5, 10, 15, 20):
+    within = (pred_overall - tgt_overall).abs() <= tol
+    tolerance_report[f"within_{tol}pts_pct"] = round(within.float().mean().item() * 100, 1)
+
+overall_r = round(_pearson_r(pred_overall, tgt_overall), 3)
+overall_mae_final = round((pred_overall - tgt_overall).abs().mean().item(), 2)
+
+per_dim_accuracy = {}
+for i, dim in enumerate(DIMENSION_NAMES):
+    diffs = (all_p[:, i] - all_t[:, i]).abs()
+    per_dim_accuracy[dim] = {
+        "mae": round(diffs.mean().item(), 2),
+        "within_10pts_pct": round((diffs <= 10).float().mean().item() * 100, 1),
+    }
+
+log(f"Overall MAE (mean of 5 dims): {overall_mae_final}")
+log(f"Overall accuracy within ±5pts:  {tolerance_report['within_5pts_pct']}%")
+log(f"Overall accuracy within ±10pts: {tolerance_report['within_10pts_pct']}%  <- headline accuracy metric")
+log(f"Overall accuracy within ±15pts: {tolerance_report['within_15pts_pct']}%")
+log(f"Overall accuracy within ±20pts: {tolerance_report['within_20pts_pct']}%")
+log(f"Pearson correlation (predicted vs true overall score): r={overall_r}")
+log("Per-dimension accuracy:")
+for dim, stats in per_dim_accuracy.items():
+    log(f"  {dim:<35s} MAE={stats['mae']:.2f}  within_10pts={stats['within_10pts_pct']}%")
+
+# Bucket separation — uses val_ds.levels, which stays index-aligned with all_p/all_t
+# even if some records were skipped during encoding (val_records would not be).
+log("Per-level predicted overall (bucket separation check):", sep=True)
+bucket_means: dict[str, float] = {}
+bucket_counts: dict[str, int] = {}
+val_levels = val_ds.levels
+for level in ["none", "poor", "partial", "good", "perfect"]:
+    idxs = [i for i, lv in enumerate(val_levels) if lv == level]
+    if idxs:
+        vals = pred_overall[idxs]
+        bucket_means[level]  = round(vals.mean().item(), 1)
+        bucket_counts[level] = len(idxs)
+        log(f"  {level:<10s} n={len(idxs):4d}  predicted_mean={bucket_means[level]}")
+    else:
+        log(f"  {level:<10s} n=0  (no validation samples — can't check)")
+
+level_order = ["none", "poor", "partial", "good", "perfect"]
+present_levels = [lv for lv in level_order if lv in bucket_means]
+monotonic = all(
+    bucket_means[present_levels[i]] <= bucket_means[present_levels[i + 1]]
+    for i in range(len(present_levels) - 1)
+)
+log(f"Bucket ordering monotonic (none<poor<partial<good<perfect): {monotonic}")
+if not monotonic:
+    log("  WARNING: model is not cleanly separating match-quality levels.")
+    log("  This means scores won't reliably discriminate good resumes from bad ones —")
+    log("  inspect label quality / quality gate results above before trusting this model.")
+
+accuracy_report = {
+    "headline_accuracy_pct": tolerance_report["within_10pts_pct"],
+    "headline_definition": "% of validation predictions within ±10 points of the true label",
+    "tolerance_accuracy": tolerance_report,
+    "overall_mae": overall_mae_final,
+    "pearson_r": overall_r,
+    "per_dimension": per_dim_accuracy,
+    "bucket_means": bucket_means,
+    "bucket_counts": bucket_counts,
+    "bucket_ordering_monotonic": monotonic,
+}
+log("="*55, sep=False)
+log(f"HEADLINE ACCURACY: {accuracy_report['headline_accuracy_pct']}% "
+    f"(predictions within ±10pts of true label)  |  r={overall_r}")
+log("="*55, sep=False)
+
 # ── Save tokenizer + metadata ──────────────────────────────────────────────────
 tokenizer_meta = {
     "type": "minilm",
@@ -1425,6 +1692,7 @@ model_meta = {
         "max": round(max(overalls), 1),
         "mean": round(sum(overalls)/len(overalls), 1),
     },
+    "accuracy": accuracy_report,
     "device": str(DEVICE),
     "history_tail": history[-5:],
 }
@@ -1436,11 +1704,28 @@ log("Training complete!")
 log(f"  scorer.pt        → {MODEL_OUT}")
 log(f"  tokenizer.json   → {TOKEN_OUT}")
 log(f"  model_meta.json  → {META_OUT}")
-log(f"  val_mae          : {best_val_mae:.4f}  (was 5.68 in v3, 53pt in v2)")
+log(f"  val_mae          : {best_val_mae:.4f}")
+log(f"  accuracy (±10pt) : {accuracy_report['headline_accuracy_pct']}%")
+log(f"  bucket separation: {'OK' if accuracy_report['bucket_ordering_monotonic'] else 'FAILED — see warning above'}")
+log("  NOTE: val_mae is NOT comparable to older runs (v3 reported 5.68) — that run's")
+log("  labels were compressed into a 0-85 range with mean 21, which trivially shrinks")
+log("  MAE without the model being more accurate. Judge this run on accuracy% above,")
+log("  not on whether val_mae looks smaller or larger than a previous run's number.")
 log(f"  labeled pairs    : {len(labeled)}")
 log(f"  total session    : {elapsed_str()}")
 log("="*55, sep=False)
+if not accuracy_report["bucket_ordering_monotonic"]:
+    log("⚠ DO NOT DEPLOY THIS MODEL — bucket ordering failed, it can't reliably tell")
+    log("  good resumes from bad ones. Re-check the labeling quality gate output above.")
+elif accuracy_report["headline_accuracy_pct"] < 40:
+    log("⚠ Headline accuracy is below 40% — review per-dimension MAE and bucket means")
+    log("  above before deploying. Consider more training pairs or checking label quality.")
+else:
+    log("✓ Quality checks passed — safe to download and deploy.")
 log("Next steps:")
-log("  1. Download scorer.pt + tokenizer.json from /kaggle/working")
-log("  2. Replace backend/models/scorer.pt + tokenizer.json")
-log("  3. Restart the backend")
+log("  1. Download scorer.pt + tokenizer.json + model_meta.json from /kaggle/working")
+log("  2. Replace all three files in backend/models/")
+log("     (model_meta.json matters — its 'version' field controls whether the backend")
+log("      applies the legacy score-stretch correction or trusts raw output directly)")
+log("  3. Restart the backend — check startup logs for 'Neural scorer ready' with")
+log("     headline_accuracy_pct matching what was printed above")

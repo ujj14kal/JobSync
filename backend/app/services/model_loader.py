@@ -164,6 +164,34 @@ def get_scorer():
     return _scorer
 
 
+_model_meta_cache: Optional[dict] = None
+
+
+def get_model_meta() -> Optional[dict]:
+    """
+    Returns the parsed contents of models/model_meta.json (version, accuracy report,
+    training data source, etc.), or None if it doesn't exist. Cached after first read —
+    call invalidate_model_meta_cache() if a new model was just deployed onto a running process.
+    """
+    global _model_meta_cache
+    if _model_meta_cache is not None:
+        return _model_meta_cache
+    meta_path = MODELS_DIR / "model_meta.json"
+    if not meta_path.exists():
+        return None
+    try:
+        _model_meta_cache = json.loads(meta_path.read_text())
+        return _model_meta_cache
+    except Exception as e:
+        logger.warning("Failed to read model_meta.json", error=str(e))
+        return None
+
+
+def invalidate_model_meta_cache() -> None:
+    global _model_meta_cache
+    _model_meta_cache = None
+
+
 # ─── Loader ───────────────────────────────────────────────────────────────────
 
 def load_models_into_memory() -> bool:
@@ -320,6 +348,27 @@ def _load_v2_minilm(tok_data: dict, torch, nn) -> bool:
 
     _is_minilm = True
     _loaded    = True
+
+    meta = get_model_meta()
+    if meta:
+        acc = meta.get("accuracy", {})
+        logger.info(
+            "Neural scorer ready",
+            version=meta.get("version"),
+            trained_at=meta.get("trained_at"),
+            label_strategy=meta.get("label_strategy"),
+            headline_accuracy_pct=acc.get("headline_accuracy_pct"),
+            bucket_ordering_monotonic=acc.get("bucket_ordering_monotonic"),
+            score_dist=meta.get("score_dist"),
+        )
+        if acc and not acc.get("bucket_ordering_monotonic", True):
+            logger.warning(
+                "Deployed model failed bucket separation at training time — "
+                "it may not reliably distinguish good resumes from bad ones",
+            )
+    else:
+        logger.warning("Neural scorer loaded but no model_meta.json found — accuracy unknown")
+
     return True
 
 

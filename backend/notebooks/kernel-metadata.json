@@ -5,13 +5,15 @@
   "language": "python",
   "kernel_type": "script",
   "is_private": true,
-  "enable_gpu": true,
+  "enable_gpu": false,
   "enable_internet": true,
   "dataset_sources": [
     "snehaanbhawal/resume-dataset",
     "arshkon/linkedin-job-postings",
     "jillanisofttech/updated-resume-dataset",
     "adityarajsrv/job-descriptions-2025-tech-and-non-tech-roles",
+    "promptcloud/jobs-on-naukricom",
+    "shree0910/india-tech-job-market-2026-23k-records",
     "ujj14kal/jobsync-pairs-cache"
   ],
   "competition_sources": [],

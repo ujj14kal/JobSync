@@ -318,9 +318,17 @@ class NeuralScorerPredictor:
             scores_list = raw.squeeze(0).tolist()
 
         def _calibrate(s: float) -> float:
-            # v3 training targets clustered in 0-85 range (mean ~21).
-            # Power transform stretches the distribution so scores feel natural:
-            # raw 20 → 35, raw 50 → 66, raw 85 → 91.
+            # NOTE: this predictor is not used by the live scoring path (ai_scorer.py
+            # calls app.services.model_loader directly) — it's kept for the legacy
+            # neural_trainer.py pipeline. If you wire this back in, check whether the
+            # loaded model's meta["version"] >= 5: v5+ training rescales labels to the
+            # true 0-100 range already, so this stretch should be skipped (see the
+            # identical fix in ai_scorer.py's _try_neural_scoring._calibrate).
+            if self.meta.get("version", 0) >= 5:
+                return round(max(0.0, min(100.0, s)), 1)
+            # Pre-v5 training targets clustered in 0-85 range (mean ~21) due to a
+            # labeler that defaulted to low/mid scores. Power transform stretches the
+            # distribution so scores feel natural: raw 20 → 35, raw 50 → 66, raw 85 → 91.
             c = max(0.0, min(100.0, s))
             return round((c / 100.0) ** 0.60 * 100.0, 1)
 

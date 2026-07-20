@@ -31,11 +31,21 @@ async def model_status(_: str = Depends(get_current_user_id)):
     """Full status of all AI models: neural scorer, embedder, calibrator, recruiter-fit."""
     from app.services.score_calibrator import get_calibrator
     from app.services.jobsync_neural_scorer import scorer_status
+    from app.services.model_loader import get_model_meta, is_loaded
 
     calibrator = get_calibrator()
+    live_meta = get_model_meta()
 
     return {
         "neural_scorer": scorer_status(),
+        "live_neural_model": {
+            "loaded": is_loaded(),
+            "version": live_meta.get("version") if live_meta else None,
+            "trained_at": live_meta.get("trained_at") if live_meta else None,
+            "label_strategy": live_meta.get("label_strategy") if live_meta else None,
+            "score_dist": live_meta.get("score_dist") if live_meta else None,
+            "accuracy": live_meta.get("accuracy") if live_meta else None,
+        },
         "recruiter_fit_predictor": training_status(),
         "embedding_model": get_embed_info(),
         "fine_tuned_embedder": get_model_info(),
