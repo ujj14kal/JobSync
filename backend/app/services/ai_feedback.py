@@ -17,6 +17,7 @@ import structlog
 
 from app.services.local_inference import llm_call
 from app.services.concurrency_manager import LLMSlot, LLMOverloadError
+from app.services.text_utils import smart_truncate_jd
 
 logger = structlog.get_logger()
 
@@ -51,7 +52,7 @@ Give brutally honest, highly specific feedback — reference actual content from
 {resume_text[:3000]}
 
 === JOB DESCRIPTION ===
-{job_text[:2000]}
+{smart_truncate_jd(job_text, 2000)}
 
 === ATS SCORES ===
 {score_line}
@@ -133,7 +134,7 @@ async def generate_recruiter_feedback_claude(
 {resume_text[:4000]}
 
 === JOB DESCRIPTION ===
-{job_text[:2500]}
+{smart_truncate_jd(job_text, 2500)}
 
 === ATS SCORES (JobSynk Neural Scorer) ===
 {score_line}

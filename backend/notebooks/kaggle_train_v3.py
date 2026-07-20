@@ -658,6 +658,40 @@ for cat, jds in SYNTHETIC_JDS.items():
     else:
         jd_by_cat[cat].extend(jds)
 
+# ── Smart JD truncation ─────────────────────────────────────────────────────
+# Kept identical to backend/app/services/text_utils.py:smart_truncate_jd — a
+# mismatch between how job text gets truncated at train time vs. production
+# inference time would just recreate a version of the exact bug this fixes.
+# See that file's docstring for the full rationale (confirmed root cause: a
+# real Google internship posting had its "Minimum qualifications:" section
+# start at character 3,417, well past a naive 2,000-char cutoff).
+_JD_SECTION_MARKERS = [
+    "minimum qualifications", "preferred qualifications", "required qualifications",
+    "basic qualifications", "requirements:", "responsibilities:", "key responsibilities",
+    "what you'll do", "what you will do", "about the job", "about the role",
+    "role overview", "job description", "your role", "what you bring",
+    "skills required", "required skills", "must have", "qualifications:",
+    "duties and responsibilities", "job summary", "position summary",
+    "what we're looking for", "who you are", "the impact you'll have",
+]
+
+def smart_truncate_jd(text, max_chars=2000, head_reserve=250):
+    if not text or len(text) <= max_chars:
+        return text
+    lower = text.lower()
+    earliest_idx = None
+    for marker in _JD_SECTION_MARKERS:
+        idx = lower.find(marker)
+        if idx != -1 and (earliest_idx is None or idx < earliest_idx):
+            earliest_idx = idx
+    if earliest_idx is None or earliest_idx <= head_reserve:
+        return text[:max_chars]
+    head = text[:head_reserve].rstrip()
+    remaining_budget = max_chars - len(head) - 5
+    body = text[earliest_idx:earliest_idx + remaining_budget]
+    return f"{head}\n...\n{body}"
+
+
 def sample_resume(cat, exclude=None):
     pool = [r for r in resume_by_cat.get(cat, []) if r != exclude]
     if not pool:
@@ -817,7 +851,7 @@ def label_pair(resume: str, jd: str, retries: int = 3) -> dict | None:
 
     prompt = LABEL_PROMPT.format(
         resume=resume[:3000].replace("{","(").replace("}",")"),
-        jd=jd[:2000].replace("{","(").replace("}",")")
+        jd=smart_truncate_jd(jd, 2000).replace("{","(").replace("}",")")
     )
 
     for attempt in range(retries):

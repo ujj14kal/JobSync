@@ -22,6 +22,7 @@ from app.services.ai_feedback import (
 )
 from app.services.claude_client import get_user_plan, get_user_credits, consume_credit, get_monthly_usage
 from app.services.embedding_service import embed_text
+from app.services.text_utils import smart_truncate_jd
 from app.services.cache_service import (
     get_cached_analysis,
     get_user_analyses_today,
@@ -280,7 +281,7 @@ async def run_analysis(
         if not _r_emb or not _j_emb:
             _r_emb_t, _j_emb_t = await asyncio.gather(
                 asyncio.to_thread(embed_text, resume_text[:3000]) if not _r_emb else asyncio.sleep(0, result=_r_emb),
-                asyncio.to_thread(embed_text, job_text[:3000])    if not _j_emb else asyncio.sleep(0, result=_j_emb),
+                asyncio.to_thread(embed_text, smart_truncate_jd(job_text, 3000)) if not _j_emb else asyncio.sleep(0, result=_j_emb),
             )
             _r_emb = _r_emb or _r_emb_t
             _j_emb = _j_emb or _j_emb_t

@@ -36,6 +36,7 @@ import structlog
 from app.core.config import settings
 from app.services.groq_limiter import groq_call
 from app.services.score_calibrator import get_calibrator
+from app.services.text_utils import smart_truncate_jd
 
 logger = structlog.get_logger()
 
@@ -174,7 +175,7 @@ async def _try_claude_scoring(
 
         prompt = _SCORING_PROMPT.format(
             resume_text=resume_text[:3000],
-            job_text=job_text[:2000],
+            job_text=smart_truncate_jd(job_text, 2000),
         )
         raw = await claude_complete(
             user_id=user_id,
@@ -258,7 +259,7 @@ async def _try_neural_scoring(
                     # v2: MiniLM embeddings (384-dim, L2-normalised)
                     sentence_model = get_sentence_model()
                     embs = sentence_model.encode(
-                        [resume_text[:3000], job_text[:2000]],
+                        [resume_text[:3000], smart_truncate_jd(job_text, 2000)],
                         normalize_embeddings=True,
                         show_progress_bar=False,
                     )
@@ -270,7 +271,7 @@ async def _try_neural_scoring(
                     _, tokenizer, _ = get_loaded_models()
                     encoder, _, _   = get_loaded_models()
                     r_ids = torch.tensor([tokenizer.encode(resume_text[:3000])], dtype=torch.long)
-                    j_ids = torch.tensor([tokenizer.encode(job_text[:2000])],    dtype=torch.long)
+                    j_ids = torch.tensor([tokenizer.encode(smart_truncate_jd(job_text, 2000))], dtype=torch.long)
                     r_msk = torch.tensor([tokenizer.mask(r_ids[0].tolist())],    dtype=torch.long)
                     j_msk = torch.tensor([tokenizer.mask(j_ids[0].tolist())],    dtype=torch.long)
                     r_t   = encoder(r_ids, r_msk)
@@ -347,7 +348,7 @@ async def _try_groq_scoring(
 ) -> dict | None:
     """Attempt LLM-as-judge scoring via Groq. Returns None on failure."""
     resume_snippet = resume_text[:3000].strip()
-    job_snippet = job_text[:2000].strip()
+    job_snippet = smart_truncate_jd(job_text, 2000).strip()
 
     prompt = _SCORING_PROMPT.format(
         resume_text=resume_snippet,
@@ -603,7 +604,7 @@ async def _rule_fallback(
     from app.services.embedding_service import embed_text
 
     resume_emb = embed_text(resume_text[:3000])
-    job_emb = embed_text(job_text[:3000])
+    job_emb = embed_text(smart_truncate_jd(job_text, 3000))
 
     result = compute_all_scores(
         resume_text=resume_text,

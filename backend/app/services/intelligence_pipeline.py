@@ -46,6 +46,7 @@ from app.services.recruiter_fit import predict_recruiter_fit, serialize_fit_resu
 from app.services.feedback_loop import get_cohort_percentile, _categorize_role
 from app.services.ats_engine import compute_all_scores
 from app.services.ai_feedback import generate_recruiter_feedback, generate_bullet_rewrites
+from app.services.text_utils import smart_truncate_jd
 from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
@@ -314,7 +315,7 @@ async def _compute_ats(
     if resume_embedding is None:
         resume_embedding = await asyncio.to_thread(embed_text, resume_text[:2000])
     if job_embedding is None:
-        job_embedding = await asyncio.to_thread(embed_text, job_text[:2000])
+        job_embedding = await asyncio.to_thread(embed_text, smart_truncate_jd(job_text, 2000))
 
     return await asyncio.to_thread(
         compute_all_scores,
