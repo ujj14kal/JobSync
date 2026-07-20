@@ -220,7 +220,7 @@ export interface Analysis {
   recruiter_summary: string;
 
   // AI metadata
-  scored_by?: "jobsync-custom-ai" | "groq-llm" | "ai" | "rules_fallback";
+  scored_by?: "jobsync-custom-ai" | "claude-sonnet" | "groq-llm" | "ai" | "rules_fallback";
   hire_recommendation?: string;
   seniority_match?: string;
   ai_reasoning?: Record<string, string>;

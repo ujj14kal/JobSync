@@ -151,6 +151,61 @@ function AnalysisProcessingState({ status }: { status: string }) {
   );
 }
 
+// ── Scoring provenance badge — shows which engine actually produced this score ──
+// The neural engine can take several minutes to finish loading after a cold start
+// (Cloud Run throttles CPU outside active requests), so scores can genuinely come
+// from different tiers run to run. This makes that visible instead of silent.
+const SCORING_PROVENANCE = {
+  "jobsync-custom-ai": {
+    label: "Neural Engine",
+    tip: "Scored by JobSync's own trained neural model — the most accurate tier, verified against held-out validation data.",
+    icon: Brain,
+    color: "#10b981",
+  },
+  "claude-sonnet": {
+    label: "Claude AI",
+    tip: "Scored by Claude Sonnet (Pro tier).",
+    icon: Sparkles,
+    color: "#8b5cf6",
+  },
+  "groq-llm": {
+    label: "AI Fallback",
+    tip: "The neural engine wasn't loaded yet for this analysis (this happens right after a cold start) — scored by a general-purpose LLM instead.",
+    icon: Sparkles,
+    color: "#3b82f6",
+  },
+  "ai": {
+    label: "AI Scored",
+    tip: "Scored by an AI model.",
+    icon: Sparkles,
+    color: "#3b82f6",
+  },
+  "rules_fallback": {
+    label: "Rule-based Fallback",
+    tip: "Neither the neural engine nor AI scoring was available for this analysis — scored using keyword and formatting heuristics only. Less precise than AI scoring; try re-running the analysis.",
+    icon: AlertTriangle,
+    color: "#f59e0b",
+  },
+} as const;
+
+function ScoringProvenanceBadge({ scoredBy }: { scoredBy?: string }) {
+  const info = scoredBy ? SCORING_PROVENANCE[scoredBy as keyof typeof SCORING_PROVENANCE] : null;
+  if (!info) return null;
+  const Icon = info.icon;
+  return (
+    <div
+      className="relative group inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-medium cursor-default"
+      style={{ background: `${info.color}14`, borderColor: `${info.color}30`, color: info.color }}
+    >
+      <Icon className="w-2.5 h-2.5" />
+      {info.label}
+      <div className="pointer-events-none absolute top-full left-0 mt-1.5 w-56 px-3 py-2 rounded-lg bg-[var(--bg-overlay)] border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)] leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-lg font-normal normal-case">
+        {info.tip}
+      </div>
+    </div>
+  );
+}
+
 export function AnalysisResultClient({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [pollingActive, setPollingActive] = useState(true);
@@ -333,9 +388,12 @@ export function AnalysisResultClient({ id }: { id: string }) {
 
         {/* Quick score pills */}
         <div className="flex-1">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
-            <span className="text-[10px] text-[var(--accent-hover)] font-medium">JobSynk AI Score</span>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Brain className="w-3 h-3 text-[var(--accent-primary)]" />
+              <span className="text-[10px] text-[var(--accent-hover)] font-medium">JobSynk AI Score</span>
+            </div>
+            <ScoringProvenanceBadge scoredBy={analysis.scored_by} />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
